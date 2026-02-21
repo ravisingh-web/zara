@@ -1,0 +1,29 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+build/
+*.iml
+
+# Android
+.gradle/
+android/.gradle/
+android/app/.cxx/
+local.properties
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Environment & Secrets
+.env
+*.jks
+*.keystore
+**/api_keys.dart
+
+# Logs
+*.log
+
+# BUT: APK folder ko explicitly include karenge (agar push karna hai)
+!build/app/outputs/flutter-apk/*.apk
