@@ -1,0 +1,63 @@
+# .github/workflows/build-apk.yml
+# Z.A.R.A. — GitHub Actions APK Build (Android ARM64)
+
+name: 🤖 Z.A.R.A. Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Manual trigger button
+
+jobs:
+  build-apk:
+    name: 📦 Build Debug APK (arm64)
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Code checkout
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Flutter setup
+      - name: 🦋 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      # 3. Java setup (required for Android builds)
+      - name: ☕ Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 4. Get dependencies
+      - name: 📦 Install dependencies
+        run: flutter pub get
+
+      # 5. Analyze code (optional but recommended)
+      - name: 🔍 Analyze code
+        run: flutter analyze
+
+      # 6. Build Debug APK (ARM64 only - faster)
+      - name: 🔨 Build APK
+        run: flutter build apk --debug --target-platform android-arm64 --split-per-abi
+
+      # 7. Upload APK as artifact (download ke liye)
+      - name: 📤 Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zara-debug-apk-arm64
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
+          retention-days: 7
+
+      # 8. Print build info
+      - name: 📋 Build Complete
+        run: |
+          echo "✅ Z.A.R.A. APK Build Successful!"
+          echo "📦 APK: build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk"
+          echo "⬇️ Download from: Actions → Latest Run → Artifacts"

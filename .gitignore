@@ -11,8 +11,9 @@ build/
 android/.gradle/
 android/app/.cxx/
 local.properties
+android/key.properties
 
-# System files
+# System
 .DS_Store
 Thumbs.db
 
@@ -21,9 +22,10 @@ Thumbs.db
 *.jks
 *.keystore
 **/api_keys.dart
+**/secrets.dart
 
 # Logs
 *.log
 
-# BUT: APK folder ko explicitly include karenge (agar push karna hai)
-!build/app/outputs/flutter-apk/*.apk
+# GitHub Actions (optional)
+.github/workflows/*.log
