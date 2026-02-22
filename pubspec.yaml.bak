@@ -15,48 +15,48 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # ========== State Management ==========
+  # State Management
   provider: ^6.1.5+1
 
-  # ========== Persistent Storage (API Keys) ==========
+  # Persistent Storage (For API Keys - NO HARDCODING)
   shared_preferences: ^2.3.3
 
-  # ========== HTTP for API Calls ==========
+  # HTTP for API Calls
   http: ^1.6.0
   dio: ^5.4.0
 
-  # ========== Google Gemini AI ==========
+  # Google Gemini AI
   google_generative_ai: ^0.4.7
 
-  # ========== Device Metrics ==========
+  # Device Metrics
   battery_plus: ^6.1.0
   device_info_plus: ^11.1.0
   connectivity_plus: ^6.1.0
 
-  # ========== Storage & Files ==========
+  # Storage & Files
   path_provider: ^2.1.5
   permission_handler: ^11.3.1
 
-  # ========== Camera ==========
+  # Camera
   camera: ^0.11.0+2
   image_picker: ^1.1.2
 
-  # ========== Location ==========
+  # Location
   geolocator: ^13.0.2
   geocoding: ^3.0.0
 
-  # ========== Code Analysis ==========
+  # Code Analysis
   analyzer: ^7.3.0
   dart_style: ^3.0.1
 
-  # ========== Email & URLs ==========
+  # Email & URLs
   url_launcher: ^6.3.1
 
-  # ========== UI & Fonts ==========
+  # UI & Fonts
   google_fonts: ^8.0.2
   flutter_animate: ^4.5.0
 
-  # ========== Utilities ==========
+  # Utilities
   intl: ^0.20.2
   vector_math: ^2.2.0
 
@@ -67,11 +67,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
   fonts:
     - family: RobotoMono
       fonts:
         - asset: assets/fonts/RobotoMono-Regular.ttf
-
   assets:
     - assets/images/
