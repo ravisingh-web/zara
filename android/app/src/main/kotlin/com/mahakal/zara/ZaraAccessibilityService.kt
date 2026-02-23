@@ -25,29 +25,32 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
+// ✅ Missing Import Added
+import com.mahakal.zara.MainActivity
+
 class ZaraAccessibilityService : AccessibilityService() {
-    
+
     companion object {
         const val TAG = "ZaraAccessibility"
         const val CHANNEL = "com.mahakal.zara/accessibility"
-        
+
         var instance: ZaraAccessibilityService? = null
         private var methodChannel: MethodChannel? = null
-        
+
         // Security tracking
         private var wrongPasswordCount = 0
         private var lastUnlockAttempt = 0L
         private val LOCK_SCREEN_PACKAGES = listOf("com.android.systemui", "com.android.keyguard")
-        
+
         // Auto-type queue
         private var typeTextQueue = mutableListOf<String>()
         private var isTyping = false
         private val handler = Handler(Looper.getMainLooper())
-        
+
         fun setMethodChannel(channel: MethodChannel) {
             methodChannel = channel
         }
-        
+
         fun sendToFlutter(eventType: String, data: Map<String, Any>) {
             methodChannel?.invokeMethod("onSecurityEvent", mapOf(
                 "type" to eventType,
@@ -56,14 +59,15 @@ class ZaraAccessibilityService : AccessibilityService() {
             ))
         }
     }
-    
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        
+
         val info = AccessibilityServiceInfo().apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGE or
-                        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGE or
+            // ✅ Spelling fixed: Added 'D' at the end of CHANGED
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
+                        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
                         AccessibilityEvent.TYPE_VIEW_CLICKED or
                         AccessibilityEvent.TYPE_VIEW_FOCUSED or
                         AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
@@ -74,101 +78,102 @@ class ZaraAccessibilityService : AccessibilityService() {
             notificationTimeout = 100
         }
         setServiceInfo(info)
-        
+
         createNotificationChannel()
         startForegroundNotification()
-        
+
         Log.d(TAG, "✅ Z.A.R.A. Accessibility Service Connected with Auto-Type")
     }
-    
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-        
+
         when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGE -> handleWindowStateChange(event)
+            // ✅ Spelling fixed here too
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> handleWindowStateChange(event)
             AccessibilityEvent.TYPE_VIEW_CLICKED -> handleViewClicked(event)
             AccessibilityEvent.TYPE_VIEW_FOCUSED -> handleViewFocused(event)
         }
     }
-    
+
     private fun handleWindowStateChange(event: AccessibilityEvent) {
         val packageName = event.packageName?.toString() ?: return
-        
+
         if (LOCK_SCREEN_PACKAGES.contains(packageName)) {
             sendToFlutter("lock_screen", mapOf("visible" to true, "package" to packageName))
         }
     }
-    
+
     private fun handleViewClicked(event: AccessibilityEvent) {
         val packageName = event.packageName?.toString() ?: return
-        
+
         if (LOCK_SCREEN_PACKAGES.contains(packageName)) {
             val nodeInfo = event.source
             val text = nodeInfo?.text?.toString()?.lowercase() ?: ""
-            
-            if (text.contains("wrong") || text.contains("incorrect") || 
+
+            if (text.contains("wrong") || text.contains("incorrect") ||
                 text.contains("invalid") || text.contains("galat")) {
                 wrongPasswordCount++
                 lastUnlockAttempt = System.currentTimeMillis()
-                
+
                 Log.w(TAG, "⚠️ Wrong password attempt #$wrongPasswordCount")
                 sendToFlutter("wrong_password", mapOf(
                     "count" to wrongPasswordCount,
                     "timestamp" to lastUnlockAttempt
                 ))
-                
+
                 if (wrongPasswordCount >= 2) {
                     triggerIntruderCapture()
                 }
             }
         }
     }
-    
+
     private fun handleViewFocused(event: AccessibilityEvent) {
         val nodeInfo = event.source ?: return
-        
+
         // Check if text input field is focused
         if (nodeInfo.className?.contains("EditText", ignoreCase = true) == true ||
             nodeInfo.className?.contains("TextInput", ignoreCase = true) == true) {
-            
+
             Log.d(TAG, "📝 Text input field focused: ${nodeInfo.packageName}")
             sendToFlutter("text_field_focused", mapOf(
                 "package" to nodeInfo.packageName.toString(),
                 "hint" to (nodeInfo.hintText?.toString() ?: ""),
                 "canEdit" to nodeInfo.isEditable
             ))
-            
+
             // Auto-type if there's text in queue
             if (typeTextQueue.isNotEmpty() && !isTyping) {
                 processTypeQueue(nodeInfo)
             }
         }
     }
-    
+
     // ========== AUTO-TYPE FUNCTIONS ==========
-    
+
     fun typeText(text: String) {
         Log.d(TAG, "⌨️ Queuing text for auto-type: ${text.length} chars")
         typeTextQueue.add(text)
-        
+
         if (!isTyping) {
             // Find and focus on text field
             findAndFocusTextField()
         }
     }
-    
+
     private fun findAndFocusTextField() {
         if (rootInActiveWindow == null) {
             Log.w(TAG, "⚠️ No active window for text input")
             return
         }
-        
+
         // Search for editable text field
         val textField = findTextField(rootInActiveWindow)
         if (textField != null) {
             Log.d(TAG, "✓ Text field found, clicking to focus...")
             textField.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            
+
             // Wait for focus then type
             handler.postDelayed({
                 if (textField.isFocused) {
@@ -183,15 +188,15 @@ class ZaraAccessibilityService : AccessibilityService() {
             sendToFlutter("auto_type_error", mapOf("message" to "No text input field found"))
         }
     }
-    
+
     private fun findTextField(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (node == null) return null
-        
+
         // Check if this node is editable
         if (node.isEditable && node.isEnabled && node.isVisibleToUser) {
             return node
         }
-        
+
         // Search children
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
@@ -199,36 +204,36 @@ class ZaraAccessibilityService : AccessibilityService() {
             child?.recycle()
             if (found != null) return found
         }
-        
+
         return null
     }
-    
+
     private fun processTypeQueue(textField: AccessibilityNodeInfo) {
         if (typeTextQueue.isEmpty()) {
             isTyping = false
             return
         }
-        
+
         isTyping = true
         val textToType = typeTextQueue.removeAt(0)
-        
+
         Log.d(TAG, "⌨️ Typing ${textToType.length} characters...")
-        
+
         // Use Clipboard method (more reliable than keystrokes)
         typeViaClipboard(textField, textToType)
     }
-    
+
     private fun typeViaClipboard(textField: AccessibilityNodeInfo, text: String) {
         try {
             // Set text directly using ACTION_SET_TEXT
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val arguments = android.os.Bundle()
                 arguments.putCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, 
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
                     text
                 )
                 textField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
-                
+
                 Log.d(TAG, "✓ Text set successfully via ACTION_SET_TEXT")
                 sendToFlutter("auto_type_success", mapOf(
                     "characters" to text.length,
@@ -240,29 +245,29 @@ class ZaraAccessibilityService : AccessibilityService() {
             // Fallback: Try keystroke simulation
             typeViaKeystrokes(textField, text)
         }
-        
+
         isTyping = false
-        
+
         // Process next in queue
         if (typeTextQueue.isNotEmpty()) {
             handler.postDelayed({ findAndFocusTextField() }, 500)
         }
     }
-    
+
     private fun typeViaKeystrokes(textField: AccessibilityNodeInfo, text: String) {
         // Fallback method - simulate individual keystrokes
         Log.d(TAG, "⌨️ Fallback: Typing via keystrokes...")
-        
+
         for ((index, char) in text.withIndex()) {
             handler.postDelayed({
                 val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
                 event.packageName = textField.packageName
                 event.className = textField.className
                 event.text.add(char.toString())
-                
+
                 // Send text change event
                 sendAccessibilityEvent(event)
-                
+
                 if (index == text.length - 1) {
                     Log.d(TAG, "✓ Keystroke typing completed")
                     sendToFlutter("auto_type_success", mapOf(
@@ -272,13 +277,13 @@ class ZaraAccessibilityService : AccessibilityService() {
                 }
             }, (index * 50).toLong()) // 50ms per character
         }
-        
+
         isTyping = false
     }
-    
+
     fun clickOnText(text: String): Boolean {
         Log.d(TAG, "👆 Clicking on: $text")
-        
+
         val node = findNodeByText(rootInActiveWindow, text)
         if (node != null) {
             val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -286,29 +291,29 @@ class ZaraAccessibilityService : AccessibilityService() {
             Log.d(TAG, "✓ Click ${if (result) "successful" else "failed"}")
             return result
         }
-        
+
         Log.w(TAG, "⚠️ Node not found: $text")
         return false
     }
-    
+
     private fun findNodeByText(node: AccessibilityNodeInfo?, text: String): AccessibilityNodeInfo? {
         if (node == null) return null
-        
+
         val nodeText = node.text?.toString()?.lowercase() ?: ""
         if (nodeText.contains(text.lowercase())) {
             return node
         }
-        
+
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
             val found = findNodeByText(child, text)
             child?.recycle()
             if (found != null) return found
         }
-        
+
         return null
     }
-    
+
     fun openApp(packageName: String): Boolean {
         try {
             val intent = packageManager.getLaunchIntentForPackage(packageName)
@@ -323,9 +328,9 @@ class ZaraAccessibilityService : AccessibilityService() {
         }
         return false
     }
-    
+
     // ========== NOTIFICATION & LIFECYCLE ==========
-    
+
     private fun triggerIntruderCapture() {
         Log.e(TAG, "🚨 INTRUDER DETECTED! Triggering camera…")
         sendToFlutter("intruder_detected", mapOf(
@@ -333,7 +338,7 @@ class ZaraAccessibilityService : AccessibilityService() {
             "wrongAttempts" to wrongPasswordCount
         ))
     }
-    
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -348,38 +353,40 @@ class ZaraAccessibilityService : AccessibilityService() {
             manager.createNotificationChannel(channel)
         }
     }
-    
+
     private fun startForegroundNotification() {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        
+
         val notification: Notification = NotificationCompat.Builder(this, "zara_guardian")
             .setContentTitle("Z.A.R.A. Guardian + Auto-Type Active")
             .setContentText("Ready to code, Sir...")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            // ✅ Replaced with Android's default system icon
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-        
+
         startForeground(1, notification)
     }
-    
+
     override fun onInterrupt() {
         Log.w(TAG, "⚠️ Accessibility Service Interrupted")
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         instance = null
         Log.d(TAG, "❌ Accessibility Service Destroyed")
     }
-    
+
     fun resetWrongPasswordCount() {
         wrongPasswordCount = 0
         Log.d(TAG, "✓ Wrong password count reset")
     }
 }
+
