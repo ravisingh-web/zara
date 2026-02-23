@@ -6,10 +6,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:zara_ai/core/constants/app_colors.dart';
-import 'package:zara_ai/core/constants/app_text_styles.dart';
-import 'package:zara_ai/core/constants/api_keys.dart';
-import 'package:zara_ai/services/ai_api_service.dart';
+import 'package:zara/core/constants/app_colors.dart';
+import 'package:zara/core/constants/app_text_styles.dart';
+import 'package:zara/core/constants/api_keys.dart';
+import 'package:zara/services/ai_api_service.dart';
 
 /// Settings screen for Z.A.R.A. — manage API keys, voice, and language
 /// All changes persist via SharedPreferences — no code editing needed!

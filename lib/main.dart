@@ -10,18 +10,18 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 // Core imports
-import 'package:zara_ai/core/constants/api_keys.dart';
-import 'package:zara_ai/core/constants/app_colors.dart';
-import 'package:zara_ai/core/constants/app_text_styles.dart';
+import 'package:zara/core/constants/api_keys.dart';
+import 'package:zara/core/constants/app_colors.dart';
+import 'package:zara/core/constants/app_text_styles.dart';
 
 
 // Feature imports
-import 'package:zara_ai/features/zara_engine/providers/zara_provider.dart';
-import 'package:zara_ai/features/hologram_ui/screens/zara_home_screen.dart';
+import 'package:zara/features/zara_engine/providers/zara_provider.dart';
+import 'package:zara/features/hologram_ui/screens/zara_home_screen.dart';
 
 // Services imports
-import 'package:zara_ai/services/accessibility_service.dart';
-import 'package:zara_ai/services/ai_api_service.dart';
+import 'package:zara/services/accessibility_service.dart';
+import 'package:zara/services/ai_api_service.dart';
 
 /// Application entry point
 void main() async {
