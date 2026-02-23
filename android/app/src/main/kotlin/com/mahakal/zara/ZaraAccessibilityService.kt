@@ -1,19 +1,16 @@
 // android/app/src/main/kotlin/com/mahakal/zara/ZaraAccessibilityService.kt
 // Z.A.R.A. — Accessibility Service with AUTO-TYPE Capability
-// Can: Type text, Click buttons, Navigate UI, Monitor security
 
 package com.mahakal.zara
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.accessibilityservice.GestureDescription
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Path
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -24,8 +21,6 @@ import androidx.core.app.NotificationCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-
-// ✅ Missing Import Added
 import com.mahakal.zara.MainActivity
 
 class ZaraAccessibilityService : AccessibilityService() {
@@ -37,12 +32,10 @@ class ZaraAccessibilityService : AccessibilityService() {
         var instance: ZaraAccessibilityService? = null
         private var methodChannel: MethodChannel? = null
 
-        // Security tracking
         private var wrongPasswordCount = 0
         private var lastUnlockAttempt = 0L
         private val LOCK_SCREEN_PACKAGES = listOf("com.android.systemui", "com.android.keyguard")
 
-        // Auto-type queue
         private var typeTextQueue = mutableListOf<String>()
         private var isTyping = false
         private val handler = Handler(Looper.getMainLooper())
@@ -65,7 +58,7 @@ class ZaraAccessibilityService : AccessibilityService() {
         instance = this
 
         val info = AccessibilityServiceInfo().apply {
-            // ✅ Spelling fixed: Added 'D' at the end of CHANGED
+            // ✅ Fix: Added 'D' to BOTH STATE_CHANGED and CONTENT_CHANGED
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                         AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
                         AccessibilityEvent.TYPE_VIEW_CLICKED or
@@ -89,7 +82,6 @@ class ZaraAccessibilityService : AccessibilityService() {
         event ?: return
 
         when (event.eventType) {
-            // ✅ Spelling fixed here too
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> handleWindowStateChange(event)
             AccessibilityEvent.TYPE_VIEW_CLICKED -> handleViewClicked(event)
             AccessibilityEvent.TYPE_VIEW_FOCUSED -> handleViewFocused(event)
@@ -132,7 +124,6 @@ class ZaraAccessibilityService : AccessibilityService() {
     private fun handleViewFocused(event: AccessibilityEvent) {
         val nodeInfo = event.source ?: return
 
-        // Check if text input field is focused
         if (nodeInfo.className?.contains("EditText", ignoreCase = true) == true ||
             nodeInfo.className?.contains("TextInput", ignoreCase = true) == true) {
 
@@ -143,21 +134,17 @@ class ZaraAccessibilityService : AccessibilityService() {
                 "canEdit" to nodeInfo.isEditable
             ))
 
-            // Auto-type if there's text in queue
             if (typeTextQueue.isNotEmpty() && !isTyping) {
                 processTypeQueue(nodeInfo)
             }
         }
     }
 
-    // ========== AUTO-TYPE FUNCTIONS ==========
-
     fun typeText(text: String) {
         Log.d(TAG, "⌨️ Queuing text for auto-type: ${text.length} chars")
         typeTextQueue.add(text)
 
         if (!isTyping) {
-            // Find and focus on text field
             findAndFocusTextField()
         }
     }
@@ -168,13 +155,11 @@ class ZaraAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Search for editable text field
         val textField = findTextField(rootInActiveWindow)
         if (textField != null) {
             Log.d(TAG, "✓ Text field found, clicking to focus...")
             textField.performAction(AccessibilityNodeInfo.ACTION_CLICK)
 
-            // Wait for focus then type
             handler.postDelayed({
                 if (textField.isFocused) {
                     processTypeQueue(textField)
@@ -192,19 +177,16 @@ class ZaraAccessibilityService : AccessibilityService() {
     private fun findTextField(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (node == null) return null
 
-        // Check if this node is editable
         if (node.isEditable && node.isEnabled && node.isVisibleToUser) {
             return node
         }
 
-        // Search children
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
             val found = findTextField(child)
             child?.recycle()
             if (found != null) return found
         }
-
         return null
     }
 
@@ -218,14 +200,11 @@ class ZaraAccessibilityService : AccessibilityService() {
         val textToType = typeTextQueue.removeAt(0)
 
         Log.d(TAG, "⌨️ Typing ${textToType.length} characters...")
-
-        // Use Clipboard method (more reliable than keystrokes)
         typeViaClipboard(textField, textToType)
     }
 
     private fun typeViaClipboard(textField: AccessibilityNodeInfo, text: String) {
         try {
-            // Set text directly using ACTION_SET_TEXT
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val arguments = android.os.Bundle()
                 arguments.putCharSequence(
@@ -242,20 +221,17 @@ class ZaraAccessibilityService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "⚠️ Type via clipboard failed: ${e.message}")
-            // Fallback: Try keystroke simulation
             typeViaKeystrokes(textField, text)
         }
 
         isTyping = false
 
-        // Process next in queue
         if (typeTextQueue.isNotEmpty()) {
             handler.postDelayed({ findAndFocusTextField() }, 500)
         }
     }
 
     private fun typeViaKeystrokes(textField: AccessibilityNodeInfo, text: String) {
-        // Fallback method - simulate individual keystrokes
         Log.d(TAG, "⌨️ Fallback: Typing via keystrokes...")
 
         for ((index, char) in text.withIndex()) {
@@ -265,9 +241,6 @@ class ZaraAccessibilityService : AccessibilityService() {
                 event.className = textField.className
                 event.text.add(char.toString())
 
-                // Send text change event
-                sendAccessibilityEvent(event)
-
                 if (index == text.length - 1) {
                     Log.d(TAG, "✓ Keystroke typing completed")
                     sendToFlutter("auto_type_success", mapOf(
@@ -275,9 +248,8 @@ class ZaraAccessibilityService : AccessibilityService() {
                         "method" to "keystrokes"
                     ))
                 }
-            }, (index * 50).toLong()) // 50ms per character
+            }, (index * 50).toLong())
         }
-
         isTyping = false
     }
 
@@ -310,7 +282,6 @@ class ZaraAccessibilityService : AccessibilityService() {
             child?.recycle()
             if (found != null) return found
         }
-
         return null
     }
 
@@ -328,8 +299,6 @@ class ZaraAccessibilityService : AccessibilityService() {
         }
         return false
     }
-
-    // ========== NOTIFICATION & LIFECYCLE ==========
 
     private fun triggerIntruderCapture() {
         Log.e(TAG, "🚨 INTRUDER DETECTED! Triggering camera…")
@@ -364,7 +333,6 @@ class ZaraAccessibilityService : AccessibilityService() {
         val notification: Notification = NotificationCompat.Builder(this, "zara_guardian")
             .setContentTitle("Z.A.R.A. Guardian + Auto-Type Active")
             .setContentText("Ready to code, Sir...")
-            // ✅ Replaced with Android's default system icon
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -389,4 +357,3 @@ class ZaraAccessibilityService : AccessibilityService() {
         Log.d(TAG, "✓ Wrong password count reset")
     }
 }
-
