@@ -8,7 +8,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import '../core/constants/api_keys.dart';
+import 'package:zara/core/constants/api_keys.dart';
 
 /// Centralized AI API service for Z.A.R.A.
 /// Routes requests to appropriate AI provider based on task type:

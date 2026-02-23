@@ -10,18 +10,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 // Core imports
-import '../../../core/constants/api_keys.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/enums/mood_enum.dart';
+import 'package:zara/core/constants/api_keys.dart';
+import 'package:zara/core/constants/app_colors.dart';
+import 'package:zara/core/enums/mood_enum.dart';
 
 // Service imports
-import '../../../services/ai_api_service.dart';
-import '../../../services/camera_service.dart';
-import '../../../services/location_service.dart';
-import '../../../services/accessibility_service.dart';
+import 'package:zara/services/ai_api_service.dart';
+import 'package:zara/services/camera_service.dart';
+import 'package:zara/services/location_service.dart';
+import 'package:zara/services/accessibility_service.dart';
 
-// Model imports
-import '../models/zara_state.dart';
+// Model imports (✅ ADDED 'features/zara_engine/' in path)
+import 'package:zara/features/zara_engine/models/zara_state.dart';
+
 
 /// Main controller for Z.A.R.A. — manages state, mood, commands, and services
 /// Uses Provider/ChangeNotifier pattern for reactive UI updates

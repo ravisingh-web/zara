@@ -9,26 +9,26 @@ import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 // Core imports
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
-import '../../../core/constants/api_keys.dart';
-import '../../../core/enums/mood_enum.dart';
+import 'package:zara/core/constants/app_colors.dart';
+import 'package:zara/core/constants/app_text_styles.dart';
+import 'package:zara/core/constants/api_keys.dart';
+import 'package:zara/core/enums/mood_enum.dart';
 
-// Feature imports
-import '../../zara_engine/providers/zara_provider.dart';
-import '../../zara_engine/models/zara_state.dart';
-import '../widgets/zara_orb_painter.dart';
-import '../widgets/status_header.dart';
-import '../widgets/floating_prompts.dart';
-import '../widgets/central_response_panel.dart';
+// Feature imports (✅ ADDED 'features/' in paths)
+import 'package:zara/features/zara_engine/providers/zara_provider.dart';
+import 'package:zara/features/zara_engine/models/zara_state.dart';
+import 'package:zara/features/hologram_ui/widgets/zara_orb_painter.dart';
+import 'package:zara/features/hologram_ui/widgets/status_header.dart';
+import 'package:zara/features/hologram_ui/widgets/floating_prompts.dart';
+import 'package:zara/features/hologram_ui/widgets/central_response_panel.dart';
 
 // Screen imports
-import '../../../../screens/settings_screen.dart';
+import 'package:zara/screens/settings_screen.dart';
 
 // Service imports
-import '../../../services/ai_api_service.dart';
-import '../../../services/camera_service.dart';
-import '../../../services/location_service.dart';
+import 'package:zara/services/ai_api_service.dart';
+import 'package:zara/services/camera_service.dart';
+import 'package:zara/services/location_service.dart';
 
 class ZaraHomeScreen extends StatefulWidget {
   const ZaraHomeScreen({super.key});
