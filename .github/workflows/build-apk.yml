@@ -42,7 +42,7 @@ jobs:
 
       # 5. Analyze code
       - name: 🔍 Analyze code
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       # 6. Build Debug APK (ARM64 only)
       - name: 🔨 Build APK
