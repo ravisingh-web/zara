@@ -18,28 +18,25 @@ import 'core/constants/app_text_styles.dart';
 import 'features/zara_engine/providers/zara_provider.dart';
 import 'features/hologram_ui/screens/zara_home_screen.dart';
 
-// Services imports (for initialization)
+// Services imports
 import 'services/accessibility_service.dart';
 import 'services/ai_api_service.dart';
 
 /// Application entry point
 void main() async {
-  // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock app to portrait mode (mobile-first design)
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
+  // Lock app to portrait mode
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  // Enable edge-to-edge display (modern Android)
+  // Enable edge-to-edge display (returns void - NO await)
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.edgeToEdge,
     overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
   );
 
-  // Set system bar colors to match app theme
-  await SystemChrome.setSystemUIOverlayStyle(
+  // Set system bar colors
+      SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
@@ -48,53 +45,38 @@ void main() async {
     ),
   );
 
-  // 🔐 Initialize API Keys from SharedPreferences
-  // This loads Gemini, Qwen, Llama keys + voice settings
+  // Initialize API Keys
   await ApiKeys.initialize();
 
-  // 🔧 Initialize Services (Accessibility, AI, etc.)
+  // Initialize Services
   await _initializeServices();
 
-  // Debug logging (removed in production via kDebugMode)
+  // Debug logging
   if (kDebugMode) {
     debugPrint('🤖 Z.A.R.A. Core Initializing...');
     await Future.delayed(const Duration(milliseconds: 800));
-    
     debugPrint('🔐 API Status:');
-    debugPrint('  • Gemini: ${ApiKeys.status['gemini'] ?? false ? "✓" : "✗"}');
-    debugPrint('  • Qwen: ${ApiKeys.status['qwen'] ?? false ? "✓" : "✗"}');
-    debugPrint('  • Llama: ${ApiKeys.status['llama'] ?? false ? "✓" : "✗"}');
+    debugPrint('  • Gemini: ${(ApiKeys.status['gemini'] ?? false) ? "✓" : "✗"}');
+    debugPrint('  • Qwen: ${(ApiKeys.status['qwen'] ?? false) ? "✓" : "✗"}');
+    debugPrint('  • Llama: ${(ApiKeys.status['llama'] ?? false) ? "✓" : "✗"}');
     debugPrint('  • Voice: ${ApiKeys.voiceName} (${ApiKeys.languageCode})');
-    
     if (ApiKeys.isConfigured) {
       debugPrint('✅ All APIs Ready — Full features enabled');
     } else {
       debugPrint('⚠️ Missing APIs: ${ApiKeys.missing.join(", ")}');
-      debugPrint('💡 User can configure in Settings screen');
     }
   }
 
-  // Launch the app
   runApp(const ZaraApp());
 }
 
 /// Initialize all background services
 Future<void> _initializeServices() async {
   try {
-    // Initialize Accessibility Service bridge (for Guardian Mode + Auto-Type)
     await AccessibilityService().initialize();
-    
-    // Initialize AI API Service (for code generation, chat, voice)
-    // No async init needed — lazy loading on first use
-    
-    if (kDebugMode) {
-      debugPrint('✅ Services Initialized');
-    }
+    if (kDebugMode) debugPrint('✅ Services Initialized');
   } catch (e) {
-    if (kDebugMode) {
-      debugPrint('⚠️ Service Init Warning: $e');
-    }
-    // Continue app launch even if some services fail
+    if (kDebugMode) debugPrint('⚠️ Service Init Warning: $e');
   }
 }
 
@@ -107,16 +89,11 @@ class ZaraApp extends StatelessWidget {
     return ChangeNotifierProvider<ZaraController>(
       create: (_) => ZaraController(),
       child: MaterialApp(
-        // App identity
         title: 'Z.A.R.A.',
         debugShowCheckedModeBanner: false,
-
-        // Theme configuration — Holographic Dark UI
         theme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.dark,
-          
-          // Colors
           scaffoldBackgroundColor: AppColors.background,
           primaryColor: AppColors.cyanPrimary,
           colorScheme: const ColorScheme.dark(
@@ -125,12 +102,8 @@ class ZaraApp extends StatelessWidget {
             surface: AppColors.surface,
             error: AppColors.errorRed,
           ),
-          
-          // Typography
           fontFamily: 'RobotoMono',
           textTheme: AppTextStyles.baseTheme,
-          
-          // Component themes
           appBarTheme: const AppBarTheme(
             backgroundColor: AppColors.surface,
             foregroundColor: AppColors.textPrimary,
@@ -141,9 +114,7 @@ class ZaraApp extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.cyanPrimary,
               foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
           inputDecorationTheme: InputDecorationTheme(
@@ -163,8 +134,6 @@ class ZaraApp extends StatelessWidget {
             ),
           ),
         ),
-
-        // Dark theme overrides (for consistency)
         darkTheme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.dark,
@@ -172,16 +141,8 @@ class ZaraApp extends StatelessWidget {
           primaryColor: AppColors.cyanPrimary,
           fontFamily: 'RobotoMono',
         ),
-        themeMode: ThemeMode.dark, // Force dark mode for holographic effect
-
-        // Home screen
+        themeMode: ThemeMode.dark,
         home: const ZaraHomeScreen(),
-
-        // Optional: Add routes here for navigation
-        // routes: {
-        //   '/settings': (_) => const SettingsScreen(),
-        //   '/code-generator': (_) => const CodeGeneratorScreen(),
-        // },
       ),
     );
   }

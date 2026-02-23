@@ -1,4 +1,3 @@
-// lib/services/email_service.dart
 // Z.A.R.A. — Email Service for Security Alerts
 // ✅ Intruder Photos • Location Alerts • Trusted Contacts • SharedPreferences
 // ✅ url_launcher Integration • Production-Ready • Error Handling
@@ -58,11 +57,8 @@ class EmailService {
   }
 
   Future<bool> removeTrustedEmail(String email, {bool saveImmediately = true}) async {
-    // FIX: Removed the void assignment and used length comparison
-    final initialLength = _trustedEmails.length;
-    _trustedEmails.removeWhere((e) => e.toLowerCase() == email.toLowerCase());
-    
-    if (_trustedEmails.length < initialLength) {
+    final removed = _trustedEmails.removeWhere((e) => e.toLowerCase() == email.toLowerCase());
+    if (removed) {
       if (saveImmediately) await _saveTrustedEmails();
       if (kDebugMode) debugPrint('📧 Email removed: $email');
       return true;
@@ -71,13 +67,17 @@ class EmailService {
   }
 
   List<String> get trustedEmails => List.unmodifiable(_trustedEmails);
-  
   Future<void> resetToDefaults() async {
     _trustedEmails = List.from(_defaultEmails);
     await _saveTrustedEmails();
   }
-  
-  Future<void> clearAllTrustedEmails() async {
+    _trustedEmails.clear();
+    await _saveTrustedEmails();
+  }
+      _trustedEmails = List.from(_defaultEmails);
+    await _saveTrustedEmails();
+  }
+    Future<void> clearAllTrustedEmails() async {
     _trustedEmails.clear();
     await _saveTrustedEmails();
   }
@@ -107,6 +107,7 @@ class EmailService {
         if (kDebugMode) debugPrint('⚠️ No recipients');
         return false;
       }
+
       final timestamp = DateTime.now();
       final subject = '🚨 Z.A.R.A. Intruder Alert — ${_formatTimestamp(timestamp)}';
       final deviceInfo = includeDeviceInfo ? '📱 Device: ${Platform.isAndroid ? 'Android' : 'iOS'}\n' : '';
@@ -126,6 +127,7 @@ $deviceInfo
         path: recipients.join(','),
         queryParameters: {'subject': subject, 'body': body},
       );
+
       // ✅ FIXED: Proper canLaunchUrl check
       final canLaunch = await canLaunchUrl(emailUri).catchError((_) => false);
       if (canLaunch == true) {
@@ -169,6 +171,7 @@ Z.A.R.A. Guardian Mode — Device location update.
         path: recipients.join(','),
         queryParameters: {'subject': subject, 'body': body},
       );
+
       final canLaunch = await canLaunchUrl(emailUri).catchError((_) => false);
       if (canLaunch == true) {
         await launchUrl(emailUri, mode: LaunchMode.externalApplication);
@@ -266,6 +269,22 @@ extension EmailServiceHelpers on EmailService {
     return sendLocationAlert(locationLink: locationLink);
   }
 
+    await initialize();                                                               
+    int added = 0;
+    for (final email in emails) {
+      if (await addTrustedEmail(email, saveImmediately: false)) added++;
+    }                                                                                 
+    await _saveTrustedEmails(); // YAHAN GALTI HAI
+    return added;
+  }
+    await initialize();                                                               
+    int added = 0;
+    for (final email in emails) {
+      if (await addTrustedEmail(email, saveImmediately: false)) added++;
+    }                                                                                 
+    await _saveTrustedEmails(); // YAHAN GALTI HAI
+    return added;
+  }
   Future<int> addTrustedEmails(List<String> emails) async {
     await initialize();
     int added = 0;
@@ -286,4 +305,3 @@ abstract final class EmailConstants {
   static const int maxTrustedEmails = 10;
   static const int minEmailLength = 5;
 }
-

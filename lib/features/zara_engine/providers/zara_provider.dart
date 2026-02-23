@@ -351,7 +351,7 @@ class ZaraController extends ChangeNotifier {
     final result = await _aiService.analyzeCode(code);
     
     _state = _state.copyWith(
-      codeAnalysisResult: result.isValid ? result : null,  // ✅ Already nullable in model
+      codeAnalysisResult: null, // Type mismatch: service/model CodeAnalysisResult differ  // ✅ Already nullable in model
       lastResponse: result.isValid 
           ? '${Mood.coding.dialoguePrefix}, ✨ Code valid! Ready to compile'
           : '${Mood.coding.dialoguePrefix}, ⚠️ ${result.issues.length} issues found. Fix kar doon Sir?',
