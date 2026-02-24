@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Z.A.R.A.</string>
-    <string name="accessibility_service_description">Z.A.R.A. Guardian Mode - Security Protection. Enable only if you trust this app.</string>
+    <string name="accessibility_service_description">Z.A.R.A. requires Accessibility Service to monitor screen contents for Guardian Mode security, analyze on-screen code, and perform auto-typing capabilities.</string>
 </resources>

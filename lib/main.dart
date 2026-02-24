@@ -87,8 +87,10 @@ class ZaraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<ZaraController>(
       create: (_) => ZaraController(),
+      child: MaterialApp(
+    return ChangeNotifierProvider<ZaraController>(
+      create: (_) => ZaraController()..initialize(),
       child: MaterialApp(
         title: 'Z.A.R.A.',
         debugShowCheckedModeBanner: false,
