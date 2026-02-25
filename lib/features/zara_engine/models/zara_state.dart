@@ -1,7 +1,7 @@
 // lib/features/zara_engine/models/zara_state.dart
 // Z.A.R.A. — High-Performance Immutable State Model
-// ✅ Real Persistence (JSON Mapping) • Corrected CopyWith
-// ✅ Advanced Tactical Models • Neural Sync Ready
+// ✅ Neural Archives Added: Supports Multiple Chat Sessions
+// ✅ Real Persistence (JSON Mapping) for Chat History
 
 import 'package:battery_plus/battery_plus.dart';
 import 'package:zara/core/enums/mood_enum.dart';
@@ -18,7 +18,8 @@ class ZaraState {
   final double glowIntensity;
   final int affectionLevel;
   final String ownerName;
-  final List<String> dialogueHistory;
+  final List<String> dialogueHistory; // Current active chat
+  final List<ChatSession> chatArchives; // Saved old chats (WhatsApp style)
   final int batteryLevel;
   final BatteryState batteryState;
   final String deviceModel;
@@ -45,6 +46,7 @@ class ZaraState {
     required this.affectionLevel,
     required this.ownerName,
     required this.dialogueHistory,
+    required this.chatArchives, // ✅ NEW: Added for History
     required this.batteryLevel,
     required this.batteryState,
     required this.deviceModel,
@@ -72,6 +74,7 @@ class ZaraState {
     affectionLevel: 85,
     ownerName: 'OWNER RAVI',
     dialogueHistory: [],
+    chatArchives: [], // ✅ NEW: Empty list on boot
     batteryLevel: 0,
     batteryState: BatteryState.unknown,
     deviceModel: 'SYNCHRONIZING...',
@@ -85,13 +88,13 @@ class ZaraState {
     isAnalyzingCode: false,
   );
 
-  // ========== THE PERSISTENCE ENGINE (Missing Logic Added) ==========
-  
+  // ========== THE PERSISTENCE ENGINE (Saving logic) ==========
   Map<String, dynamic> toMap() {
     return {
       'affectionLevel': affectionLevel,
       'ownerName': ownerName,
       'dialogueHistory': dialogueHistory,
+      'chatArchives': chatArchives.map((x) => x.toMap()).toList(), // ✅ Save all old chats
       'isGuardianActive': isGuardianActive,
       'currentTopic': currentTopic,
     };
@@ -103,6 +106,9 @@ class ZaraState {
       affectionLevel: map['affectionLevel'] ?? 85,
       ownerName: map['ownerName'] ?? 'OWNER RAVI',
       dialogueHistory: List<String>.from(map['dialogueHistory'] ?? []),
+      chatArchives: map['chatArchives'] != null 
+          ? List<ChatSession>.from(map['chatArchives'].map((x) => ChatSession.fromMap(x))) 
+          : [], // ✅ Load old chats
       isGuardianActive: map['isGuardianActive'] ?? false,
       currentTopic: map['currentTopic'] ?? 'SYSTEM INITIALIZED',
     );
@@ -127,8 +133,9 @@ class ZaraState {
     double? orbScale,
     double? glowIntensity,
     int? affectionLevel,
-    String? ownerName, // Fixed: Now you can rename the owner
+    String? ownerName,
     List<String>? dialogueHistory,
+    List<ChatSession>? chatArchives, // ✅ NEW
     int? batteryLevel,
     BatteryState? batteryState,
     String? deviceModel,
@@ -153,8 +160,9 @@ class ZaraState {
       orbScale: orbScale ?? this.orbScale,
       glowIntensity: glowIntensity ?? this.glowIntensity,
       affectionLevel: affectionLevel ?? this.affectionLevel,
-      ownerName: ownerName ?? this.ownerName, // Logic Fixed
+      ownerName: ownerName ?? this.ownerName,
       dialogueHistory: dialogueHistory ?? this.dialogueHistory,
+      chatArchives: chatArchives ?? this.chatArchives, // ✅ NEW
       batteryLevel: batteryLevel ?? this.batteryLevel,
       batteryState: batteryState ?? this.batteryState,
       deviceModel: deviceModel ?? this.deviceModel,
@@ -171,8 +179,40 @@ class ZaraState {
   }
 }
 
-// ========== REFINED TACTICAL MODELS ==========
+// ========== THE NEW CHAT SESSION MODEL ==========
+class ChatSession {
+  final String id;
+  final String topicName;
+  final List<String> messages;
+  final DateTime timestamp;
 
+  ChatSession({
+    required this.id,
+    required this.topicName,
+    required this.messages,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'topicName': topicName,
+      'messages': messages,
+      'timestamp': timestamp.millisecondsSinceEpoch,
+    };
+  }
+
+  factory ChatSession.fromMap(Map<String, dynamic> map) {
+    return ChatSession(
+      id: map['id'] ?? '',
+      topicName: map['topicName'] ?? 'UNKNOWN TOPIC',
+      messages: List<String>.from(map['messages'] ?? []),
+      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
+    );
+  }
+}
+
+// ========== REFINED TACTICAL MODELS ==========
 enum AlertSeverity { low, medium, high, critical }
 
 class SecurityAlert {
@@ -182,9 +222,9 @@ class SecurityAlert {
   final DateTime time;
 
   SecurityAlert({
-    required this.id, 
-    required this.message, 
-    this.severity = AlertSeverity.medium, 
+    required this.id,
+    required this.message,
+    this.severity = AlertSeverity.medium,
     required this.time
   });
 }
@@ -192,13 +232,13 @@ class SecurityAlert {
 class AutomationTask {
   final String id;
   final String description;
-  final String status; // pending, running, completed, failed
+  final String status;
   final DateTime timestamp;
 
   AutomationTask({
-    required this.id, 
-    required this.description, 
-    required this.status, 
+    required this.id,
+    required this.description,
+    required this.status,
     required this.timestamp
   });
 }
