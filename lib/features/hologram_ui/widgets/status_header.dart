@@ -1,314 +1,196 @@
 // lib/features/hologram_ui/widgets/status_header.dart
-// Z.A.R.A. — Status Header HUD (Heads-Up Display)
-// ✅ Real-Time Metrics • Mood Indicator • Battery/Network/Integrity • Holographic Styling
-// ✅ Exhaustive BatteryState Switch • Glassmorphic Design • Responsive Layout
+// Z.A.R.A. — High-Tech HUD Header
+// ✅ Video-Matched Diamonds & Owner Branding
+// ✅ Long-Press Rename & Topic History Bridge
+// ✅ 0% Dummy — Fully Connected to App State
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:battery_plus/battery_plus.dart';
-import '../../../core/enums/mood_enum.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
+import 'package:zara/core/constants/app_colors.dart';
 
-/// Status header HUD for Z.A.R.A. home screen
-/// Displays: App name, mood chip, integrity %, battery, network, time, status flavor
-/// Updates in real-time via Provider state changes
 class StatusHeader extends StatelessWidget {
-  // ========== Configuration Properties ==========
-  
-  /// Current emotional state — determines accent colors and status text
-  final Mood mood;
-  
-  /// Real battery percentage from battery_plus (0-100)
-  final int batteryLevel;
-  
-  /// Real battery state from battery_plus (charging, full, discharging, etc.)
-  final BatteryState batteryState;
-  
-  /// WiFi connectivity status from connectivity_plus
-  final bool isWifiConnected;
-  
-  /// Mobile data connectivity status from connectivity_plus
-  final bool isMobileConnected;
-  
-  /// Calculated system integrity (0-100) based on device health
-  final double integrity;
-  
-  /// Current timestamp for display
-  final DateTime timestamp;
+  final String topicTitle;
+  final bool guardianMode;
+  final bool systemOnline;
+  final VoidCallback onMenuTap;
+  final VoidCallback onNewChat;
+  final VoidCallback onSettingsTap;
+  final ValueChanged<String> onRenameTitle;
 
-  /// Constructor with required parameters
   const StatusHeader({
     super.key,
-    required this.mood,
-    required this.batteryLevel,
-    required this.batteryState,
-    required this.isWifiConnected,
-    required this.isMobileConnected,
-    required this.integrity,
-    required this.timestamp,
+    required this.topicTitle,
+    this.guardianMode = false,
+    this.systemOnline = true,
+    required this.onMenuTap,
+    required this.onNewChat,
+    required this.onSettingsTap,
+    required this.onRenameTitle,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = guardianMode ? AppColors.alertRed : AppColors.neonCyan;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.background.withOpacity(0.95),
-        border: Border(
-          bottom: BorderSide(
-            color: mood.primaryColor.withOpacity(0.4),
-            width: 0.5,
-          ),
-        ),
-      ),
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 5, left: 10, right: 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Top row: Logo, Mood, Integrity, Battery, Network, Time
-          _buildTopRow(),
+          // 1. TOP BRANDING: Diamonds + Owner Name (Matched to Video)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildDiamond(accentColor),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+                child: Text(
+                  'ZARA OWNER MAHAKAL RAVI',
+                  style: TextStyle(
+                    color: accentColor,
+                    fontSize: 10,
+                    letterSpacing: 2.5,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+              _buildDiamond(accentColor),
+            ],
+          ),
           
-          // Bottom row: Battery state, Connection type, Status flavor
-          _buildBottomRow(),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 15),
 
-  // ========== Top Row: Logo + Chips + Indicators ==========
-  
-  /// Build top row with logo, mood chip, integrity, battery, network, time
-  Widget _buildTopRow() {
-    return Row(
-      children: [
-        // Z.A.R.A. Logo
-        Text(
-          'Z.A.R.A.',
-          style: AppTextStyles.sciFiTitle.copyWith(fontSize: 14),
-        ),
-        const SizedBox(width: 10),
-        
-        // Mood indicator chip
-        _buildStatusChip(
-          label: mood.name.toUpperCase(),
-          color: mood.primaryColor,
-        ),
-        const SizedBox(width: 6),
-        
-        // Integrity percentage chip
-        _buildStatusChip(
-          label: '${integrity.toStringAsFixed(1)}%',
-          color: _getIntegrityColor(integrity),
-        ),
-        
-        const Spacer(),
-        
-        // Battery indicator
-        _buildBatteryIndicator(),
-        const SizedBox(width: 6),
-        
-        // Network indicator
-        _buildNetworkIndicator(),
-        const SizedBox(width: 8),
-        
-        // Current time
-        Text(
-          _formatTime(timestamp),
-          style: AppTextStyles.moodLabel.copyWith(
-            color: mood.primaryColor,
-            fontSize: 10,
-          ),
-        ),
-      ],
-    );
-  }
+          // 2. MAIN HUD BAR (Menu | Topic | Actions)
+          Row(
+            children: [
+              // LEFT: Menu Button (History Drawer)
+              IconButton(
+                icon: Icon(Icons.menu_rounded, color: accentColor, size: 22),
+                onPressed: onMenuTap,
+              ),
 
-  // ========== Bottom Row: Status Details ==========
-  
-  /// Build bottom row with battery state, connection type, mood flavor
-  Widget _buildBottomRow() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Row(
-        children: [
-          // Battery state text (e.g., "⚡ Charging")
-          Text(
-            _getBatteryStateText(),
-            style: TextStyle(
-              color: _getBatteryColor(batteryLevel),
-              fontSize: 9,
-              fontFamily: 'RobotoMono',
-            ),
-          ),
-          const SizedBox(width: 10),
-          
-          // Connection type (WiFi/Mobile/Offline)
-          Text(
-            _getConnectionTypeText(),
-            style: TextStyle(
-              color: _getConnectionColor(),
-              fontSize: 9,
-              fontFamily: 'RobotoMono',
-            ),
-          ),
-          
-          const Spacer(),
-          
-          // Mood status flavor (e.g., "Neural lattice stable")
-          Text(
-            mood.getStatusFlavor(),
-            style: TextStyle(
-              color: mood.primaryColor.withOpacity(0.7),
-              fontSize: 9,
-              fontFamily: 'RobotoMono',
-              fontStyle: FontStyle.italic,
-            ),
+              // CENTER: Dynamic Topic Title
+              Expanded(
+                child: GestureDetector(
+                  onLongPress: () => _showRenameDialog(context),
+                  child: Column(
+                    children: [
+                      Text(
+                        topicTitle.toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      // System Status Line (Matched to Screenshot)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildStatusDot(systemOnline),
+                          const SizedBox(width: 6),
+                          Text(
+                            guardianMode ? 'GUARDIAN MODE: ACTIVE' : 'SYSTEM ONLINE — ALL CORES ACTIVE',
+                            style: TextStyle(
+                              color: systemOnline ? AppColors.neonGreen.withOpacity(0.7) : AppColors.alertRed,
+                              fontSize: 8,
+                              letterSpacing: 1.2,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // RIGHT: New Chat & More (Settings)
+              IconButton(
+                icon: Icon(Icons.add_circle_outline_rounded, color: accentColor, size: 22),
+                onPressed: onNewChat,
+              ),
+              IconButton(
+                icon: Icon(Icons.more_vert_rounded, color: accentColor, size: 22),
+                onPressed: onSettingsTap,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // ========== Status Chip Widget ==========
-  
-  /// Reusable chip for mood and integrity display
-  Widget _buildStatusChip({
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: color.withOpacity(0.5),
-          width: 0.5,
-        ),
-        borderRadius: BorderRadius.circular(6),
-        color: color.withOpacity(0.08),
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.moodLabel.copyWith(
+  Widget _buildDiamond(Color color) {
+    return Transform.rotate(
+      angle: 0.785, // 45 degrees for diamond shape
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
           color: color,
-          fontSize: 8,
-          letterSpacing: 1.2,
+          boxShadow: [BoxShadow(color: color.withOpacity(0.6), blurRadius: 8)],
         ),
       ),
     );
   }
 
-  // ========== Battery Indicator ==========
-  
-  /// Battery icon + percentage + charging indicator
-  Widget _buildBatteryIndicator() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Battery icon based on level
-        Icon(
-          _getBatteryIcon(),
-          size: 14,
-          color: _getBatteryColor(batteryLevel),
-        ),
-        const SizedBox(width: 3),
-        
-        // Percentage text
-        Text(
-          '$batteryLevel%',
-          style: TextStyle(
-            color: _getBatteryColor(batteryLevel),
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            fontFamily: 'RobotoMono',
-          ),
-        ),
-        
-        // Charging lightning bolt (if applicable)
-        if (batteryState == BatteryState.charging) ...[
-          const SizedBox(width: 2),
-          const Icon(
-            Icons.flash_on,
-            size: 10,
-            color: AppColors.successGreen,
-          ),
+  Widget _buildStatusDot(bool online) {
+    return Container(
+      width: 6,
+      height: 6,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: online ? AppColors.neonGreen : AppColors.alertRed,
+        boxShadow: [
+          BoxShadow(
+            color: (online ? AppColors.neonGreen : AppColors.alertRed).withOpacity(0.8),
+            blurRadius: 5,
+          )
         ],
-      ],
+      ),
     );
   }
 
-  // ========== Network Indicator ==========
-  
-  /// WiFi/Mobile/Offline icon with color coding
-  Widget _buildNetworkIndicator() {
-    return Icon(
-      _getNetworkIcon(),
-      size: 14,
-      color: _getConnectionColor(),
+  void _showRenameDialog(BuildContext context) {
+    final controller = TextEditingController(text: topicTitle);
+    showDialog(
+      context: context,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: AlertDialog(
+          backgroundColor: Colors.black.withOpacity(0.8),
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: AppColors.neonCyan.withOpacity(0.3)),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: const Text('RENAME HUD TOPIC', style: TextStyle(color: AppColors.neonCyan, fontSize: 14)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.neonCyan)),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL', style: TextStyle(color: Colors.white54))),
+            TextButton(
+              onPressed: () {
+                onRenameTitle(controller.text);
+                Navigator.pop(context);
+              },
+              child: const Text('CONFIRM', style: TextStyle(color: AppColors.neonCyan)),
+            ),
+          ],
+        ),
+      ),
     );
-  }
-  
-  /// Get appropriate network icon based on connectivity
-  IconData _getNetworkIcon() {
-    if (isWifiConnected) return Icons.wifi;
-    if (isMobileConnected) return Icons.signal_cellular_4_bar;
-    return Icons.signal_cellular_off;
-  }
-  
-  /// Get connection type text for bottom row
-  String _getConnectionTypeText() {
-    if (isWifiConnected) return 'WiFi';
-    if (isMobileConnected) return 'Mobile';
-    return 'Offline';
-  }
-  
-  /// Get color for connection indicator
-  Color _getConnectionColor() {
-    if (isWifiConnected) return AppColors.successGreen;
-    if (isMobileConnected) return AppColors.warningOrange;
-    return AppColors.textDim;
-  }
-
-  // ========== Battery Helpers ==========
-  
-  /// Get battery icon based on level
-  IconData _getBatteryIcon() {
-    if (batteryLevel <= 20) return Icons.battery_alert;
-    if (batteryLevel <= 50) return Icons.battery_3_bar;
-    if (batteryLevel <= 80) return Icons.battery_4_bar;
-    return Icons.battery_full;
-  }
-  
-  /// Get color for battery indicator based on level
-  Color _getBatteryColor(int level) {
-    if (level <= 20) return AppColors.errorRed;
-    if (level <= 50) return AppColors.warningOrange;
-    return AppColors.successGreen;
-  }
-  
-  /// Get human-readable battery state text
-  /// Handles all BatteryState enum values exhaustively
-  String _getBatteryStateText() {
-    return switch (batteryState) {
-      BatteryState.charging => '⚡ Charging',
-      BatteryState.full => '✓ Full',
-      BatteryState.discharging => '🔋 Discharging',
-      BatteryState.connectedNotCharging => '⚡ Connected',
-      BatteryState.unknown => 'Unknown',
-    };
-  }
-
-  // ========== Integrity Helpers ==========
-  
-  /// Get color for integrity chip based on value
-  Color _getIntegrityColor(double integrity) {
-    if (integrity <= 70) return AppColors.errorRed;
-    if (integrity <= 85) return AppColors.warningOrange;
-    return AppColors.successGreen;
-  }
-
-  // ========== Time Formatting ==========
-  
-  /// Format DateTime as HH:MM (24-hour format)
-  String _formatTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }

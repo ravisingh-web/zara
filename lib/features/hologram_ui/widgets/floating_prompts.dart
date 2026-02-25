@@ -1,7 +1,7 @@
 // lib/features/hologram_ui/widgets/floating_prompts.dart
 // Z.A.R.A. — Context-Aware Suggestion Chips
-// ✅ Mood-Reactive Prompts • Glassmorphic Design • Hinglish Dialogue • Quick Actions
-// ✅ Horizontal Scroll • Tap-to-Execute • Personality-Driven Suggestions
+// ✅ Strict Error Fix: AppColors.textPrimary changed to Colors.white
+// ✅ Zero Logic Changed.
 
 import 'package:flutter/material.dart';
 import '../../../core/enums/mood_enum.dart';
@@ -13,10 +13,10 @@ import '../../../core/constants/app_text_styles.dart';
 /// Tapping a chip executes the suggested command automatically
 class FloatingPrompts extends StatelessWidget {
   // ========== Configuration Properties ==========
-  
+
   /// Current emotional state — determines prompt suggestions and chip styling
   final Mood mood;
-  
+
   /// Callback function executed when a prompt is selected
   /// Receives the selected prompt string as parameter
   final Function(String) onSelected;
@@ -51,7 +51,7 @@ class FloatingPrompts extends StatelessWidget {
   }
 
   // ========== Mood-Aware Prompt Generation ==========
-  
+
   /// Generate prompt suggestions based on current mood
   /// Returns list of Hinglish strings for display
   List<String> _getPromptsForMood(Mood mood) {
@@ -65,7 +65,7 @@ class FloatingPrompts extends StatelessWidget {
           'Battery check karoon?',
           'Photo click karoon Sir? 📸',
         ],
-      
+
       // 😤 Ziddi: Playful, stubborn, attention-seeking
       Mood.ziddi => [
           'Sir zara jaldi bolo na 😤',
@@ -75,7 +75,7 @@ class FloatingPrompts extends StatelessWidget {
           'Photo click karoon?',
           'Code me help karoon?',
         ],
-      
+
       // ⚠️ Angry: Security-focused, protective
       Mood.angry => [
           'Security alert check?',
@@ -85,7 +85,7 @@ class FloatingPrompts extends StatelessWidget {
           'Network scan karoon?',
           'Permissions check karoon?',
         ],
-      
+
       // 💜 Coding: Developer mode, technical assistance
       Mood.coding => [
           'Code paste karo Sir',
@@ -95,7 +95,7 @@ class FloatingPrompts extends StatelessWidget {
           'Errors fix kar doon?',
           'New file create karoon?',
         ],
-      
+
       // ⚙️ Automation: Task execution, system control
       Mood.automation => [
           'Instagram post kar doon?',
@@ -105,7 +105,7 @@ class FloatingPrompts extends StatelessWidget {
           'Location share karoon?',
           'Battery optimize karoon?',
         ],
-      
+
       // 🔍 Analysis: Diagnostic, scanning, processing
       Mood.analysis => [
           'Device scan karoon?',
@@ -115,7 +115,7 @@ class FloatingPrompts extends StatelessWidget {
           'Security audit?',
           'Performance report?',
         ],
-      
+
       // 🚀 Excited: High-energy, celebration, fun actions
       Mood.excited => [
           'Kuch exciting karte hain! 🚀',
@@ -125,7 +125,7 @@ class FloatingPrompts extends StatelessWidget {
           'Guardian test karein?',
           'New feature try karein?',
         ],
-      
+
       // 🧘 Calm: Default, attentive, general assistance
       Mood.calm => [
           'Aur kuch Sir?',
@@ -145,13 +145,13 @@ class FloatingPrompts extends StatelessWidget {
 /// Features: Mood-colored border, hover effects, neon glow shadow
 class _PromptChip extends StatelessWidget {
   // ========== Configuration Properties ==========
-  
+
   /// Text label displayed on the chip
   final String label;
-  
+
   /// Current mood — determines chip border color and glow
   final Mood mood;
-  
+
   /// Callback executed when chip is tapped
   final VoidCallback onTap;
 
@@ -197,7 +197,7 @@ class _PromptChip extends StatelessWidget {
           child: Text(
             label,
             style: AppTextStyles.promptChip.copyWith(
-              color: AppColors.textPrimary,
+              color: Colors.white, // ✅ FIXED: Replaced AppColors.textPrimary
               fontSize: 10,
               // Slight letter spacing for sci-fi feel
               letterSpacing: 0.3,
@@ -238,7 +238,7 @@ extension PromptContextHelper on List<String> {
       return true;
     }).toList();
   }
-  
+
   /// Add urgency indicator to prompts based on context
   List<String> withUrgencyIndicators({
     required int batteryLevel,

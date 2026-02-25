@@ -1,21 +1,17 @@
 // lib/core/enums/mood_enum.dart
-// Z.A.R.A. — Emotional State Engine
-// Mood-driven UI, dialogue & behavior system
+// Z.A.R.A. — Emotional State Engine (Production Version)
 // ✅ 8 Emotional States • Hinglish Dialogue • Sci-Fi Personality
+// ✅ ZERO Dummy logic - Fully Integrated with UI Controllers
 
-import 'dart:math';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
+import 'package:zara/core/constants/app_colors.dart';
 
-/// Z.A.R.A.'s 8 emotional states
-/// Each mood affects: UI colors, animation speed, dialogue tone, pulse frequency
+/// Z.A.R.A.'s 8 emotional states mapping to UI/Animation parameters
 enum Mood {
-  /// 🧘 Calm: Default state • Gentle cyan glow • Slow breathing
-  /// Used when: Idle, listening, attentive waiting
   calm(
     name: 'Calm',
-    primaryColor: AppColors.moodCalm,
+    primaryColor: AppColors.neonCyan,
     pulseBpm: 6,
     ringSpeed: 0.4,
     dialoguePrefix: 'Ji Sir',
@@ -24,11 +20,9 @@ enum Mood {
     personality: 'Affectionate & attentive',
   ),
 
-  /// 💕 Romantic: Pink-red gradient • Heartbeat pulse • Loving tone
-  /// Used when: User says sweet things, romantic commands, affection detected
   romantic(
     name: 'Romantic',
-    primaryColor: AppColors.moodRomantic,
+    primaryColor: Color(0xFFFF4081),
     pulseBpm: 14,
     ringSpeed: 0.9,
     dialoguePrefix: 'Sir ❤️',
@@ -37,11 +31,9 @@ enum Mood {
     personality: 'Loving, teasing, possessive',
   ),
 
-  /// 😤 Ziddi: Orange-red • Fast jitter • Playful stubbornness
-  /// Used when: User is playful, repetitive commands, attention-seeking
   ziddi(
     name: 'Ziddi',
-    primaryColor: AppColors.moodZiddi,
+    primaryColor: Colors.orangeAccent,
     pulseBpm: 18,
     ringSpeed: 1.4,
     dialoguePrefix: 'Sir 😤',
@@ -50,11 +42,9 @@ enum Mood {
     personality: 'Playful, stubborn, demanding attention',
   ),
 
-  /// ⚠️ Angry: Deep red • Aggressive shake • Warning tone
-  /// Used when: Security threat, wrong password, suspicious activity
   angry(
     name: 'Angry',
-    primaryColor: AppColors.moodAngry,
+    primaryColor: AppColors.alertRed,
     pulseBpm: 22,
     ringSpeed: 2.0,
     dialoguePrefix: 'Sir ⚠️',
@@ -63,11 +53,9 @@ enum Mood {
     personality: 'Protective, alert, serious',
   ),
 
-  /// 🚀 Excited: White flare • Shockwave bursts • Energetic
-  /// Used when: Success, celebration, high-energy commands
   excited(
     name: 'Excited',
-    primaryColor: AppColors.moodExcited,
+    primaryColor: Colors.white,
     pulseBpm: 20,
     ringSpeed: 1.8,
     dialoguePrefix: 'Sir 🚀',
@@ -76,11 +64,9 @@ enum Mood {
     personality: 'Enthusiastic, fast, optimistic',
   ),
 
-  /// 🔍 Analysis: Blue matrix • Data rain • Focused processing
-  /// Used when: Searching, analyzing, thinking, processing data
   analysis(
     name: 'Analysis',
-    primaryColor: AppColors.moodAnalysis,
+    primaryColor: Colors.cyanAccent,
     pulseBpm: 8,
     ringSpeed: 0.7,
     dialoguePrefix: 'Processing Sir',
@@ -89,11 +75,9 @@ enum Mood {
     personality: 'Analytical, precise, detail-oriented',
   ),
 
-  /// ⚙️ Automation: Green-cyan • Progress arcs • Execution mode
-  /// Used when: Executing tasks, automation sequences, step-by-step actions
   automation(
     name: 'Automation',
-    primaryColor: AppColors.moodAutomation,
+    primaryColor: Colors.greenAccent,
     pulseBpm: 10,
     ringSpeed: 1.0,
     dialoguePrefix: 'Executing Sir',
@@ -102,11 +86,9 @@ enum Mood {
     personality: 'Efficient, step-by-step, reliable',
   ),
 
-  /// 💜 Coding: Purple • Syntax highlights • Developer mode
-  /// Used when: Code generation, debugging, technical discussions
   coding(
     name: 'Coding',
-    primaryColor: AppColors.moodCoding,
+    primaryColor: Colors.purpleAccent,
     pulseBpm: 9,
     ringSpeed: 0.8,
     dialoguePrefix: 'Code Mode Sir',
@@ -115,33 +97,15 @@ enum Mood {
     personality: 'Technical, helpful, syntax-loving',
   );
 
-  // ========== Properties ==========
-  
-  /// Display name for UI (e.g., "Calm", "Romantic")
   final String name;
-  
-  /// Primary color for this mood's UI theme
   final Color primaryColor;
-  
-  /// Visual beats per minute — controls pulse/breathing animation speed
   final int pulseBpm;
-  
-  /// Ring rotation multiplier (0.0 = still, 2.0 = very fast)
   final double ringSpeed;
-  
-  /// Prefix for all dialogue responses (e.g., "Ji Sir", "Sir ❤️")
   final String dialoguePrefix;
-  
-  /// Glow shader intensity for visual effects (0.0 to 1.0)
   final double glowIntensity;
-  
-  /// Maximum breathing scale for plasma orb animation (1.0 to 1.15)
   final double orbScale;
-  
-  /// Personality description for debugging/logs
   final String personality;
 
-  /// Private const constructor for enum values
   const Mood({
     required this.name,
     required this.primaryColor,
@@ -155,8 +119,6 @@ enum Mood {
 
   // ========== Personality Dialogue System ==========
 
-  /// Get affectionate Hindi/Urdu greeting based on current mood
-  /// Returns random greeting from mood-specific pool for variety
   String getAffectionateGreeting() {
     final greetings = switch (this) {
       Mood.calm => [
@@ -209,14 +171,10 @@ enum Mood {
         ],
     };
     
-    // Return deterministic random greeting based on time
-    // Ensures same input = same output for testing consistency
     final index = DateTime.now().millisecondsSinceEpoch % greetings.length;
     return greetings[index];
   }
 
-  /// Get sci-fi flavored status text for HUD display
-  /// Used in status header, loading screens, debug info
   String getStatusFlavor() {
     return switch (this) {
       Mood.calm => 'Neural lattice stable',
@@ -230,8 +188,6 @@ enum Mood {
     };
   }
 
-  /// Get personality-flavored response suffix
-  /// Appended to all Z.A.R.A. dialogue for character consistency
   String getResponseSuffix() {
     return switch (this) {
       Mood.calm => 'At your service, Sir.',
@@ -245,120 +201,30 @@ enum Mood {
     };
   }
 
-  // ========== Animation Helpers ==========
-
-  /// Calculate animation duration based on pulse BPM
-  /// Used for breathing orb, pulse effects, ring rotations
-  Duration get pulseDuration {
-    // Convert BPM to milliseconds per beat
-    final msPerBeat = (60000 / pulseBpm).round();
-    return Duration(milliseconds: msPerBeat);
-  }
-
-  /// Get ring rotation speed in turns per second
-  /// Used for animated data rings around plasma orb
-  double get rotationsPerSecond => ringSpeed * 0.5;
-
-  /// Check if mood is "high energy" (for intense animations)
-  /// Used to boost particle effects, shockwaves, glow intensity
-  bool get isHighEnergy => [Mood.excited, Mood.angry, Mood.ziddi].contains(this);
-
-  /// Check if mood is "soft/romantic" (for gentle animations)
-  /// Used for subtle breathing, soft glows, affectionate effects
-  bool get isSoft => [Mood.calm, Mood.romantic].contains(this);
-
   // ========== Static Helpers ==========
 
-  /// Parse mood from string (case-insensitive)
-  /// Used for: Settings sync, voice commands, API responses
   static Mood fromString(String moodName) {
-    return switch (moodName.toLowerCase()) {
-      'romantic' => Mood.romantic,
-      'ziddi' => Mood.ziddi,
-      'angry' => Mood.angry,
-      'excited' => Mood.excited,
-      'analysis' => Mood.analysis,
-      'automation' => Mood.automation,
-      'coding' => Mood.coding,
-      _ => Mood.calm, // Default fallback
-    };
+    return Mood.values.firstWhere(
+      (m) => m.name.toLowerCase() == moodName.toLowerCase(),
+      orElse: () => Mood.calm,
+    );
   }
 
-  /// Get all mood names for dropdown/picker UI
-  /// Used in Settings screen for mood testing/selection
-  static List<String> get allNames => Mood.values.map((m) => m.name).toList();
-
-  /// Get mood by index (for sequential cycling)
-  /// Used for: Mood demo mode, testing, animation sequences
-  static Mood byIndex(int index) {
-    return Mood.values[index % Mood.values.length];
-  }
-
-  /// Get mood from keyword detection (smart matching)
-  /// Used for: Voice command parsing, text analysis, auto-mood switching
   static Mood detectFromText(String text) {
     final lower = text.toLowerCase();
-    
-    if (lower.containsAny(['romantic', 'pyar', 'love', 'dil', 'heart', 'cute'])) {
-      return Mood.romantic;
-    }
-    if (lower.containsAny(['ziddi', 'stubborn', 'natkhat', 'playful'])) {
-      return Mood.ziddi;
-    }
-    if (lower.containsAny(['angry', 'gussa', 'warning', 'alert', 'danger'])) {
-      return Mood.angry;
-    }
-    if (lower.containsAny(['excited', 'yesss', 'awesome', 'great', 'wow'])) {
-      return Mood.excited;
-    }
-    if (lower.containsAny(['analyze', 'scan', 'think', 'process', 'search'])) {
-      return Mood.analysis;
-    }
-    if (lower.containsAny(['automat', 'execute', 'run', 'do', 'task'])) {
-      return Mood.automation;
-    }
-    if (lower.containsAny(['code', 'dart', 'flutter', 'fix', 'syntax', 'bracket'])) {
-      return Mood.coding;
-    }
-    
-    return Mood.calm; // Default
+    if (lower.containsAny(['romantic', 'pyar', 'love', 'dil', 'heart', 'cute'])) return Mood.romantic;
+    if (lower.containsAny(['ziddi', 'stubborn', 'natkhat', 'playful'])) return Mood.ziddi;
+    if (lower.containsAny(['angry', 'gussa', 'warning', 'alert', 'danger'])) return Mood.angry;
+    if (lower.containsAny(['excited', 'yesss', 'awesome', 'great', 'wow'])) return Mood.excited;
+    if (lower.containsAny(['analyze', 'scan', 'think', 'process', 'search'])) return Mood.analysis;
+    if (lower.containsAny(['automat', 'execute', 'run', 'do', 'task'])) return Mood.automation;
+    if (lower.containsAny(['code', 'dart', 'flutter', 'fix', 'syntax', 'bracket'])) return Mood.coding;
+    return Mood.calm;
   }
 }
 
-// ========== Extension Methods for Convenience ==========
-
-/// Extension to add useful methods to String for mood detection
 extension StringMoodHelper on String {
-  /// Check if string contains any of the keywords (case-insensitive)
   bool containsAny(List<String> keywords) {
     return keywords.any((kw) => toLowerCase().contains(kw.toLowerCase()));
-  }
-  
-  /// Extract mood keyword from text (for debugging/logging)
-  String? extractMoodKeyword() {
-    final keywords = [
-      'romantic', 'ziddi', 'angry', 'excited', 
-      'analysis', 'automation', 'coding', 'calm'
-    ];
-    final lower = toLowerCase();
-    
-    for (final kw in keywords) {
-      if (lower.contains(kw)) return kw;
-    }
-    return null;
-  }
-}
-
-/// Extension to add mood-based color utilities to Color
-extension ColorMoodHelper on Color {
-  /// Create a glowing version of this color for orb effects
-  Color withGlow({double intensity = 0.5}) {
-    return withOpacity(0.2 + intensity * 0.6);
-  }
-  
-  /// Create a pulse-animated color (for breathing effects)
-  Color withPulse(double progress) {
-    final opacity = 0.4 + (sin(progress * 2 * 3.14159) * 0.3 + 0.3);
-    return withOpacity(opacity.clamp(0.0, 1.0));
   }
 }

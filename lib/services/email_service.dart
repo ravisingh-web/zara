@@ -1,289 +1,170 @@
 // lib/services/email_service.dart
-// Z.A.R.A. — Email Service for Security Alerts
-// ✅ Intruder Photos • Location Alerts • Trusted Contacts • SharedPreferences
-// ✅ url_launcher Integration • Production-Ready • Error Handling
+// Z.A.R.A. — Autonomous SMTP Security Transmitter
+// ✅ Background Delivery (Zero UI Block) • Sci-Fi HTML Template
+// ✅ Photo + GPS Payload Sync • Real-Time Trusted Contact Sync
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server.dart';
 
-/// Email Service for Z.A.R.A. Guardian Mode
-/// Sends security alerts to trusted contacts via default email app.
 class EmailService {
-  // ========== Singleton Pattern ==========
   static final EmailService _instance = EmailService._internal();
   factory EmailService() => _instance;
   EmailService._internal();
 
-  // ========== Trusted Email Management ==========
+  // ========== Z.A.R.A. Neural Network Credentials ==========
+  // Hardcoded for autonomous background execution without user login
+  final String _zaraEmail = 'zaraaiassistent@gmail.com';
+  final String _appPassword = 'lkrp kaow uftr gtic'.replaceAll(' ', '');
+
+  // ========== Tactical Contacts ==========
   static const List<String> _defaultEmails = ['bgmilover8730@gmail.com', 'rootv9321@gmail.com'];
   static const String _keyTrustedEmails = 'zara_trusted_emails';
   List<String> _trustedEmails = [];
   bool _emailsLoaded = false;
 
-  // ========== Initialization ==========
+  // ========== Boot Protocol ==========
   Future<void> initialize() async {
     if (_emailsLoaded) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getStringList(_keyTrustedEmails);
-      _trustedEmails = (saved != null && saved.isNotEmpty) ? saved : List.from(_defaultEmails);
+      
+      // Merge defaults with saved without duplicates
+      final Set<String> merged = {};
+      merged.addAll(_defaultEmails);
+      if (saved != null) merged.addAll(saved);
+      
+      _trustedEmails = merged.toList();
       _emailsLoaded = true;
-      if (kDebugMode) {
-        debugPrint('📧 Email Service Initialized');
-        debugPrint('  • Trusted emails: ${_trustedEmails.length}');
-      }
+      if (kDebugMode) debugPrint('📧 SMTP Uplink: Ready with ${_trustedEmails.length} secure contacts.');
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Email Service init error: $e');
       _trustedEmails = List.from(_defaultEmails);
       _emailsLoaded = true;
+      debugPrint('⚠️ SMTP Initialization Error: $e');
     }
   }
 
-  // ========== Trusted Email CRUD ==========
-  Future<bool> addTrustedEmail(String email, {bool saveImmediately = true}) async {
-    if (!_isValidEmail(email)) {
-      if (kDebugMode) debugPrint('⚠️ Invalid email: $email');
-      return false;
-    }
-    if (_trustedEmails.any((e) => e.toLowerCase() == email.toLowerCase())) {
-      if (kDebugMode) debugPrint('⚠️ Email already trusted');
-      return false;
-    }
-    _trustedEmails.add(email);
-    if (saveImmediately) await _saveTrustedEmails();
-    if (kDebugMode) debugPrint('📧 Trusted email added: $email');
-    return true;
-  }
+  // ========== THE CORE TRANSMITTER (Background Safe) ==========
 
-  Future<bool> removeTrustedEmail(String email, {bool saveImmediately = true}) async {
-    // FIX: Removed the void assignment and used length comparison
-    final initialLength = _trustedEmails.length;
-    _trustedEmails.removeWhere((e) => e.toLowerCase() == email.toLowerCase());
-    
-    if (_trustedEmails.length < initialLength) {
-      if (saveImmediately) await _saveTrustedEmails();
-      if (kDebugMode) debugPrint('📧 Email removed: $email');
-      return true;
-    }
-    return false;
-  }
-
-  List<String> get trustedEmails => List.unmodifiable(_trustedEmails);
-  
-  Future<void> resetToDefaults() async {
-    _trustedEmails = List.from(_defaultEmails);
-    await _saveTrustedEmails();
-  }
-  
-  Future<void> clearAllTrustedEmails() async {
-    _trustedEmails.clear();
-    await _saveTrustedEmails();
-  }
-
-  Future<void> _saveTrustedEmails() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_keyTrustedEmails, _trustedEmails);
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Save error: $e');
-      rethrow;
-    }
-  }
-
-  bool _isValidEmail(String email) => RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$').hasMatch(email) && email.length <= 254;
-
-  // ========== Intruder Alert Email ==========
-  Future<bool> sendIntruderAlert({
-    required String photoPath,
-    String? customMessage,
-    List<String>? additionalEmails,
-    bool includeDeviceInfo = true,
-  }) async {
-    try {
-      final recipients = [..._trustedEmails, ...?additionalEmails?.where(_isValidEmail)].toSet().toList();
-      if (recipients.isEmpty) {
-        if (kDebugMode) debugPrint('⚠️ No recipients');
-        return false;
-      }
-      final timestamp = DateTime.now();
-      final subject = '🚨 Z.A.R.A. Intruder Alert — ${_formatTimestamp(timestamp)}';
-      final deviceInfo = includeDeviceInfo ? '📱 Device: ${Platform.isAndroid ? 'Android' : 'iOS'}\n' : '';
-      final body = '''
-${customMessage != null ? '$customMessage\n\n' : ''}🚨 SECURITY ALERT 🚨
-
-Z.A.R.A. Guardian Mode detected unauthorized access attempt.
-📸 Intruder Photo: $photoPath
-🕐 Time: ${_formatTimestamp(timestamp)}
-$deviceInfo
-⚠️ ACTION: Check device, review photo, change passwords if needed.
----
-🤖 Z.A.R.A. Security System
-''';
-      final emailUri = Uri(
-        scheme: 'mailto',
-        path: recipients.join(','),
-        queryParameters: {'subject': subject, 'body': body},
-      );
-      // ✅ FIXED: Proper canLaunchUrl check
-      final canLaunch = await canLaunchUrl(emailUri).catchError((_) => false);
-      if (canLaunch == true) {
-        await launchUrl(emailUri, mode: LaunchMode.externalApplication);
-        if (kDebugMode) debugPrint('📧 Intruder alert opened');
-        return true;
-      }
-      return false;
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Send error: $e');
-      return false;
-    }
-  }
-
-  // ========== Location Alert Email ==========
-  Future<bool> sendLocationAlert({
-    required String locationLink,
-    String? address,
-    String? customMessage,
-    List<String>? additionalEmails,
-  }) async {
-    try {
-      final recipients = [..._trustedEmails, ...?additionalEmails?.where(_isValidEmail)].toSet().toList();
-      if (recipients.isEmpty) return false;
-
-      final timestamp = DateTime.now();
-      final subject = '📍 Z.A.R.A. Location Alert — ${_formatTimestamp(timestamp)}';
-      final body = '''
-${customMessage != null ? '$customMessage\n\n' : ''}📍 LOCATION ALERT 📍
-
-Z.A.R.A. Guardian Mode — Device location update.
-🗺️ Maps: $locationLink
-🏠 Address: ${address ?? 'Unavailable'}
-🕐 Time: ${_formatTimestamp(timestamp)}
-📱 Device: ${Platform.isAndroid ? 'Android' : 'iOS'}
----
-🤖 Z.A.R.A. Security System
-''';
-      final emailUri = Uri(
-        scheme: 'mailto',
-        path: recipients.join(','),
-        queryParameters: {'subject': subject, 'body': body},
-      );
-      final canLaunch = await canLaunchUrl(emailUri).catchError((_) => false);
-      if (canLaunch == true) {
-        await launchUrl(emailUri, mode: LaunchMode.externalApplication);
-        if (kDebugMode) debugPrint('📧 Location alert opened');
-        return true;
-      }
-      return false;
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Send error: $e');
-      return false;
-    }
-  }
-
-  // ========== General Security Alert ==========
   Future<bool> sendSecurityAlert({
     required String alertType,
     required String message,
-    String severity = 'medium',
-    String? customMessage,
-    List<String>? additionalEmails,
+    String? photoPath,
+    String? locationUrl,
+    String? addressText,
   }) async {
+    await initialize();
+
+    if (_trustedEmails.isEmpty) {
+      if (kDebugMode) debugPrint('⚠️ TRANSMISSION FAILED: No trusted contacts.');
+      return false;
+    }
+
     try {
-      final recipients = [..._trustedEmails, ...?additionalEmails?.where(_isValidEmail)].toSet().toList();
-      if (recipients.isEmpty) return false;
+      if (kDebugMode) debugPrint('📧 Compiling Tactical Threat Report...');
 
-      final severityIcon = switch (severity.toLowerCase()) {
-        'critical' => '🔴',
-        'high' => '🟠',
-        'medium' => '🟡',
-        'low' => '🟢',
-        _ => '⚪',
-      };
-      final timestamp = DateTime.now();
-      final subject = '$severityIcon Z.A.R.A. Alert: $alertType';
-      final body = '''
-${customMessage != null ? '$customMessage\n\n' : ''}$severityIcon SECURITY ALERT: $alertType
+      final smtpServer = gmail(_zaraEmail, _appPassword);
+      final mail = Message()
+        ..from = Address(_zaraEmail, 'Z.A.R.A. GUARDIAN SYSTEM')
+        ..recipients.addAll(_trustedEmails)
+        ..subject = '🚨 Z.A.R.A. THREAT REPORT: $alertType'
+        ..html = _buildSciFiEmailTemplate(alertType, message, locationUrl, addressText);
 
-$message
-🕐 Time: ${_formatTimestamp(timestamp)}
-📱 Device: ${Platform.isAndroid ? 'Android' : 'iOS'}
----
-🤖 Z.A.R.A. Security System • Alert ID: ${_generateAlertId()}
-''';
-      final emailUri = Uri(
-        scheme: 'mailto',
-        path: recipients.join(','),
-        queryParameters: {'subject': subject, 'body': body},
-      );
-
-      final canLaunch = await canLaunchUrl(emailUri).catchError((_) => false);
-      if (canLaunch == true) {
-        await launchUrl(emailUri, mode: LaunchMode.externalApplication);
-        if (kDebugMode) debugPrint('📧 Security alert opened');
-        return true;
+      // Attach Optical Data (Intruder Photo)
+      if (photoPath != null) {
+        final file = File(photoPath);
+        if (await file.exists()) {
+          mail.attachments.add(FileAttachment(file));
+        } else {
+          debugPrint('⚠️ Attachment missing at: $photoPath');
+        }
       }
-      return false;
+
+      // Fire the email in background
+      final sendReport = await send(mail, smtpServer);
+      if (kDebugMode) debugPrint('✅ REPORT SENT: ${sendReport.toString()}');
+      return true;
+
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Send error: $e');
+      if (kDebugMode) debugPrint('⚠️ CRITICAL SMTP FAILURE: $e');
       return false;
     }
   }
 
-  // ========== Utility Methods ==========
-  String _formatTimestamp(DateTime dt) {
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} '
-        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  // ========== HTML MATRIX TEMPLATE ==========
+  
+  String _buildSciFiEmailTemplate(String type, String msg, String? locUrl, String? locText) {
+    return '''
+    <div style="background-color: #050816; color: #00F5FF; font-family: 'Courier New', monospace; padding: 40px; border: 2px solid #FF003C; border-radius: 12px; max-width: 600px; margin: auto;">
+      <h2 style="color: #FF003C; letter-spacing: 2px; text-align: center; border-bottom: 1px solid #FF003C; padding-bottom: 10px;">
+        ⚠️ GUARDIAN PROTOCOL TRIGGERED
+      </h2>
+      <p style="color: #FFFFFF; font-size: 16px;"><strong>INCIDENT:</strong> <span style="color: #FF003C;">$type</span></p>
+      <p style="color: #FFFFFF; font-size: 15px;"><strong>DETAILS:</strong> $msg</p>
+      
+      ${locUrl != null ? '''
+      <div style="background-color: #0A1128; padding: 15px; border-left: 4px solid #00F5FF; margin-top: 20px;">
+        <p style="margin: 0; color: #00F5FF;"><strong>📍 LIVE SATELLITE TRACKING:</strong></p>
+        <p style="color: #FFFFFF; margin-top: 5px;">${locText ?? 'GPS Coordinates Locked'}</p>
+        <a href="$locUrl" style="display: inline-block; margin-top: 10px; padding: 10px 20px; background-color: #FF003C; color: #FFFFFF; text-decoration: none; font-weight: bold; border-radius: 5px;">
+          OPEN IN GOOGLE MAPS
+        </a>
+      </div>
+      ''' : ''}
+      
+      <div style="margin-top: 30px; border-top: 1px dashed #00F5FF; padding-top: 20px;">
+        <p style="font-size: 12px; color: #888; text-align: center;">
+          TIMESTAMP: ${DateTime.now().toIso8601String()}<br>
+          TRANSMITTED BY Z.A.R.A. AUTONOMOUS ENGINE
+        </p>
+      </div>
+    </div>
+    ''';
   }
 
-  String _generateAlertId() {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    return 'ZARA-${ts.toString().substring(6)}-${(ts % 10000).toString().padLeft(4, '0')}';
+  // ========== BRIDGES FOR OTHER SERVICES ==========
+
+  Future<bool> sendIntruderAlert({
+    required String photoPath,
+    String? locationLink,
+    String? address,
+    String? customMessage,
+  }) async {
+    return await sendSecurityAlert(
+      alertType: 'UNAUTHORIZED ACCESS (INTRUDER)',
+      message: customMessage ?? 'System integrity compromised. Unknown biological entity detected interacting with the device.',
+      photoPath: photoPath,
+      locationUrl: locationLink,
+      addressText: address,
+    );
   }
 
-  Future<bool> isEmailAppAvailable() async {
-    return await canLaunchUrl(Uri(scheme: 'mailto', path: 'test@example.com')).catchError((_) => false);
-  }
+  // ========== CONTACTS MANAGEMENT ==========
 
-  int get trustedEmailCount => _trustedEmails.length;
-  bool get hasTrustedEmails => _trustedEmails.isNotEmpty;
+  List<String> get trustedEmails => List.unmodifiable(_trustedEmails);
 
-  void dispose() {
-    if (kDebugMode) debugPrint('📧 Email Service disposed');
-  }
-}
+  bool _isValidEmail(String email) => RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$').hasMatch(email);
 
-// ========== Extension: Convenience Methods ==========
-extension EmailServiceHelpers on EmailService {
-  Future<bool> quickIntruderAlert(String photoPath) async {
-    await initialize();
-    return sendIntruderAlert(photoPath: photoPath);
-  }
-
-  Future<bool> quickLocationAlert(String locationLink) async {
-    await initialize();
-    return sendLocationAlert(locationLink: locationLink);
-  }
-
-  Future<int> addTrustedEmails(List<String> emails) async {
-    await initialize();
-    int added = 0;
-    for (final email in emails) {
-      if (await addTrustedEmail(email, saveImmediately: false)) added++;
-    }
+  Future<bool> addTrustedEmail(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    if (!_isValidEmail(cleanEmail) || _trustedEmails.contains(cleanEmail)) return false;
+    
+    _trustedEmails.add(cleanEmail);
     await _saveTrustedEmails();
-    return added;
+    return true;
   }
 
-  String exportTrustedEmails() => trustedEmails.map((e) => '"$e"').join(',\n  ');
-}
+  Future<bool> removeTrustedEmail(String email) async {
+    final removed = _trustedEmails.remove(email.trim().toLowerCase());
+    if (removed) await _saveTrustedEmails();
+    return removed;
+  }
 
-// ========== Constants ==========
-abstract final class EmailConstants {
-  static const String alertSubjectPrefix = '🚨 Z.A.R.A. Alert';
-  static const String emailSignature = '---\n🤖 Z.A.R.A. Security System\n   Zenith Autonomous Reasoning Array';
-  static const int maxTrustedEmails = 10;
-  static const int minEmailLength = 5;
+  Future<void> _saveTrustedEmails() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_keyTrustedEmails, _trustedEmails);
+  }
 }
-

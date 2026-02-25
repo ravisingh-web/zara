@@ -50,7 +50,7 @@ dependencies:
   dart_style: ^3.0.1
 
   # ========== Email & URLs ==========
-  url_launcher: ^6.3.1
+  url_launcher: ^6.3.2
 
   # ========== UI & Fonts ==========
   google_fonts: ^8.0.2
@@ -61,6 +61,7 @@ dependencies:
   vector_math: ^2.2.0
   audioplayers: ^6.5.1
   record: ^6.2.0
+  mailer: ^7.1.0
 
 dev_dependencies:
   flutter_test:
