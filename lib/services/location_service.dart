@@ -1,13 +1,13 @@
 // lib/services/location_service.dart
 // Z.A.R.A. — Live Location Engine for Guardian Mode
-// ✅ Hardware GPS Check • Exact Google Maps URL • Precision Tracking
-// ✅ 100% Real Logic • Fail-Safe Timeouts • Background Geocoding
+// ✅ 100% Real GPS • Geofencing • Safe Zones • Android Compliant
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocationService {
   static final LocationService _instance = LocationService._internal();
@@ -16,129 +16,276 @@ class LocationService {
 
   Position? _currentPosition;
   Placemark? _currentAddress;
+  StreamSubscription<Position>? _positionStream;
+  bool _isTracking = false;
   String? _lastError;
 
-  // ========== System Initialization ==========
+  static const String _kSafeLat = 'zara_safe_lat';
+  static const String _kSafeLng = 'zara_safe_lng';
+  static const String _kSafeName = 'zara_safe_name';
+  static const String _kSafeRadius = 'zara_safe_radius';
 
   Future<void> initialize() async {
-    await checkPermission();
-    if (kDebugMode) debugPrint('📍 Location System: Satellite Uplink Initialized.');
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled && kDebugMode) {
+      debugPrint('⚠️ GPS hardware disabled — Enable in Settings');
+    }
+    if (kDebugMode) debugPrint('📍 Location System: Initialized');
   }
 
-  // ========== Permission Gatekeeper ==========
-
   Future<bool> checkPermission() async {
-    final status = await Permission.locationWhenInUse.status;
-    return status.isGranted;
+    try {
+      final status = await Permission.locationWhenInUse.status;
+      return status.isGranted;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> requestPermission() async {
-    final status = await Permission.locationWhenInUse.request();
-    if (kDebugMode) debugPrint('🔐 GPS Access: ${status.name}');
-    return status.isGranted;
+    try {
+      final status = await Permission.locationWhenInUse.request();
+      if (kDebugMode) debugPrint('🔐 Location: ${status.isGranted ? "Granted" : "Denied"}');
+      return status.isGranted;    } catch (_) {
+      return false;
+    }
   }
 
-  // ========== 🚨 THE REAL GUARDIAN LOCATION FETCHER ==========
+  Future<bool> isPermissionPermanentlyDenied() async {
+    try {
+      final status = await Permission.locationWhenInUse.status;
+      return status.isPermanentlyDenied;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> openSettings() async {
+    try {
+      await openAppSettings();
+    } catch (_) {}
+  }
 
   Future<Position?> getCurrentLocation({bool forceRefresh = true}) async {
     try {
-      // 1. Hardware Check: Is GPS actually ON?
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        _lastError = 'CRITICAL: GPS Hardware is disabled.';
-        return await Geolocator.getLastKnownPosition(); // Fallback to last location
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _lastError = 'GPS disabled — Enable in Settings';
+        return await Geolocator.getLastKnownPosition();
       }
-
-      // 2. Permission Check
       if (!await checkPermission()) {
-        final granted = await requestPermission();
-        if (!granted) {
-          _lastError = 'CRITICAL: Location permission denied by user.';
+        if (!await requestPermission()) {
+          _lastError = 'Permission denied';
           return null;
         }
       }
-
-      // 3. Precision Satellite Lock (With Fail-Safe Timeout)
-      if (kDebugMode) debugPrint('🛰️ Z.A.R.A. locking onto coordinates...');
-      
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.bestForNavigation, // Max precision for security
-        timeLimit: const Duration(seconds: 10), // Don't hang the system if GPS is weak
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: const Duration(seconds: 10),
       );
-
       _currentPosition = position;
-
-      // 4. Background Geocoding (Fetch readable address without blocking the thread)
-      _getAddressFromCoordinates(position).ignore();
-
-      if (kDebugMode) debugPrint('📍 Target Locked: ${position.latitude}, ${position.longitude}');
+      unawaited(_getAddressFromCoordinates(position));
       return position;
-
     } on TimeoutException {
-      // If live lock fails due to being indoors, fetch the last known accurate ping
-      if (kDebugMode) debugPrint('⚠️ Satellite timeout. Falling back to last known ping.');
       _currentPosition = await Geolocator.getLastKnownPosition();
       return _currentPosition;
     } catch (e) {
-      _lastError = 'Location fetch error: $e';
-      if (kDebugMode) debugPrint('⚠️ $_lastError');
+      _lastError = 'Location error: $e';
       return null;
     }
   }
 
-  // ========== Reverse Geocoding (Coordinates to Street Address) ==========
-
   Future<Placemark?> _getAddressFromCoordinates(Position position) async {
-    try {
-      final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+    try {      final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
       if (placemarks.isNotEmpty) {
         _currentAddress = placemarks.first;
         return _currentAddress;
       }
       return null;
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Reverse Geocoding failure: $e');
+    } catch (_) {
       return null;
     }
   }
 
-  // ========== Formatting & Data Output ==========
-
-  String getFormattedAddress() {
-    if (_currentAddress == null) return 'Address currently syncing...';
-    
+  String _formatAddress(Placemark address) {
     final parts = <String>[];
-    if (_currentAddress!.street?.isNotEmpty == true) parts.add(_currentAddress!.street!);
-    if (_currentAddress!.subLocality?.isNotEmpty == true) parts.add(_currentAddress!.subLocality!);
-    if (_currentAddress!.locality?.isNotEmpty == true) parts.add(_currentAddress!.locality!);
-    if (_currentAddress!.postalCode?.isNotEmpty == true) parts.add(_currentAddress!.postalCode!);
-    
-    return parts.isNotEmpty ? parts.join(', ') : 'Exact street unmapped';
+    if (address.street?.isNotEmpty == true) parts.add(address.street!);
+    if (address.subLocality?.isNotEmpty == true) parts.add(address.subLocality!);
+    if (address.locality?.isNotEmpty == true) parts.add(address.locality!);
+    if (address.administrativeArea?.isNotEmpty == true) parts.add(address.administrativeArea!);
+    if (address.postalCode?.isNotEmpty == true) parts.add(address.postalCode!);
+    if (address.country?.isNotEmpty == true) parts.add(address.country!);
+    return parts.isNotEmpty ? parts.join(', ') : 'Address unavailable';
   }
 
-  // ✅ FIXED: The Real Google Maps Coordinate URL
+  String getFormattedAddress() {
+    final addr = _currentAddress;
+    return addr == null ? 'Address syncing...' : _formatAddress(addr);
+  }
+
+  Future<bool> startTracking({Function(Position)? onLocationUpdate, double distanceFilter = 10}) async {
+    if (_isTracking) return true;
+    if (!await checkPermission() || !await Geolocator.isLocationServiceEnabled()) return false;
+    try {
+      _isTracking = true;
+      _positionStream = Geolocator.getPositionStream(
+        locationSettings: LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: distanceFilter.toInt()),
+      ).listen((Position position) {
+        _currentPosition = position;
+        unawaited(_getAddressFromCoordinates(position));
+        onLocationUpdate?.call(position);
+      }, onError: (e) => _lastError = 'Tracking error: $e', cancelOnError: false);
+      return true;
+    } catch (e) {
+      _isTracking = false;
+      _lastError = 'Start tracking error: $e';
+      return false;
+    }
+  }
+
+  Future<void> stopTracking() async {
+    await _positionStream?.cancel();
+    _positionStream = null;    _isTracking = false;
+  }
+
+  bool get isTracking => _isTracking;
+
+  Future<bool> saveSafeLocation({String name = 'Home', double radiusMeters = 100.0}) async {
+    try {
+      if (_currentPosition == null) {
+        final pos = await getCurrentLocation();
+        if (pos == null) return false;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_kSafeLat, _currentPosition!.latitude);
+      await prefs.setDouble(_kSafeLng, _currentPosition!.longitude);
+      await prefs.setString(_kSafeName, name);
+      await prefs.setDouble(_kSafeRadius, radiusMeters);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> loadSafeLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lat = prefs.getDouble(_kSafeLat);
+      final lng = prefs.getDouble(_kSafeLng);
+      if (lat == null || lng == null) return null;
+      return {
+        'latitude': lat,
+        'longitude': lng,
+        'name': prefs.getString(_kSafeName) ?? 'Safe Location',
+        'radiusMeters': prefs.getDouble(_kSafeRadius) ?? 100.0,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> deleteSafeLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kSafeLat);
+      await prefs.remove(_kSafeLng);
+      await prefs.remove(_kSafeName);
+      await prefs.remove(_kSafeRadius);
+      return true;
+    } catch (_) {
+      return false;
+    }  }
+
+  Future<bool> isOutsideSafeZone({double? radiusMeters}) async {
+    try {
+      final safe = await loadSafeLocation();
+      if (safe == null) return false;
+      Position? pos = _currentPosition;
+      if (pos == null) {
+        pos = await getCurrentLocation();
+        if (pos == null) return false;
+      }
+      final distance = Geolocator.distanceBetween(
+        pos.latitude, pos.longitude,
+        safe['latitude'] as double, safe['longitude'] as double,
+      );
+      final radius = radiusMeters ?? (safe['radiusMeters'] as double? ?? 100.0);
+      return distance > radius;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<double?> getDistanceFromSafeZone() async {
+    try {
+      final safe = await loadSafeLocation();
+      if (safe == null || _currentPosition == null) return null;
+      return Geolocator.distanceBetween(
+        _currentPosition!.latitude, _currentPosition!.longitude,
+        safe['latitude'] as double, safe['longitude'] as double,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   String getGoogleMapsLink() {
-    if (_currentPosition == null) return 'No GPS Lock';
-    return 'https://www.google.com/maps/search/?api=1&query=${_currentPosition!.latitude},${_currentPosition!.longitude}';
+    final pos = _currentPosition;
+    if (pos == null) return 'No GPS Lock';
+    return 'https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}';
+  }
+
+  String getAppleMapsLink() {
+    final pos = _currentPosition;
+    if (pos == null) return 'No GPS Lock';
+    return 'https://maps.apple.com/?q=${pos.latitude},${pos.longitude}';
   }
 
   Position? get currentPosition => _currentPosition;
+  Placemark? get currentAddress => _currentAddress;
   String? get lastError => _lastError;
+  void clearCache() {
+    _currentPosition = null;
+    _currentAddress = null;
+    _lastError = null;
+  }
+
+  void dispose() {
+    stopTracking();
+    clearCache();
+  }
 }
 
-// ========== Tactical Extension for Guardian Engine ==========
 extension LocationServiceHelpers on LocationService {
-  
-  /// Fetches all relevant tracking data for email/SMS alerts instantly
   Future<Map<String, dynamic>?> getGuardianTrackingData() async {
-    final position = await getCurrentLocation(forceRefresh: true);
-    if (position == null) return null;
-
+    final pos = await getCurrentLocation(forceRefresh: true);
+    if (pos == null) return null;
     return {
-      'latitude': position.latitude,
-      'longitude': position.longitude,
+      'latitude': pos.latitude,
+      'longitude': pos.longitude,
+      'accuracy': pos.accuracy,
       'mapsLink': getGoogleMapsLink(),
       'address': getFormattedAddress(),
+      'timestamp': DateTime.now().toIso8601String(),
     };
+  }
+
+  Future<bool> isGuardianReady() async {
+    return await checkPermission() &&
+           await Geolocator.isLocationServiceEnabled() &&
+           (currentPosition != null || (await getCurrentLocation()) != null);
+  }
+
+  Future<Position?> waitForLocation({Duration timeout = const Duration(seconds: 15), Duration pollInterval = const Duration(seconds: 1)}) async {
+    if (_currentPosition != null) {
+      final age = DateTime.now().difference(_currentPosition!.timestamp);
+      if (age < const Duration(minutes: 1)) return _currentPosition;
+    }
+    final start = DateTime.now();
+    while (DateTime.now().difference(start) < timeout) {
+      final pos = await getCurrentLocation(forceRefresh: true);
+      if (pos != null) return pos;
+      await Future.delayed(pollInterval);
+    }
+    return null;
   }
 }

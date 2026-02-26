@@ -1,84 +1,206 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.mahakal.zara">
 
-    <!-- 🔐 Z.A.R.A. Permissions -->
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.FLASHLIGHT"/>
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <!-- ========== 📱 CORE PERMISSIONS ========== -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    
-    <!-- ⚙️ Accessibility Service (Guardian Mode) -->
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- ========== 📸 CAMERA & MEDIA ========== -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.FLASHLIGHT"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    
+    <!-- Android 13+ Media permissions -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"
+        android:minSdkVersion="33"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"
+        android:minSdkVersion="33"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"
+        android:minSdkVersion="33"/>
+    
+    <!-- Android 12 and below storage -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"/>
+
+    <!-- ========== 📍 LOCATION ========== -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+
+    <!-- ========== 💬 SMS & MMS ========== -->
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+    <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+    <uses-permission android:name="android.permission.READ_SMS"/>
+    <uses-permission android:name="android.permission.RECEIVE_MMS"/>
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH"/>
+
+    <!-- ========== 📞 CALL & PHONE ========== -->    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
+    <uses-permission android:name="android.permission.READ_CALL_LOG"/>
+    <uses-permission android:name="android.permission.WRITE_CALL_LOG"/>
+    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS"/>
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS"/>
+
+    <!-- ========== 👥 CONTACTS ========== -->
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
+
+    <!-- ========== 🔔 NOTIFICATIONS ========== -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"
+        android:minSdkVersion="33"/>
+
+    <!-- ========== ♿ ACCESSIBILITY (Guardian Mode) ========== -->
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"/>
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions"/>
+    <uses-permission android:name="android.permission.USAGE_STATS"/>
+
+    <!-- ========== Hardware Features (Optional for broader compatibility) ========== -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false"/>
+    <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+    <uses-feature android:name="android.hardware.telephony" android:required="false"/>
 
     <application
-        android:label="zara"
+        android:label="Z.A.R.A."
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true">
+        android:roundIcon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:fullBackupContent="true"
+        android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="tiramisu"
+        tools:ignore="UnusedAttribute">
 
-        <!-- ⚙️ Accessibility Service Declaration -->
-        <service
-            android:name=".ZaraAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <!-- Boot Receiver -->
-        <receiver
-            android:name=".BootReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Main Activity -->
+        <!-- ========== 🚀 MAIN ACTIVITY ========== -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme" />
+                android:resource="@style/NormalTheme"/>
+            
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
 
+        <!-- ========== 🛡️ ACCESSIBILITY SERVICE (Guardian Mode) ========== -->
+        <service
+            android:name=".ZaraAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true"
+            android:label="Z.A.R.A. Guardian"
+            android:foregroundServiceType="camera|location"
+            android:process=":guardian">
+            
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config"/>
+        </service>
+
+        <!-- ========== 🔄 BOOT RECEIVER (Auto-start Guardian) ========== -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true"
+            android:process=":guardian">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- ========== 📧 FILE PROVIDER (For sharing photos securely) ========== -->
+        <provider            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
+
+        <!-- ========== 🔔 NOTIFICATION CHANNELS (Android 8+) ========== -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="guardian_alerts"/>
+
+        <!-- ========== 🧠 FLUTTER EMBEDDING ========== -->
         <meta-data
             android:name="flutterEmbedding"
-            android:value="2" />
+            android:value="2"/>
+
     </application>
 
-    <!-- Queries for Intents -->
+    <!-- ========== 🔍 QUERIES FOR PACKAGE VISIBILITY (Android 11+) ========== -->
     <queries>
+        <!-- Email apps -->
         <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="mailto" />
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="mailto"/>
         </intent>
+        
+        <!-- SMS apps -->
         <intent>
-            <action android:name="android.accessibilityservice.AccessibilityService" />
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="vnd.android-dir/mms-sms"/>
+        </intent>
+        
+        <!-- Phone/Dialer -->
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+        </intent>
+        
+        <!-- Browser/Maps -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <package android:name="com.google.android.apps.maps"/>
+        <package android:name="com.android.chrome"/>
+        
+        <!-- Accessibility -->
+        <intent>            <action android:name="android.accessibilityservice.AccessibilityService"/>
+        </intent>
+        
+        <!-- Text processing -->
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
         </intent>
     </queries>
+
 </manifest>

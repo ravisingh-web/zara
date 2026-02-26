@@ -6,7 +6,7 @@
 
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:zara/core/constants/app_colors.dart';
 
 class RingConfig {
   final double radius;
@@ -30,7 +30,7 @@ class RingConfig {
 
 class RingDataPainter extends CustomPainter {
   final double animationValue;
-  final double pulseValue; // Linked to Z.A.R.A.'s voice energy
+  final double pulseValue;
   final bool guardianMode;
   final List<RingConfig> rings;
 
@@ -46,27 +46,22 @@ class RingDataPainter extends CustomPainter {
       const RingConfig(radius: 105, sweepAngle: pi * 0.4, rotationSpeed: -0.8, clockwise: false),
       const RingConfig(radius: 125, sweepAngle: pi * 1.2, rotationSpeed: 0.5, hasTicks: true),
       const RingConfig(radius: 145, sweepAngle: pi * 0.3, rotationSpeed: -2.0, clockwise: false),
-    ];
-  }
+    ];  }
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final baseColor = guardianMode ? AppColors.alertRed : AppColors.neonCyan;
-
     for (var ring in rings) {
       _drawCyberRing(canvas, center, ring, baseColor);
     }
-
     _drawStaticDecorations(canvas, center, baseColor);
   }
 
   void _drawCyberRing(Canvas canvas, Offset center, RingConfig ring, Color color) {
     final direction = ring.clockwise ? 1.0 : -1.0;
-    // Vibration effect based on pulseValue (Voice sync)
     final dynamicRadius = ring.radius + (pulseValue * 4);
     final rotation = animationValue * 2 * pi * ring.rotationSpeed * direction;
-
     final rect = Rect.fromCircle(center: center, radius: dynamicRadius);
     final opacity = 0.4 + (pulseValue * 0.6);
 
@@ -77,7 +72,7 @@ class RingDataPainter extends CustomPainter {
 
     // 1. Shadow Glow Layer
     final glowPaint = Paint()
-      ..color = color.withOpacity(0.1 * opacity)
+      ..color = color.withValues(alpha: 0.1 * opacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = ring.strokeWidth + 4
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
@@ -85,7 +80,7 @@ class RingDataPainter extends CustomPainter {
 
     // 2. Main High-Tech Arc
     final mainPaint = Paint()
-      ..color = color.withOpacity(opacity)
+      ..color = color.withValues(alpha: opacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = ring.strokeWidth
       ..strokeCap = StrokeCap.square;
@@ -93,28 +88,22 @@ class RingDataPainter extends CustomPainter {
 
     // 3. The "Scanning Head" (Bright dot at the edge)
     final headPaint = Paint()
-      ..color = Colors.white.withOpacity(opacity)
+      ..color = Colors.white.withValues(alpha: opacity)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-    
     final headPos = Offset(
       center.dx + dynamicRadius * cos(ring.sweepAngle),
       center.dy + dynamicRadius * sin(ring.sweepAngle),
     );
     canvas.drawCircle(headPos, 2.0, headPaint);
-
     // 4. HUD Ticks logic (Matched to video)
     if (ring.hasTicks) {
-      _drawHudTicks(canvas, center, dynamicRadius, color.withOpacity(0.2));
+      _drawHudTicks(canvas, center, dynamicRadius, color.withValues(alpha: 0.2));
     }
-
     canvas.restore();
   }
 
   void _drawHudTicks(Canvas canvas, Offset center, double radius, Color color) {
-    final tickPaint = Paint()
-      ..color = color
-      ..strokeWidth = 1.0;
-
+    final tickPaint = Paint()..color = color..strokeWidth = 1.0;
     for (var i = 0; i < 360; i += 10) {
       final angle = i * pi / 180;
       final start = Offset(center.dx + radius * cos(angle), center.dy + radius * sin(angle));
@@ -124,11 +113,7 @@ class RingDataPainter extends CustomPainter {
   }
 
   void _drawStaticDecorations(Canvas canvas, Offset center, Color color) {
-    // Crosshair logic for that "Biometric Interface" look
-    final paint = Paint()
-      ..color = color.withOpacity(0.05)
-      ..strokeWidth = 0.5;
-    
+    final paint = Paint()..color = color.withValues(alpha: 0.05)..strokeWidth = 0.5;
     canvas.drawLine(Offset(center.dx - 200, center.dy), Offset(center.dx + 200, center.dy), paint);
     canvas.drawLine(Offset(center.dx, center.dy - 200), Offset(center.dx, center.dy + 200), paint);
   }

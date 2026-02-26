@@ -1,4 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_service_description">Z.A.R.A. requires Accessibility Service to monitor screen contents for Guardian Mode security, analyze on-screen code, and perform auto-typing capabilities.</string>
+    <!-- App Identity -->
+    <string name="app_name">Z.A.R.A.</string>
+    <string name="app_tagline">Zenith Autonomous Reasoning Array</string>
+    
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_name">Z.A.R.A. Guardian</string>
+    <string name="accessibility_service_description">
+        Z.A.R.A. Guardian Mode provides intelligent security monitoring:
+        \n\n• Detects unauthorized access attempts on lock screen
+        \n• Captures intruder photos using front camera
+        \n• Sends alerts to your trusted contacts via email
+        \n• Auto-types generated code into any text editor
+        \n• Tracks device location for safety monitoring
+        \n\nPrivacy Notice: Z.A.R.A. processes data locally on your device.
+        No personal information is uploaded without your explicit consent.
+        Accessibility permissions are used only for security features you enable.
+    </string>
+    
+    <!-- Notifications -->
+    <string name="guardian_channel_name">Guardian Mode Alerts</string>
+    <string name="guardian_channel_description">Security alerts, intruder detection, and system notifications</string>
+    <string name="notification_intruder_title">🚨 Intruder Detected!</string>
+    <string name="notification_intruder_text">Z.A.R.A. captured a photo. Tap to review and send alerts.</string>
+    <string name="notification_guardian_active">🛡️ Guardian Mode Active</string>
+    <string name="notification_guardian_standby">Guardian Mode Standby</string>
+    <string name="notification_auto_type_progress">⌨️ Auto-typing code…</string>
+    
+    <!-- Permission Rationales -->
+    <string name="permission_camera_rationale">Z.A.R.A. needs camera access to capture intruder photos for your security. This is only used when Guardian Mode detects unauthorized access.</string>
+    <string name="permission_location_rationale">Z.A.R.A. needs location access to track your device and send location-based alerts. Your location is never shared without your consent.</string>
+    <string name="permission_storage_rationale">Z.A.R.A. needs storage access to save intruder photos and access files for analysis. Files are processed locally on your device.</string>
+    <string name="permission_notification_rationale">Z.A.R.A. needs notification permission to send you real-time security alerts. You can disable these anytime in Settings.</string>
+    <string name="permission_accessibility_rationale">Z.A.R.A. needs Accessibility permission for Guardian Mode security monitoring and auto-type assistance. This permission is only used for features you explicitly enable.</string>
+    
+    <!-- Actions & Buttons -->
+    <string name="action_enable_guardian">Enable Guardian Mode</string>
+    <string name="action_disable_guardian">Disable Guardian Mode</string>
+    <string name="action_view_photo">View Photo</string>
+    <string name="action_send_alert">Send Alert</string>
+    <string name="action_open_settings">Open Settings</string>
+    <string name="action_grant_permission">Grant Permission</string>
+    <string name="action_later">Maybe Later</string>
+    
+    <!-- Status Messages -->
+    <string name="msg_guardian_enabled">🛡️ Guardian Mode: ACTIVE</string>
+    <string name="msg_guardian_disabled">Guardian Mode: STANDBY</string>
+    <string name="msg_photo_captured">✅ Intruder photo captured!</string>
+    <string name="msg_alert_sent">✅ Alert sent to trusted contacts.</string>
+    <string name="msg_permission_denied">⚠️ Permission denied. Enable in Settings for full protection.</string>
+    <string name="msg_api_key_required">⚠️ API Key required. Configure in Settings to activate Z.A.R.A.</string>
+    <string name="msg_listening">🎤 Listening, Sir…</string>
+    <string name="msg_processing">🔄 Processing neural streams…</string>
+    
+    <!-- Errors -->
+    <string name="error_camera_failed">❌ Camera error: Could not capture photo</string>
+    <string name="error_location_failed">❌ Location error: Could not get coordinates</string>
+    <string name="error_email_failed">❌ Email error: Could not send alert</string>
+    <string name="error_api_failed">❌ API error: Check your API key in Settings</string>
+    <string name="error_permission_failed">❌ Permission error: Enable required permissions in Settings</string>
+    
+    <!-- Hints & Placeholders -->
+    <string name="hint_api_key">Paste your API key here…</string>
+    <string name="hint_command">Ask Z.A.R.A., Sir…</string>
+    <string name="hint_search">Search or ask anything…</string>
+    
+    <!-- API Providers -->
+    <string name="provider_openrouter">OpenRouter (Free Models)</string>
+    <string name="provider_gemini">Google Gemini (Direct)</string>
+    <string name="provider_description_openrouter">Free AI models via OpenRouter.ai — No credit card needed. Recommended for testing.</string>
+    <string name="provider_description_gemini">Direct Google Gemini API — Requires Google Cloud billing setup. Best for production.</string>
+    
+    <!-- Voice Options -->
+    <string name="voice_hindi_female">Hindi Female (Swara)</string>
+    <string name="voice_hindi_male">Hindi Male (Madhur)</string>
+    <string name="voice_english_us_female">English US Female (Jenny)</string>
+    <string name="voice_english_us_male">English US Male (Guy)</string>
+    <string name="voice_english_uk_female">English UK Female (Sonia)</string>
+    
+    <!-- Legal -->
+    <string name="privacy_policy_url">https://zara-ai.example.com/privacy</string>
+    <string name="terms_of_service_url">https://zara-ai.example.com/terms</string>
+    <string name="copyright">© 2024 Z.A.R.A. Project • Made with ❤️ for Sir</string>
 </resources>
