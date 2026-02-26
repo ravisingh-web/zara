@@ -1,6 +1,8 @@
+//MAHAKAL RAVI
 // lib/main.dart
 // Z.A.R.A. — High-Tech Neural AI Interface
 // ✅ Real Working Code • No Dummy • Single API Key from Settings
+
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
