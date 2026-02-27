@@ -47,7 +47,8 @@ class ZaraAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        serviceInfo = AccessibilityServiceInfo().apply {            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
+        serviceInfo = AccessibilityServiceInfo().apply {
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                 AccessibilityEvent.TYPE_VIEW_CLICKED or
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
@@ -96,7 +97,8 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private fun capturePhoto() {
         try {
-            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())            val dir = getExternalFilesDir(null)?.absolutePath + "/Pictures/ZARA_Intruders"
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val dir = getExternalFilesDir(null)?.absolutePath + "/Pictures/ZARA_Intruders"
             File(dir).mkdirs()
             val file = File(dir, "intruder_$ts.jpg")
             file.createNewFile()
@@ -137,7 +139,6 @@ class ZaraAccessibilityService : AccessibilityService() {
             .build()
     }
 
-    // ✅ FIXED: Added parameter name 'data' before Map<String, Any>
     private fun sendEvent(method: String, data: Map<String, Any>) {
         handler.post {
             channel?.invokeMethod(method, data)
@@ -145,5 +146,6 @@ class ZaraAccessibilityService : AccessibilityService() {
     }
 
     fun setChannel(ch: MethodChannel) {
-        channel = ch    }
+        channel = ch
+    }
 }
