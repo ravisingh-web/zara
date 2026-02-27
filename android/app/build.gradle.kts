@@ -1,5 +1,5 @@
 // app/build.gradle.kts — Z.A.R.A. App Module
-// ✅ FIX: Disable shrinkResources for debug builds
+// ✅ FIX: Updated compileSdk to 36 for new dependencies
 
 plugins {
     id("com.android.application")
@@ -9,7 +9,9 @@ plugins {
 
 android {
     namespace = "com.mahakal.zara"
-    compileSdk = 34
+    
+    // ✅ FIX: Updated to compileSdk 36 (required by camera-core 1.5.3, core-ktx 1.17.0, etc.)
+    compileSdk = 36
     ndkVersion = "26.1.10909125"
 
     compileOptions {
@@ -19,27 +21,25 @@ android {
 
     defaultConfig {
         applicationId = "com.mahakal.zara"
-        minSdk = 24
-        targetSdk = 34
+        minSdk = 24  // Keep minSdk 24 - app still works on Android 7+
+        targetSdk = 34  // Keep targetSdk 34 - runtime behavior unchanged
         versionCode = 1
         versionName = "1.0.0"
     }
 
     buildTypes {
-        // ✅ DEBUG BUILD - No shrinking (faster builds, easier debugging)
         debug {
             applicationIdSuffix = ".debug"
             isMinifyEnabled = false
-            isShrinkResources = false  // ✅ FIX: Must be false if minifyEnabled is false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
-        // ✅ RELEASE BUILD - Can enable shrinking later when ready
         release {
-            isMinifyEnabled = false  // Keep false for now, enable when proguard rules are ready
-            isShrinkResources = false  // ✅ FIX: Must match minifyEnabled
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -48,7 +48,7 @@ android {
         }
     }
 
-    // ✅ ABI Splits - Simple Syntax
+    // ✅ ABI Splits
     splits {
         abi {
             isEnable = true
