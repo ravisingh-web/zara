@@ -54,6 +54,7 @@ class ZaraAccessibilityService : AccessibilityService() {
     private var isMonitoring = false
     private var autoTypeQueue = mutableListOf<String>()
     private var isTyping = false
+    private var isMonitoring = false
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {

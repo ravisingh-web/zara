@@ -97,6 +97,7 @@ class MainActivity : FlutterActivity() {
                 "incrementWrongPasswordCount" -> {
                     val newCount = incrementWrongPasswordCount()                    result.success(newCount)
                     Log.d(TAG, "⚠️ Wrong password count incremented: $newCount")
+                    Log.d(TAG, "⚠️ Wrong password count incremented: $newCount")
                     if (newCount >= 2) {
                         sendGuardianEvent("intruder_detected", mapOf("count" to newCount))
                     }
