@@ -1,7 +1,5 @@
 // Root build.gradle.kts — Z.A.R.A. Project
-// ✅ FINAL FIX: compilerOptions with correct imports for Kotlin 1.9.20+
-
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+// ✅ MINIMAL: No custom Kotlin config - let Flutter plugin handle it
 
 allprojects {
     repositories {
@@ -25,10 +23,4 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-
-// ✅ FINAL FIX: compilerOptions with correct imports
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
-}
+// ✅ NO kotlinOptions/compilerOptions here - Flutter handles it!
