@@ -22,13 +22,9 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val TAG = "ZARA_MAIN"
-
-        // Method Channel names
         private const val CHANNEL_MAIN = "com.mahakal.zara/main"
         private const val CHANNEL_ACCESSIBILITY = "com.mahakal.zara/accessibility"
         private const val CHANNEL_GUARDIAN = "com.mahakal.zara/guardian"
-
-        // SharedPreferences keys
         private const val PREFS_NAME = "zara_guardian_prefs"
         private const val KEY_WRONG_PASSWORD_COUNT = "wrong_password_count"
     }
@@ -40,19 +36,17 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "🚀 Z.A.R.A. MainActivity created")
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             Log.d(TAG, "📱 Android 14+ detected — Foreground Service permissions ready")
         }
     }
 
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {        super.configureFlutterEngine(flutterEngine)
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
         Log.d(TAG, "⚙️ Configuring Flutter Engine with MethodChannels")
 
-        // ========== CHANNEL 1: Main (Device Info, Battery, etc.) ==========
         mainChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_MAIN)
-        mainChannel?.setMethodCallHandler { call, result ->
-            when (call.method) {
+        mainChannel?.setMethodCallHandler { call, result ->            when (call.method) {
                 "getDeviceInfo" -> {
                     val info = getDeviceInfo()
                     result.success(info)
@@ -71,7 +65,6 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // ========== CHANNEL 2: Accessibility (Service Status) ==========
         accessibilityChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_ACCESSIBILITY)
         accessibilityChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -88,22 +81,21 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // ========== CHANNEL 3: Guardian Mode (Security) ==========
         guardianChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_GUARDIAN)
         guardianChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "resetWrongPasswordCount" -> {
                     resetWrongPasswordCount()
                     result.success(true)
-                    Log.d(TAG, "🔄 Wrong password count reset")                }
+                    Log.d(TAG, "🔄 Wrong password count reset")
+                }
                 "getWrongPasswordCount" -> {
                     val count = getWrongPasswordCount()
                     result.success(count)
                     Log.d(TAG, "🔐 Wrong password count: $count")
                 }
                 "incrementWrongPasswordCount" -> {
-                    val newCount = incrementWrongPasswordCount()
-                    result.success(newCount)
+                    val newCount = incrementWrongPasswordCount()                    result.success(newCount)
                     Log.d(TAG, "⚠️ Wrong password count incremented: $newCount")
                     if (newCount >= 2) {
                         sendGuardianEvent("intruder_detected", mapOf("count" to newCount))
@@ -112,7 +104,6 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-
         Log.d(TAG, "✅ All MethodChannels configured")
     }
 
@@ -123,8 +114,6 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
         Log.d(TAG, "🔚 MainActivity destroyed")
     }
-
-    // ========== DEVICE INFO ==========
 
     private fun getDeviceInfo(): Map<String, Any> {
         return mapOf(
@@ -144,20 +133,18 @@ class MainActivity : FlutterActivity() {
     private fun isEmulator(): Boolean {
         return Build.FINGERPRINT?.contains("generic") == true ||
                Build.FINGERPRINT?.contains("unknown") == true ||
-               Build.MODEL?.contains("google_sdk") == true ||               Build.MODEL?.contains("Emulator") == true ||
+               Build.MODEL?.contains("google_sdk") == true ||
+               Build.MODEL?.contains("Emulator") == true ||
                Build.MODEL?.contains("Android SDK built for x86") == true ||
                Build.MANUFACTURER?.contains("Genymotion") == true ||
                (Build.BRAND?.startsWith("generic") == true && Build.DEVICE?.startsWith("generic") == true) ||
                "google_sdk" == Build.PRODUCT
     }
 
-    // ========== BATTERY OPTIMIZATION ==========
-
     private fun requestIgnoreBatteryOptimizations(): Boolean {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
                     val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                         data = android.net.Uri.parse("package:$packageName")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -177,8 +164,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // ========== APP SETTINGS ==========
-
     private fun openAppSettings() {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -193,24 +178,22 @@ class MainActivity : FlutterActivity() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(intent)
-        }    }
-
-    // ========== ACCESSIBILITY SERVICE ==========
+        }
+    }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
         return try {
             val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
             val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
             enabledServices.any {
-                it.id.contains(packageName, ignoreCase = true) &&
-                it.id.contains("ZaraAccessibilityService", ignoreCase = true)
+                it.id?.contains(packageName, ignoreCase = true) == true &&
+                it.id?.contains("ZaraAccessibilityService", ignoreCase = true) == true
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ Accessibility check failed: ${e.message}")
             false
         }
     }
-
     private fun openAccessibilitySettings() {
         try {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
@@ -227,8 +210,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // ========== GUARDIAN MODE: Wrong Password Tracking ==========
-
     private fun getWrongPasswordCount(): Int {
         return try {
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -242,7 +223,8 @@ class MainActivity : FlutterActivity() {
     private fun incrementWrongPasswordCount(): Int {
         return try {
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val current = prefs.getInt(KEY_WRONG_PASSWORD_COUNT, 0)            val newCount = current + 1
+            val current = prefs.getInt(KEY_WRONG_PASSWORD_COUNT, 0)
+            val newCount = current + 1
             prefs.edit().putInt(KEY_WRONG_PASSWORD_COUNT, newCount).apply()
             newCount
         } catch (e: Exception) {
@@ -260,9 +242,6 @@ class MainActivity : FlutterActivity() {
             Log.e(TAG, "❌ Reset count error: ${e.message}")
         }
     }
-
-    // ========== GUARDIAN EVENT BROADCAST ==========
-
     private fun sendGuardianEvent(type: String, data: Map<String, Any>) {
         val event = mapOf(
             "type" to type,
@@ -272,8 +251,6 @@ class MainActivity : FlutterActivity() {
         Log.d(TAG, "📡 Guardian Event: $type — $data")
         accessibilityChannel?.invokeMethod("onSecurityEvent", event)
     }
-
-    // ========== UTILITY: Check Permission ==========
 
     fun checkPermission(permission: String): Boolean {
         return ContextCompat.checkSelfPermission(this, permission) ==
