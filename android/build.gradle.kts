@@ -1,5 +1,5 @@
 // Root build.gradle.kts — Z.A.R.A. Project
-// ✅ MINIMAL: No custom Kotlin config - let Flutter plugin handle it
+// ✅ MINIMAL: Let Flutter handle everything
 
 allprojects {
     repositories {
@@ -23,4 +23,3 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-// ✅ NO kotlinOptions/compilerOptions here - Flutter handles it!

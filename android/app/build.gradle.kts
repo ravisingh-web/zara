@@ -1,5 +1,5 @@
 // app/build.gradle.kts — Z.A.R.A. App Module
-// ✅ MINIMAL: Let Flutter plugin handle Kotlin config
+// ✅ FIX: Disable shrinkResources for debug builds
 
 plugins {
     id("com.android.application")
@@ -17,8 +17,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // ✅ NO custom kotlinOptions block - Flutter plugin handles it!
-
     defaultConfig {
         applicationId = "com.mahakal.zara"
         minSdk = 24
@@ -28,16 +26,25 @@ android {
     }
 
     buildTypes {
-        release {
+        // ✅ DEBUG BUILD - No shrinking (faster builds, easier debugging)
+        debug {
+            applicationIdSuffix = ".debug"
             isMinifyEnabled = false
+            isShrinkResources = false  // ✅ FIX: Must be false if minifyEnabled is false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        // ✅ RELEASE BUILD - Can enable shrinking later when ready
+        release {
+            isMinifyEnabled = false  // Keep false for now, enable when proguard rules are ready
+            isShrinkResources = false  // ✅ FIX: Must match minifyEnabled
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("debug")
-        }
-        debug {
-            applicationIdSuffix = ".debug"
         }
     }
 
