@@ -137,6 +137,7 @@ class ZaraAccessibilityService : AccessibilityService() {
             .build()
     }
 
+    // ✅ FIXED: Added parameter name 'data' before Map<String, Any>
     private fun sendEvent(method: String, data: Map<String, Any>) {
         handler.post {
             channel?.invokeMethod(method, data)
@@ -144,5 +145,5 @@ class ZaraAccessibilityService : AccessibilityService() {
     }
 
     fun setChannel(ch: MethodChannel) {
-        channel = ch
-    }}
+        channel = ch    }
+}
