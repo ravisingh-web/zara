@@ -1,33 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Z.A.R.A. Guardian Mode — Accessibility Service Config -->
+<!-- Comments must be OUTSIDE the tag, not inside attributes -->
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
-    android:summary="Z.A.R.A. Guardian Mode — Security monitoring, intruder detection, auto-type assistance"
-    
-    <!-- ========== EVENT TYPES (What Z.A.R.A. monitors) ========== -->
+    android:summary="Z.A.R.A. Guardian Mode"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked|typeViewFocused|typeViewTextChanged"
-    
-    <!-- ========== FEEDBACK & FLAGS ========== -->
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagIncludeNotImportantViews|flagReportViewIds|flagRetrieveInteractiveWindows"
-    
-    <!-- ========== CAPABILITIES ========== -->
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
     android:canTakeScreenshot="true"
     android:isAccessibilityTool="true"
-    
-    <!-- ========== TARGET PACKAGES (Privacy-focused monitoring) ========== -->
-    <!-- Monitor system UI for lock screen + input methods for auto-type -->
-    android:packageNames="com.android.systemui,com.android.keyguard,com.android.settings,com.google.android.inputmethod.latin,com.android.inputmethod.latin"
-    
-    <!-- ========== PERFORMANCE ========== -->
+    android:packageNames="com.android.systemui,com.android.keyguard,com.android.settings"
     android:notificationTimeout="100"
-    
-    <!-- ========== USER NAVIGATION ========== -->
-    android:settingsActivity="com.mahakal.zara.MainActivity"
-    
-    <!-- ========== ANDROID 14+ COMPATIBILITY ========== -->
-    <!-- Note: Foreground service type is declared in AndroidManifest.xml -->
-    <!-- This service requires: FOREGROUND_SERVICE_TYPE_CAMERA | FOREGROUND_SERVICE_TYPE_LOCATION -->
-    
-    />
+    android:settingsActivity="com.mahakal.zara.MainActivity" />

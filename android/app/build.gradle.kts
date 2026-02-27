@@ -1,6 +1,3 @@
-// app/build.gradle.kts — Z.A.R.A. App Module
-// ✅ FIX: Updated compileSdk to 36 for new dependencies
-
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -9,10 +6,8 @@ plugins {
 
 android {
     namespace = "com.mahakal.zara"
-    
-    // ✅ FIX: Updated to compileSdk 36 (required by camera-core 1.5.3, core-ktx 1.17.0, etc.)
     compileSdk = 36
-    ndkVersion = "26.1.10909125"
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,8 +16,8 @@ android {
 
     defaultConfig {
         applicationId = "com.mahakal.zara"
-        minSdk = 24  // Keep minSdk 24 - app still works on Android 7+
-        targetSdk = 34  // Keep targetSdk 34 - runtime behavior unchanged
+        minSdk = 24
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -48,7 +43,6 @@ android {
         }
     }
 
-    // ✅ ABI Splits
     splits {
         abi {
             isEnable = true
