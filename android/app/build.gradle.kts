@@ -1,7 +1,5 @@
 // app/build.gradle.kts — Z.A.R.A. App Module
-// ✅ FINAL FIX: compilerOptions + correct splits syntax
-
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+// ✅ MINIMAL: Let Flutter plugin handle Kotlin config
 
 plugins {
     id("com.android.application")
@@ -19,13 +17,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // ✅ FINAL FIX: compilerOptions with correct imports
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-            freeCompilerArgs.add("-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi")
-        }
-    }
+    // ✅ NO custom kotlinOptions block - Flutter plugin handles it!
 
     defaultConfig {
         applicationId = "com.mahakal.zara"
@@ -49,7 +41,7 @@ android {
         }
     }
 
-    // ✅ ABI Splits - Fixed Syntax
+    // ✅ ABI Splits - Simple Syntax
     splits {
         abi {
             isEnable = true
@@ -67,6 +59,5 @@ flutter {
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
     implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
