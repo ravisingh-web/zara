@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import android.accessibilityservice.AccessibilityServiceInfo
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
 class BootReceiver : BroadcastReceiver() {
@@ -43,7 +44,11 @@ class BootReceiver : BroadcastReceiver() {
     private fun showNotification(context: Context, title: String, text: String) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(CHANNEL_ID, "ZARA", NotificationManager.IMPORTANCE_LOW)
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "ZARA",
+                    NotificationManager.IMPORTANCE_LOW
+                )
                 val manager = context.getSystemService(NotificationManager::class.java)
                 manager?.createNotificationChannel(channel)
             }
@@ -58,5 +63,4 @@ class BootReceiver : BroadcastReceiver() {
             Log.e(TAG, "Notification error: ${e.message}")
         }
     }
-
 }

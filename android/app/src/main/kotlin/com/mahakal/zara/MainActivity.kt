@@ -49,7 +49,9 @@ class MainActivity : FlutterActivity() {
                 }
                 "checkAccessibilityEnabled" -> {
                     val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
-                    val services = am?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
+                    val services = am?.getEnabledAccessibilityServiceList(
+                        AccessibilityServiceInfo.FEEDBACK_GENERIC
+                    )
                     val enabled = services?.any { it.id?.contains(packageName) == true } ?: false
                     result.success(enabled)
                 }
@@ -69,3 +71,4 @@ class MainActivity : FlutterActivity() {
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 }
+

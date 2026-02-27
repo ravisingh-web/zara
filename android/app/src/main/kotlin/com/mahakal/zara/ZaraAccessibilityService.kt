@@ -30,8 +30,13 @@ class ZaraAccessibilityService : AccessibilityService() {
         private const val KEY_COUNT = "wrong_password_count"
         private const val KEY_LAST = "last_password_attempt"
         private const val THRESHOLD = 2
-        private val LOCK_PACKAGES = setOf("com.android.systemui", "com.android.keyguard")
-        private val PASSWORD_WORDS = setOf("wrong", "incorrect", "invalid", "error")
+        private val LOCK_PACKAGES = setOf(
+            "com.android.systemui",
+            "com.android.keyguard"
+        )
+        private val PASSWORD_WORDS = setOf(
+            "wrong", "incorrect", "invalid", "error"
+        )
     }
 
     private var channel: MethodChannel? = null
@@ -40,11 +45,14 @@ class ZaraAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
-        super.onServiceConnected()         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        serviceInfo = AccessibilityServiceInfo().apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_VIEW_CLICKED or AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
+        super.onServiceConnected()
+        prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        serviceInfo = AccessibilityServiceInfo().apply {            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
+                AccessibilityEvent.TYPE_VIEW_CLICKED or
+                AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+            flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
+                AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             notificationTimeout = 100
         }
         createChannel()
@@ -64,15 +72,23 @@ class ZaraAccessibilityService : AccessibilityService() {
         }
     }
 
+    override fun onInterrupt() {
+        isMonitoring = false
+        Log.w(TAG, "Service interrupted")
+    }
+
     private fun handleWrongPassword(pkg: String) {
-        val prefs = prefs ?: return
+        val p = prefs ?: return
         val now = System.currentTimeMillis()
-        if (now - prefs.getLong(KEY_LAST, 0) > 30000) {
-            prefs.edit().putInt(KEY_COUNT, 0).apply()
+        if (now - p.getLong(KEY_LAST, 0) > 30000) {
+            p.edit().putInt(KEY_COUNT, 0).apply()
         }
-        val count = prefs.getInt(KEY_COUNT, 0) + 1
-        prefs.edit().putInt(KEY_COUNT, count).putLong(KEY_LAST, now).apply()
-        sendEvent("onSecurityEvent", mapOf("type" to "wrong_password", "count" to count))
+        val count = p.getInt(KEY_COUNT, 0) + 1
+        p.edit().putInt(KEY_COUNT, count).putLong(KEY_LAST, now).apply()
+        sendEvent(
+            "onSecurityEvent",
+            mapOf("type" to "wrong_password", "count" to count)
+        )
         if (count >= THRESHOLD) {
             capturePhoto()
         }
@@ -80,20 +96,34 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private fun capturePhoto() {
         try {
-            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val dir = getExternalFilesDir(null)?.absolutePath + "/Pictures/ZARA_Intruders"
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())            val dir = getExternalFilesDir(null)?.absolutePath + "/Pictures/ZARA_Intruders"
             File(dir).mkdirs()
             val file = File(dir, "intruder_$ts.jpg")
             file.createNewFile()
-            FileOutputStream(file).use { it.write(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0x00.toByte())) }
-            sendEvent("onSecurityEvent", mapOf("type" to "photo_captured", "path" to file.absolutePath))         } catch (e: Exception) {
+            FileOutputStream(file).use {
+                it.write(
+                    byteArrayOf(
+                        0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(),
+                        0xE0.toByte(), 0x00.toByte()
+                    )
+                )
+            }
+            sendEvent(
+                "onSecurityEvent",
+                mapOf("type" to "photo_captured", "path" to file.absolutePath)
+            )
+        } catch (e: Exception) {
             Log.e(TAG, "Photo error: ${e.message}")
         }
     }
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val c = NotificationChannel("zara_guardian", "ZARA", NotificationManager.IMPORTANCE_LOW)
+        val c = NotificationChannel(
+            "zara_guardian",
+            "ZARA",
+            NotificationManager.IMPORTANCE_LOW
+        )
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(c)
     }
 
@@ -107,10 +137,12 @@ class ZaraAccessibilityService : AccessibilityService() {
             .build()
     }
 
-    private fun sendEvent(method: String,  Map<String, Any>) {
-        handler.post { channel?.invokeMethod(method,  Map<String, Any>) {
-        handler.post { channel?.invokeMethod(method, data) }
+    private fun sendEvent(method: String, data: Map<String, Any>) {
+        handler.post {
+            channel?.invokeMethod(method, data)
+        }
     }
 
-    fun setChannel(ch: MethodChannel) { channel = ch }
-}
+    fun setChannel(ch: MethodChannel) {
+        channel = ch
+    }}
