@@ -17,7 +17,6 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import androidx.core.content.ContextCompat
-
 class MainActivity : FlutterActivity() {
 
     companion object {
@@ -35,27 +34,23 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "🚀 Z.A.R.A. MainActivity created")
+        Log.d(TAG, "Z.A.R.A. MainActivity created")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            Log.d(TAG, "📱 Android 14+ detected — Foreground Service permissions ready")
+            Log.d(TAG, "Android 14+ detected")
         }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        Log.d(TAG, "⚙️ Configuring Flutter Engine with MethodChannels")
 
         mainChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_MAIN)
-        mainChannel?.setMethodCallHandler { call, result ->            when (call.method) {
+        mainChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
                 "getDeviceInfo" -> {
-                    val info = getDeviceInfo()
-                    result.success(info)
-                    Log.d(TAG, "📱 Device info sent to Flutter")
+                    result.success(getDeviceInfo())
                 }
                 "requestIgnoreBatteryOptimizations" -> {
-                    val success = requestIgnoreBatteryOptimizations()
-                    result.success(success)
-                    Log.d(TAG, "🔋 Battery optimization request: $success")
+                    result.success(requestIgnoreBatteryOptimizations())
                 }
                 "openAppSettings" -> {
                     openAppSettings()
@@ -69,12 +64,9 @@ class MainActivity : FlutterActivity() {
         accessibilityChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "checkAccessibilityEnabled" -> {
-                    val isEnabled = isAccessibilityServiceEnabled()
-                    result.success(isEnabled)
-                    Log.d(TAG, "♿ Accessibility check: $isEnabled")
+                    result.success(isAccessibilityServiceEnabled())
                 }
-                "openAccessibilitySettings" -> {
-                    openAccessibilitySettings()
+                "openAccessibilitySettings" -> {                    openAccessibilitySettings()
                     result.success(true)
                 }
                 else -> result.notImplemented()
@@ -87,17 +79,13 @@ class MainActivity : FlutterActivity() {
                 "resetWrongPasswordCount" -> {
                     resetWrongPasswordCount()
                     result.success(true)
-                    Log.d(TAG, "🔄 Wrong password count reset")
                 }
                 "getWrongPasswordCount" -> {
-                    val count = getWrongPasswordCount()
-                    result.success(count)
-                    Log.d(TAG, "🔐 Wrong password count: $count")
+                    result.success(getWrongPasswordCount())
                 }
                 "incrementWrongPasswordCount" -> {
-                    val newCount = incrementWrongPasswordCount()                    result.success(newCount)
-                    Log.d(TAG, "⚠️ Wrong password count incremented: $newCount")
-                    Log.d(TAG, "⚠️ Wrong password count incremented: $newCount")
+                    val newCount = incrementWrongPasswordCount()
+                    result.success(newCount)
                     if (newCount >= 2) {
                         sendGuardianEvent("intruder_detected", mapOf("count" to newCount))
                     }
@@ -105,7 +93,6 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        Log.d(TAG, "✅ All MethodChannels configured")
     }
 
     override fun onDestroy() {
@@ -113,7 +100,6 @@ class MainActivity : FlutterActivity() {
         accessibilityChannel?.setMethodCallHandler(null)
         guardianChannel?.setMethodCallHandler(null)
         super.onDestroy()
-        Log.d(TAG, "🔚 MainActivity destroyed")
     }
 
     private fun getDeviceInfo(): Map<String, Any> {
@@ -125,27 +111,14 @@ class MainActivity : FlutterActivity() {
             "androidVersion" to (Build.VERSION.RELEASE ?: "Unknown"),
             "sdkInt" to Build.VERSION.SDK_INT,
             "securityPatch" to (Build.VERSION.SECURITY_PATCH ?: "Unknown"),
-            "isEmulator" to isEmulator(),
-            "packageName" to packageName,
-            "appName" to getString(R.string.app_name)
+            "packageName" to packageName
         )
     }
 
-    private fun isEmulator(): Boolean {
-        return Build.FINGERPRINT?.contains("generic") == true ||
-               Build.FINGERPRINT?.contains("unknown") == true ||
-               Build.MODEL?.contains("google_sdk") == true ||
-               Build.MODEL?.contains("Emulator") == true ||
-               Build.MODEL?.contains("Android SDK built for x86") == true ||
-               Build.MANUFACTURER?.contains("Genymotion") == true ||
-               (Build.BRAND?.startsWith("generic") == true && Build.DEVICE?.startsWith("generic") == true) ||
-               "google_sdk" == Build.PRODUCT
-    }
-
-    private fun requestIgnoreBatteryOptimizations(): Boolean {
-        return try {
+    private fun requestIgnoreBatteryOptimizations(): Boolean {        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
                     val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                         data = android.net.Uri.parse("package:$packageName")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -153,14 +126,12 @@ class MainActivity : FlutterActivity() {
                     startActivity(intent)
                     true
                 } else {
-                    Log.d(TAG, "✅ Already ignoring battery optimizations")
                     true
                 }
             } else {
                 true
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Battery optimization request failed: ${e.message}")
             false
         }
     }
@@ -172,9 +143,7 @@ class MainActivity : FlutterActivity() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(intent)
-            Log.d(TAG, "🔓 Opened App Settings")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to open App Settings: ${e.message}")
             val intent = Intent(Settings.ACTION_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
@@ -191,19 +160,16 @@ class MainActivity : FlutterActivity() {
                 it.id?.contains("ZaraAccessibilityService", ignoreCase = true) == true
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Accessibility check failed: ${e.message}")
             false
         }
     }
-    private fun openAccessibilitySettings() {
-        try {
+
+    private fun openAccessibilitySettings() {        try {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(intent)
-            Log.d(TAG, "🔓 Opened Accessibility Settings")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to open Accessibility Settings: ${e.message}")
             val intent = Intent(Settings.ACTION_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
@@ -216,7 +182,6 @@ class MainActivity : FlutterActivity() {
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             prefs.getInt(KEY_WRONG_PASSWORD_COUNT, 0)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Get count error: ${e.message}")
             0
         }
     }
@@ -229,7 +194,6 @@ class MainActivity : FlutterActivity() {
             prefs.edit().putInt(KEY_WRONG_PASSWORD_COUNT, newCount).apply()
             newCount
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Increment count error: ${e.message}")
             0
         }
     }
@@ -238,20 +202,18 @@ class MainActivity : FlutterActivity() {
         try {
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             prefs.edit().putInt(KEY_WRONG_PASSWORD_COUNT, 0).apply()
-            Log.d(TAG, "🔄 Wrong password count reset to 0")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Reset count error: ${e.message}")
+            Log.e(TAG, "Reset error: ${e.message}")
         }
     }
+
     private fun sendGuardianEvent(type: String, data: Map<String, Any>) {
         val event = mapOf(
             "type" to type,
             "data" to data,
             "timestamp" to System.currentTimeMillis()
         )
-        Log.d(TAG, "📡 Guardian Event: $type — $data")
-        accessibilityChannel?.invokeMethod("onSecurityEvent", event)
-    }
+        accessibilityChannel?.invokeMethod("onSecurityEvent", event)    }
 
     fun checkPermission(permission: String): Boolean {
         return ContextCompat.checkSelfPermission(this, permission) ==

@@ -37,8 +37,7 @@ class ZaraAccessibilityService : AccessibilityService() {
         private const val WRONG_PASSWORD_THRESHOLD = 2
         private const val PREFS_NAME = "zara_guardian_prefs"
         private const val KEY_WRONG_COUNT = "wrong_password_count"
-        private const val KEY_LAST_ATTEMPT = "last_password_attempt"
-        private val LOCK_SCREEN_PACKAGES = setOf(
+        private const val KEY_LAST_ATTEMPT = "last_password_attempt"        private val LOCK_SCREEN_PACKAGES = setOf(
             "com.android.systemui",
             "com.android.keyguard",
             "com.oneplus.keyguard",
@@ -46,7 +45,8 @@ class ZaraAccessibilityService : AccessibilityService() {
         )
         private val PASSWORD_KEYWORDS = setOf(
             "wrong", "incorrect", "invalid", "galat", "error", "failed", "try again"
-        )    }
+        )
+    }
 
     private var methodChannel: MethodChannel? = null
     private var prefs: SharedPreferences? = null
@@ -54,12 +54,10 @@ class ZaraAccessibilityService : AccessibilityService() {
     private var isMonitoring = false
     private var autoTypeQueue = mutableListOf<String>()
     private var isTyping = false
-    private var isMonitoring = false
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.d(TAG, "🔐 Accessibility Service Connected")
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as? CameraManager
         serviceInfo = AccessibilityServiceInfo().apply {
@@ -78,28 +76,24 @@ class ZaraAccessibilityService : AccessibilityService() {
         createNotificationChannel()
         startForegroundNotification()
         isMonitoring = true
-        Log.d(TAG, "✅ Guardian Mode: Active & Monitoring")
         sendEvent("onServiceStatusChanged", mapOf("enabled" to true))
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
         isMonitoring = false
-        Log.d(TAG, "🔐 Accessibility Service Unbound")
         sendEvent("onServiceStatusChanged", mapOf("enabled" to false))
         return super.onUnbind(intent)
     }
 
     override fun onInterrupt() {
-        Log.w(TAG, "⚠️ Accessibility Service Interrupted")
-        isMonitoring = false
-        sendEvent("onServiceStatusChanged", mapOf("enabled" to false))
+        isMonitoring = false        sendEvent("onServiceStatusChanged", mapOf("enabled" to false))
     }
 
     override fun onDestroy() {
-        super.onDestroy()        isMonitoring = false
+        super.onDestroy()
+        isMonitoring = false
         handler.removeCallbacksAndMessages(null)
         autoTypeQueue.clear()
-        Log.d(TAG, "❌ Accessibility Service Destroyed")
         sendEvent("onServiceStatusChanged", mapOf("enabled" to false))
     }
 
@@ -117,7 +111,6 @@ class ZaraAccessibilityService : AccessibilityService() {
         val packageName = event.packageName?.toString() ?: return
         val className = event.className?.toString() ?: ""
         if (isLockScreen(packageName, className)) {
-            Log.d(TAG, "🔒 Lock screen detected: $packageName/$className")
             sendEvent("onSecurityEvent", mapOf(
                 "type" to "lock_screen",
                 "data" to mapOf("visible" to true, "package" to packageName, "class" to className)
@@ -142,17 +135,7 @@ class ZaraAccessibilityService : AccessibilityService() {
         val node = event.source ?: return
         val className = node.className?.toString() ?: ""
         if (isEditableField(className)) {
-            Log.d(TAG, "📝 Text field focused: ${node.packageName}")
-            sendEvent("onSecurityEvent", mapOf(
-                "type" to "text_field_focused",
-                "data" to mapOf(                    "package" to node.packageName.toString(),
-                    "class" to className,
-                    "hint" to node.hintText?.toString().orEmpty(),
-                    "canEdit" to node.isEditable
-                )
-            ))
-            if (autoTypeQueue.isNotEmpty() && !isTyping) {
-                processAutoTypeQueue()
+            if (autoTypeQueue.isNotEmpty() && !isTyping) {                processAutoTypeQueue()
             }
         }
         node.recycle()
@@ -180,7 +163,6 @@ class ZaraAccessibilityService : AccessibilityService() {
             .putInt(KEY_WRONG_COUNT, currentCount)
             .putLong(KEY_LAST_ATTEMPT, currentTime)
             .apply()
-        Log.w(TAG, "⚠️ Wrong password attempt #$currentCount in $packageName")
         sendEvent("onSecurityEvent", mapOf(
             "type" to "wrong_password",
             "data" to mapOf(
@@ -194,17 +176,15 @@ class ZaraAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun getWrongPasswordCount(): Int {        return prefs?.getInt(KEY_WRONG_COUNT, 0) ?: 0
+    private fun getWrongPasswordCount(): Int {
+        return prefs?.getInt(KEY_WRONG_COUNT, 0) ?: 0
     }
 
     fun resetWrongPasswordCount() {
         prefs?.edit()?.putInt(KEY_WRONG_COUNT, 0)?.putLong(KEY_LAST_ATTEMPT, 0)?.apply()
-        Log.d(TAG, "🔄 Wrong password count reset")
     }
 
-    private fun triggerIntruderDetection() {
-        Log.e(TAG, "🚨 INTRUDER DETECTED! Threshold reached — capturing photo...")
-        sendEvent("onSecurityEvent", mapOf(
+    private fun triggerIntruderDetection() {        sendEvent("onSecurityEvent", mapOf(
             "type" to "intruder_detected",
             "data" to mapOf(
                 "action" to "capture_photo",
@@ -221,7 +201,6 @@ class ZaraAccessibilityService : AccessibilityService() {
                     this, android.Manifest.permission.CAMERA
                 ) != android.content.pm.PackageManager.PERMISSION_GRANTED
             ) {
-                Log.e(TAG, "❌ Camera permission not granted")
                 sendEvent("onSecurityEvent", mapOf(
                     "type" to "intruder_photo_error",
                     "data" to mapOf("error" to "Camera permission denied")
@@ -243,8 +222,8 @@ class ZaraAccessibilityService : AccessibilityService() {
                     0x00.toByte(), 0x01.toByte(), 0x00.toByte(), 0x00.toByte(),
                     0xFF.toByte(), 0xDB.toByte(), 0x00.toByte(), 0x43.toByte(),
                     0x00.toByte()
-                ))            }
-            Log.d(TAG, "📸 Intruder photo saved: ${photoFile.absolutePath}")
+                ))
+            }
             sendEvent("onSecurityEvent", mapOf(
                 "type" to "intruder_photo_captured",
                 "data" to mapOf(
@@ -254,9 +233,7 @@ class ZaraAccessibilityService : AccessibilityService() {
                 )
             ))
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Photo capture failed: ${e.message}", e)
-            sendEvent("onSecurityEvent", mapOf(
-                "type" to "intruder_photo_error",
+            sendEvent("onSecurityEvent", mapOf(                "type" to "intruder_photo_error",
                 "data" to mapOf("error" to (e.message ?: "Unknown error"))
             ))
         }
@@ -278,8 +255,6 @@ class ZaraAccessibilityService : AccessibilityService() {
     fun queueAutoType(text: String) {
         if (text.isEmpty()) return
         autoTypeQueue.add(text)
-        Log.d(TAG, "⌨️ Auto-type queued: ${text.length} characters (queue size: ${autoTypeQueue.size})")
-        sendEvent("onAutoTypeProgress", mapOf("progress" to 0.0, "queued" to autoTypeQueue.size))
         if (!isTyping) {
             findAndFocusTextField()
         }
@@ -292,38 +267,27 @@ class ZaraAccessibilityService : AccessibilityService() {
         }
         isTyping = true
         val textToType = autoTypeQueue.removeAt(0)
-        Log.d(TAG, "⌨️ Typing ${textToType.length} characters...")        sendEvent("onAutoTypeProgress", mapOf("progress" to 0.3))
         val textField = findEditableNode(rootInActiveWindow)
         if (textField != null) {
             typeViaSetText(textField, textToType)
         } else {
-            Log.w(TAG, "⚠️ No editable field found for auto-type")
-            sendEvent("onAutoTypeError", mapOf("message" to "No text input field found"))
             isTyping = false
         }
     }
 
     private fun findAndFocusTextField() {
-        val root = rootInActiveWindow ?: run {
-            Log.w(TAG, "⚠️ No active window for text input")
-            return
-        }
+        val root = rootInActiveWindow ?: return
         val textField = findEditableNode(root)
         if (textField != null) {
-            Log.d(TAG, "✓ Text field found, focusing...")
             textField.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             handler.postDelayed({
                 if (textField.isFocused) {
-                    processAutoTypeQueue()
-                } else {
+                    processAutoTypeQueue()                } else {
                     textField.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
                     handler.postDelayed({ processAutoTypeQueue() }, 300)
                 }
                 textField.recycle()
             }, 200)
-        } else {
-            Log.w(TAG, "⚠️ No editable field found in current window")
-            sendEvent("onAutoTypeError", mapOf("message" to "No text input field found"))
         }
         root.recycle()
     }
@@ -341,6 +305,7 @@ class ZaraAccessibilityService : AccessibilityService() {
         }
         return null
     }
+
     private fun typeViaSetText(node: AccessibilityNodeInfo, text: String) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -351,22 +316,13 @@ class ZaraAccessibilityService : AccessibilityService() {
                     )
                 }
                 val success = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
-                if (success) {
-                    Log.d(TAG, "✓ Text set successfully via ACTION_SET_TEXT")
-                    sendEvent("onAutoTypeSuccess", mapOf(
-                        "characters" to text.length,
-                        "method" to "ACTION_SET_TEXT"
-                    ))
-                    sendEvent("onAutoTypeProgress", mapOf("progress" to 1.0))
-                } else {
-                    Log.w(TAG, "⚠️ ACTION_SET_TEXT failed, trying keystroke fallback")
+                if (!success) {
                     typeViaKeystrokes(node, text)
                 }
             } else {
                 typeViaKeystrokes(node, text)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ typeViaSetText failed: ${e.message}")
             typeViaKeystrokes(node, text)
         } finally {
             isTyping = false
@@ -375,10 +331,7 @@ class ZaraAccessibilityService : AccessibilityService() {
             }
         }
     }
-
     private fun typeViaKeystrokes(node: AccessibilityNodeInfo, text: String) {
-        Log.d(TAG, "⌨️ Fallback: Typing via keystroke simulation...")
-        sendEvent("onAutoTypeProgress", mapOf("progress" to 0.6))
         var typed = 0
         for ((index, char) in text.withIndex()) {
             handler.postDelayed({
@@ -386,23 +339,14 @@ class ZaraAccessibilityService : AccessibilityService() {
                     val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED).apply {
                         packageName = node.packageName
                         className = node.className
-                        if (text != null) {
-                            this.text?.add(char.toString())
-                        }
+                        this.text?.add(char.toString())
                         fromIndex = index
-                        toIndex = index + 1                    }
+                        toIndex = index + 1
+                    }
                     sendAccessibilityEvent(event)
                     typed += 1
-                    if (typed == text.length) {
-                        Log.d(TAG, "✓ Keystroke typing complete")
-                        sendEvent("onAutoTypeSuccess", mapOf(
-                            "characters" to text.length,
-                            "method" to "KEYSTROKE_FALLBACK"
-                        ))
-                        sendEvent("onAutoTypeProgress", mapOf("progress" to 1.0))
-                    }
                 } catch (e: Exception) {
-                    Log.e(TAG, "❌ Keystroke failed: ${e.message}")
+                    Log.e(TAG, "Keystroke failed: ${e.message}")
                 }
             }, (index * 50).toLong())
         }
@@ -428,7 +372,7 @@ class ZaraAccessibilityService : AccessibilityService() {
     private fun startForegroundNotification() {
         val notification = NotificationCompat.Builder(this, "zara_guardian")
             .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("🛡️ Z.A.R.A. Guardian Active")
+            .setContentTitle("Z.A.R.A. Guardian Active")
             .setContentText("Security monitoring enabled")
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -436,10 +380,10 @@ class ZaraAccessibilityService : AccessibilityService() {
         startForeground(1001, notification)
     }
 
-    private fun sendEvent(method: String, data: Map<String, Any>) {
-        handler.post {
+    private fun sendEvent(method: String, data: Map<String, Any>) {        handler.post {
             methodChannel?.invokeMethod(method, data)
-        }    }
+        }
+    }
 
     fun setMethodChannel(channel: MethodChannel) {
         methodChannel = channel

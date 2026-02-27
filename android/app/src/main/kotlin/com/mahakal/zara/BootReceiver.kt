@@ -38,17 +38,17 @@ class BootReceiver : BroadcastReceiver() {
 
         private const val PREFS_NAME = "zara_guardian_prefs"
         private const val KEY_GUARDIAN_ENABLED = "guardian_mode_enabled"
-        private const val KEY_LAST_BOOT_TIME = "last_boot_time"
-        private const val NOTIFICATION_ID_GUARDIAN_REMINDER = 1001
+        private const val KEY_LAST_BOOT_TIME = "last_boot_time"        private const val NOTIFICATION_ID_GUARDIAN_REMINDER = 1001
         private const val CHANNEL_ID = "zara_guardian"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
         if (action !in BOOT_ACTIONS) {
-            Log.d(TAG, "⏭️ Ignoring non-boot action: $action")            return
+            Log.d(TAG, "Ignoring non-boot action: $action")
+            return
         }
-        Log.d(TAG, "🚀 Device boot detected: $action")
+        Log.d(TAG, "Device boot detected: $action")
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             handleBootCompleted(context)
         }, 5000)
@@ -66,7 +66,7 @@ class BootReceiver : BroadcastReceiver() {
             }
             createNotificationChannel(context)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Boot handling failed: ${e.message}", e)
+            Log.e(TAG, "Boot handling failed: ${e.message}", e)
             showGuardianReminderNotification(context)
         }
     }
@@ -87,15 +87,15 @@ class BootReceiver : BroadcastReceiver() {
             val enabledServices = am?.getEnabledAccessibilityServiceList(
                 AccessibilityServiceInfo.FEEDBACK_GENERIC
             ) ?: emptyList()
-            enabledServices.any { service: AccessibilityServiceInfo ->
-                service.id?.contains(context.packageName, ignoreCase = true) == true &&
+            enabledServices.any { service: AccessibilityServiceInfo ->                service.id?.contains(context.packageName, ignoreCase = true) == true &&
                 service.id?.contains("ZaraAccessibilityService", ignoreCase = true) == true
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Accessibility check failed: ${e.message}")
+            Log.e(TAG, "Accessibility check failed: ${e.message}")
             false
         }
     }
+
     private fun startGuardianMonitorService(context: Context) {
         val hasCamera = ContextCompat.checkSelfPermission(
             context, android.Manifest.permission.CAMERA
@@ -136,15 +136,15 @@ class BootReceiver : BroadcastReceiver() {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("from_notification", true)
-        }
-        val pendingIntent = PendingIntent.getActivity(
+        }        val pendingIntent = PendingIntent.getActivity(
             context, 100, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
-                        .setContentTitle("🛡️ Z.A.R.A. Guardian Active")
-            .setContentText("Security monitoring enabled • Tap to manage")            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentTitle("Z.A.R.A. Guardian Active")
+            .setContentText("Security monitoring enabled")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setAutoCancel(false)
             .setContentIntent(pendingIntent)
@@ -162,8 +162,8 @@ class BootReceiver : BroadcastReceiver() {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                        .setContentTitle("⚠️ Z.A.R.A. Guardian Needs Attention")
-            .setContentText("Tap to re-enable Guardian Mode protection")
+            .setContentTitle("Z.A.R.A. Guardian Needs Attention")
+            .setContentText("Tap to re-enable Guardian Mode")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -185,8 +185,7 @@ class BootReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.android.R.drawable.ic_menu_secure)
-                        .setContentTitle("🔐 Z.A.R.A. Security Ready")
+            .setSmallIcon(android.R.drawable.ic_menu_secure)            .setContentTitle("Z.A.R.A. Security Ready")
             .setContentText("Enable Guardian Mode for intruder detection")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
@@ -194,6 +193,7 @@ class BootReceiver : BroadcastReceiver() {
             .build()
         showNotification(context, NOTIFICATION_ID_GUARDIAN_REMINDER, notification)
     }
+
     private fun showNotification(context: Context, id: Int, notification: android.app.Notification) {
         try {
             val manager = context.getSystemService(NotificationManager::class.java)
@@ -208,7 +208,7 @@ class BootReceiver : BroadcastReceiver() {
                 manager?.notify(id, notification)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to show notification: ${e.message}")
+            Log.e(TAG, "Failed to show notification: ${e.message}")
         }
     }
 }
