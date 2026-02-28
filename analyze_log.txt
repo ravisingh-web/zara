@@ -1,0 +1,85 @@
+Analyzing zara...                                               
+
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/core/constants/app_text_styles.dart:142:41 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/core/constants/app_text_styles.dart:154:29 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/core/constants/app_text_styles.dart:155:29 • deprecated_member_use
+warning • Unused import: 'dart:math' • lib/core/enums/mood_enum.dart:6:8 • unused_import
+warning • Unused import: 'package:zara/core/enums/mood_enum.dart' • lib/features/hologram_ui/screens/zara_home_screen.dart:12:8 • unused_import
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:156:37 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:189:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:192:52 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:211:58 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:264:43 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:269:45 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:289:37 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:344:58 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:491:64 • deprecated_member_use
+   info • Use 'const' for final variables initialized to a constant value • lib/features/hologram_ui/screens/zara_home_screen.dart:493:5 • prefer_const_declarations
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:515:23 • deprecated_member_use
+   info • Use 'const' for final variables initialized to a constant value • lib/features/hologram_ui/screens/zara_home_screen.dart:519:5 • prefer_const_declarations
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/screens/zara_home_screen.dart:542:36 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/central_response_panel.dart:81:47 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/central_response_panel.dart:104:21 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/central_response_panel.dart:105:31 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/central_response_panel.dart:107:21 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/central_response_panel.dart:108:31 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/central_response_panel.dart:148:43 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/status_header.dart:106:57 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/status_header.dart:149:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/status_header.dart:168:18 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/status_header.dart:183:41 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/status_header.dart:185:56 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/zara_orb_painter.dart:106:26 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/zara_orb_painter.dart:107:19 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/zara_orb_painter.dart:108:19 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/zara_orb_painter.dart:115:26 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/zara_orb_painter.dart:140:38 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/hologram_ui/widgets/zara_orb_painter.dart:176:55 • deprecated_member_use
+warning • Unused import: 'package:zara/core/constants/api_keys.dart' • lib/features/zara_engine/providers/zara_provider.dart:13:8 • unused_import
+warning • The value of the field '_access' isn't used • lib/features/zara_engine/providers/zara_provider.dart:32:9 • unused_field
+warning • Dead code • lib/features/zara_engine/providers/zara_provider.dart:241:65 • dead_code
+warning • The left operand can't be null, so the right operand is never executed • lib/features/zara_engine/providers/zara_provider.dart:241:68 • dead_null_aware_expression
+warning • Dead code • lib/features/zara_engine/providers/zara_provider.dart:266:42 • dead_code
+warning • The left operand can't be null, so the right operand is never executed • lib/features/zara_engine/providers/zara_provider.dart:266:45 • dead_null_aware_expression
+warning • Dead code • lib/features/zara_engine/providers/zara_provider.dart:304:42 • dead_code
+warning • The left operand can't be null, so the right operand is never executed • lib/features/zara_engine/providers/zara_provider.dart:304:45 • dead_null_aware_expression
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main.dart:175:54 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main.dart:185:50 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main.dart:197:89 • deprecated_member_use
+   info • Use 'const' with the constructor to improve performance • lib/main.dart:202:24 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/main.dart:203:29 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/main.dart:210:21 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/main.dart:212:30 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/main.dart:219:21 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/main.dart:221:30 • prefer_const_constructors
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main.dart:260:50 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:264:41 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:265:37 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:343:48 • deprecated_member_use
+   info • Use 'const' with the constructor to improve performance • lib/screens/settings_screen.dart:390:24 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/screens/settings_screen.dart:392:26 • prefer_const_constructors
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:404:39 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/screens/settings_screen.dart:458:13 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:463:39 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/screens/settings_screen.dart:503:19 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/screens/settings_screen.dart:526:19 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:599:59 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:599:97 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:628:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:687:27 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:688:55 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/settings_screen.dart:695:31 • deprecated_member_use
+   info • Use 'const' for final variables initialized to a constant value • lib/services/ai_api_service.dart:99:7 • prefer_const_declarations
+   info • Empty catch block • lib/services/auto_type_service.dart:104:17 • empty_catches
+warning • The operand can't be 'null', so the condition is always 'false' • lib/services/camera_service.dart:101:22 • unnecessary_null_comparison
+warning • Dead code • lib/services/camera_service.dart:101:31 • dead_code
+warning • The operand can't be 'null', so the condition is always 'false' • lib/services/camera_service.dart:155:22 • unnecessary_null_comparison
+warning • Dead code • lib/services/camera_service.dart:155:31 • dead_code
+warning • Unused import: 'dart:io' • lib/services/email_service.dart:5:8 • unused_import
+   info • Unnecessary constructor invocation • lib/services/email_service.dart:59:24 • prefer_collection_literals
+   info • Unnecessary constructor invocation • lib/services/email_service.dart:99:24 • prefer_collection_literals
+warning • The declaration '_buildHtmlAlert' isn't referenced • lib/services/email_service.dart:245:10 • unused_element
+   info • 'desiredAccuracy' is deprecated and shouldn't be used. use settings parameter with AndroidSettings, AppleSettings, WebSettings, or LocationSettings • lib/services/location_service.dart:82:9 • deprecated_member_use
+   info • 'timeLimit' is deprecated and shouldn't be used. use settings parameter with AndroidSettings, AppleSettings, WebSettings, or LocationSettings • lib/services/location_service.dart:83:9 • deprecated_member_use
+
+81 issues found. (ran in 13.7s)

@@ -18,8 +18,8 @@ class ZaraState {
   final double glowIntensity;
   final int affectionLevel;
   final String ownerName;
-  final List<String> dialogueHistory; // Current active chat
-  final List<ChatSession> chatArchives; // Saved old chats (WhatsApp style)
+  final List<String> dialogueHistory;
+  final List<ChatSession> chatArchives;
   final int batteryLevel;
   final BatteryState batteryState;
   final String deviceModel;
@@ -46,7 +46,7 @@ class ZaraState {
     required this.affectionLevel,
     required this.ownerName,
     required this.dialogueHistory,
-    required this.chatArchives, // ✅ NEW: Added for History
+    required this.chatArchives,
     required this.batteryLevel,
     required this.batteryState,
     required this.deviceModel,
@@ -74,7 +74,7 @@ class ZaraState {
     affectionLevel: 85,
     ownerName: 'OWNER RAVI',
     dialogueHistory: [],
-    chatArchives: [], // ✅ NEW: Empty list on boot
+    chatArchives: [],
     batteryLevel: 0,
     batteryState: BatteryState.unknown,
     deviceModel: 'SYNCHRONIZING...',
@@ -88,27 +88,27 @@ class ZaraState {
     isAnalyzingCode: false,
   );
 
-  // ========== THE PERSISTENCE ENGINE (Saving logic) ==========
   Map<String, dynamic> toMap() {
     return {
       'affectionLevel': affectionLevel,
       'ownerName': ownerName,
       'dialogueHistory': dialogueHistory,
-      'chatArchives': chatArchives.map((x) => x.toMap()).toList(), // ✅ Save all old chats
+      'chatArchives': chatArchives.map((x) => x.toMap()).toList(),
       'isGuardianActive': isGuardianActive,
       'currentTopic': currentTopic,
     };
   }
-
   factory ZaraState.fromMap(Map<String, dynamic> map) {
     final initial = ZaraState.initial();
     return initial.copyWith(
       affectionLevel: map['affectionLevel'] ?? 85,
       ownerName: map['ownerName'] ?? 'OWNER RAVI',
       dialogueHistory: List<String>.from(map['dialogueHistory'] ?? []),
-      chatArchives: map['chatArchives'] != null 
-          ? List<ChatSession>.from(map['chatArchives'].map((x) => ChatSession.fromMap(x))) 
-          : [], // ✅ Load old chats
+      chatArchives: map['chatArchives'] != null
+          ? List<ChatSession>.from(
+              map['chatArchives'].map((x) => ChatSession.fromMap(x)),
+            )
+          : [],
       isGuardianActive: map['isGuardianActive'] ?? false,
       currentTopic: map['currentTopic'] ?? 'SYSTEM INITIALIZED',
     );
@@ -135,7 +135,7 @@ class ZaraState {
     int? affectionLevel,
     String? ownerName,
     List<String>? dialogueHistory,
-    List<ChatSession>? chatArchives, // ✅ NEW
+    List<ChatSession>? chatArchives,
     int? batteryLevel,
     BatteryState? batteryState,
     String? deviceModel,
@@ -146,8 +146,7 @@ class ZaraState {
     int? intruderAttempts,
     List<SecurityAlert>? alerts,
     String? lastIntruderPhoto,
-    List<AutomationTask>? tasks,
-    bool? isAnalyzingCode,
+    List<AutomationTask>? tasks,    bool? isAnalyzingCode,
   }) {
     return ZaraState(
       isActive: isActive ?? this.isActive,
@@ -162,7 +161,7 @@ class ZaraState {
       affectionLevel: affectionLevel ?? this.affectionLevel,
       ownerName: ownerName ?? this.ownerName,
       dialogueHistory: dialogueHistory ?? this.dialogueHistory,
-      chatArchives: chatArchives ?? this.chatArchives, // ✅ NEW
+      chatArchives: chatArchives ?? this.chatArchives,
       batteryLevel: batteryLevel ?? this.batteryLevel,
       batteryState: batteryState ?? this.batteryState,
       deviceModel: deviceModel ?? this.deviceModel,
@@ -179,7 +178,6 @@ class ZaraState {
   }
 }
 
-// ========== THE NEW CHAT SESSION MODEL ==========
 class ChatSession {
   final String id;
   final String topicName;
@@ -197,8 +195,7 @@ class ChatSession {
     return {
       'id': id,
       'topicName': topicName,
-      'messages': messages,
-      'timestamp': timestamp.millisecondsSinceEpoch,
+      'messages': messages,      'timestamp': timestamp.millisecondsSinceEpoch,
     };
   }
 
@@ -207,12 +204,13 @@ class ChatSession {
       id: map['id'] ?? '',
       topicName: map['topicName'] ?? 'UNKNOWN TOPIC',
       messages: List<String>.from(map['messages'] ?? []),
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+        map['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+      ),
     );
   }
 }
 
-// ========== REFINED TACTICAL MODELS ==========
 enum AlertSeverity { low, medium, high, critical }
 
 class SecurityAlert {
@@ -225,7 +223,7 @@ class SecurityAlert {
     required this.id,
     required this.message,
     this.severity = AlertSeverity.medium,
-    required this.time
+    required this.time,
   });
 }
 
@@ -239,6 +237,6 @@ class AutomationTask {
     required this.id,
     required this.description,
     required this.status,
-    required this.timestamp
+    required this.timestamp,
   });
 }

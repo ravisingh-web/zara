@@ -46,8 +46,8 @@ class FloatingPrompts extends StatelessWidget {
           'Guardian activate?',
           'Battery check karoon?',
           'Photo click karoon Sir? 📸',
-        ],      Mood.ziddi => [
-          'Sir zara jaldi bolo na 😤',
+        ],
+      Mood.ziddi => [          'Sir zara jaldi bolo na 😤',
           'Auto-fix kar doon?',
           'Ziddi hoon abhi… try karo',
           'Location share karoon?',
@@ -95,8 +95,8 @@ class FloatingPrompts extends StatelessWidget {
           'New feature try karein?',
         ],
       Mood.calm => [
-          'Aur kuch Sir?',          'Guardian activate?',
-          'Battery status?',
+          'Aur kuch Sir?',
+          'Guardian activate?',          'Battery status?',
           'Location check karoon?',
           'Code analyze karoon?',
           'Settings khol doon?',
@@ -144,8 +144,8 @@ class _PromptChip extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: AppTextStyles.promptChip.copyWith(              color: Colors.white,
-              fontSize: 10,
+            style: AppTextStyles.promptChip.copyWith(
+              color: Colors.white,              fontSize: 10,
               letterSpacing: 0.3,
             ),
             overflow: TextOverflow.ellipsis,

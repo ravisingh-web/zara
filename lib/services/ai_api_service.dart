@@ -4,6 +4,8 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show min;
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -13,13 +15,13 @@ import 'package:zara/core/constants/api_keys.dart';
 // ========== MODEL CONSTANTS (Your Tested Models) ==========
 abstract final class ZaraModels {
   // 🧠 Gemini Models (The "Brain", "Kaan", "Zubaan")
-  static const String geminiBrain = 'models/gemini-2.5-flash'; // Q&A, General Intelligence
-  static const String geminiTTS = 'gemini-2.5-flash-preview-tts'; // 🗣️ Zubaan (Text-to-Speech)
-  static const String geminiSTT = 'gemini-2.5-flash-native-audio-latest'; // 🎤 Kaan (Speech-to-Text)
-  
+  static const String geminiBrain = 'models/gemini-2.5-flash';
+  static const String geminiTTS = 'gemini-2.5-flash-preview-tts';
+  static const String geminiSTT = 'gemini-2.5-flash-native-audio-latest';
+
   // 💻 OpenRouter Models (Coding Specialist)
-  static const String openRouterCoder = 'qwen/qwen3-235b-a22b-thinking-2507'; // Code Generation
-  
+  static const String openRouterCoder = 'qwen/qwen3-235b-a22b-thinking-2507';
+
   // 🔄 Default fallbacks
   static const String defaultModel = geminiBrain;
 }
@@ -35,21 +37,20 @@ class AiApiService {
 
   // ========== CODE GENERATION (OpenRouter: Qwen Coder) ==========
   Future<String> generateCode(String prompt) async {
-    final apiKey = ApiKeys.apiKey;
+    final apiKey = ApiKeys.key;
     final provider = ApiKeys.provider;
     if (apiKey.isEmpty || provider == ApiProvider.none) {
       return "// ⚠️ API Key Missing. Configure in Settings, Sir.";
     }
     try {
-      // ✅ Use your tested Qwen coder model for OpenRouter
-      final model = provider == ApiProvider.openRouter 
-          ? ZaraModels.openRouterCoder 
+      final model = provider == ApiProvider.openRouter
+          ? ZaraModels.openRouterCoder
           : ZaraModels.geminiBrain;
-      
-      final response = await _makeRequest(        provider: provider,
-        apiKey: apiKey,
+      final response = await _makeRequest(
+        provider: provider,        apiKey: apiKey,
         model: model,
-        systemPrompt: 'You are an expert Flutter/Dart developer. Output ONLY raw code. No markdown fences. No explanations. Just the code Sir needs.',
+        systemPrompt:
+            'You are an expert Flutter/Dart developer. Output ONLY raw code. No markdown fences. No explanations. Just the code Sir needs.',
         userPrompt: prompt,
         temperature: 0.3,
         maxTokens: 8192,
@@ -59,14 +60,16 @@ class AiApiService {
       }
       return "// ⚠️ Code generation failed. Check API key and try again, Sir.";
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Code Generation Error: $e');
+      if (kDebugMode) {
+        debugPrint('⚠️ Code Generation Error: $e');
+      }
       return "// ⚠️ Neural Link Error: ${e.toString().substring(0, min(50, e.toString().length))}...";
     }
   }
 
-  // ========== EMOTIONAL CHAT (Gemini Brain - No Llama) ==========
+  // ========== EMOTIONAL CHAT (Gemini Brain) ==========
   Future<String> emotionalChat(String message, int affection) async {
-    final apiKey = ApiKeys.apiKey;
+    final apiKey = ApiKeys.key;
     final provider = ApiKeys.provider;
     if (apiKey.isEmpty || provider == ApiProvider.none) {
       return "Sir, API key configure kijiye Settings me... 🥺";
@@ -93,9 +96,8 @@ RESPONSE STYLE:
 
 Remember: You are not just a tool, you are Sir's companion. ❤️''';
     try {
-      // ✅ Use Gemini Brain for emotional chat (Llama removed)
-      final model = ZaraModels.geminiBrain;
-      final response = await _makeRequest(        provider: ApiProvider.gemini, // Force Gemini for chat
+      final model = ZaraModels.geminiBrain;      final response = await _makeRequest(
+        provider: ApiProvider.gemini,
         apiKey: apiKey,
         model: model,
         systemPrompt: sysPrompt,
@@ -110,14 +112,16 @@ Remember: You are not just a tool, you are Sir's companion. ❤️''';
       }
       return "Ummm... Sir, neural link thoda weak hai. Phir try karein? 🥺";
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Emotional Chat Error: $e');
+      if (kDebugMode) {
+        debugPrint('⚠️ Emotional Chat Error: $e');
+      }
       return "Sir, connection issue hai... 📶";
     }
   }
 
   // ========== GENERAL QUERY (Gemini Brain) ==========
   Future<String> generalQuery(String query, {bool useSearch = false}) async {
-    final apiKey = ApiKeys.apiKey;
+    final apiKey = ApiKeys.key;
     if (apiKey.isEmpty) {
       return "⚠️ API key missing, Sir! Settings me configure karein.";
     }
@@ -136,26 +140,35 @@ Remember: You are not just a tool, you are Sir's companion. ❤️''';
       if (response != null) return response;
       return "Sir, query process nahi ho paaya. Please try again.";
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ General Query Error: $e');
+      if (kDebugMode) {
+        debugPrint('⚠️ General Query Error: $e');
+      }
       return "⚠️ Processing error, Sir.";
     }
   }
-
   // ========== TEXT-TO-SPEECH (Gemini TTS - Zubaan) ==========
-  Future<String?> textToSpeech({required String text, required String voice}) async {
-    final apiKey = ApiKeys.apiKey;
-    if (apiKey.isEmpty) return null;    
-    // ✅ Use your tested Gemini TTS model
+  Future<String?> textToSpeech({
+    required String text,
+    required String voice,
+  }) async {
+    final apiKey = ApiKeys.key;
+    if (apiKey.isEmpty) return null;
     try {
       final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/${ZaraModels.geminiTTS}:generateContent?key=$apiKey'
+        'https://generativelanguage.googleapis.com/v1beta/models/${ZaraModels.geminiTTS}:generateContent?key=$apiKey',
       );
       final headers = {'Content-Type': 'application/json'};
       final body = {
-        'contents': [{'parts': [{'text': 'Convert this text to natural speech: $text'}]}],
+        'contents': [
+          {'parts': [{'text': 'Convert this text to natural speech: $text'}]}
+        ],
         'generationConfig': {
           'response_modalities': ['AUDIO'],
-          'speech_config': {'voice_config': {'prebuilt_voice_config': {'voice_name': voice}}},
+          'speech_config': {
+            'voice_config': {
+              'prebuilt_voice_config': {'voice_name': voice}
+            }
+          },
         },
       };
       final response = await http.post(uri, headers: headers, body: jsonEncode(body));
@@ -166,87 +179,109 @@ Remember: You are not just a tool, you are Sir's companion. ❤️''';
           final dir = await getApplicationDocumentsDirectory();
           final file = File('${dir.path}/zara_tts_${DateTime.now().millisecondsSinceEpoch}.mp3');
           await file.writeAsBytes(base64Decode(base64Audio));
-          if (kDebugMode) debugPrint('🗣️ TTS audio saved: ${file.path}');
+          if (kDebugMode) {
+            debugPrint('🗣️ TTS audio saved: ${file.path}');
+          }
           return file.path;
         }
       }
-      if (kDebugMode) debugPrint('⚠️ TTS Error ${response.statusCode}: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('⚠️ TTS Error ${response.statusCode}: ${response.body}');
+      }
       return null;
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ TTS Exception: $e');
+      if (kDebugMode) {
+        debugPrint('⚠️ TTS Exception: $e');
+      }
       return null;
-    }
-  }
+    }  }
 
   // ========== SPEECH-TO-TEXT (Gemini STT - Kaan) ==========
-  Future<String?> speechToText({Duration timeout = const Duration(seconds: 10), String? audioPath}) async {
-    final apiKey = ApiKeys.apiKey;
+  Future<String?> speechToText({
+    Duration timeout = const Duration(seconds: 10),
+    String? audioPath,
+  }) async {
+    final apiKey = ApiKeys.key;
     if (apiKey.isEmpty || audioPath == null) return null;
-    
-    // ✅ Use your tested Gemini STT model
     try {
       final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/${ZaraModels.geminiSTT}:generateContent?key=$apiKey'
+        'https://generativelanguage.googleapis.com/v1beta/models/${ZaraModels.geminiSTT}:generateContent?key=$apiKey',
       );
       final audioFile = File(audioPath);
       if (!await audioFile.exists()) return null;
-      
+
       final bytes = await audioFile.readAsBytes();
       final base64Audio = base64Encode(bytes);
-            final headers = {'Content-Type': 'application/json'};
+      final headers = {'Content-Type': 'application/json'};
       final body = {
-        'contents': [{
-          'parts': [
-            {'text': 'Transcribe this audio to text. Language: ${ApiKeys.languageCode}'},
-            {'inline_data': {'mime_type': 'audio/wav', 'data': base64Audio}}
-          ]
-        }],
+        'contents': [
+          {
+            'parts': [
+              {'text': 'Transcribe this audio to text. Language: ${ApiKeys.lang}'},
+              {'inline_data': {'mime_type': 'audio/wav', 'data': base64Audio}}
+            ]
+          }
+        ],
       };
       final response = await http.post(uri, headers: headers, body: jsonEncode(body));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
       }
-      if (kDebugMode) debugPrint('⚠️ STT Error ${response.statusCode}: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('⚠️ STT Error ${response.statusCode}: ${response.body}');
+      }
       return null;
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ STT Exception: $e');
+      if (kDebugMode) {
+        debugPrint('⚠️ STT Exception: $e');
+      }
       return null;
     }
   }
 
   // ========== FILE/IMAGE ANALYSIS (Gemini Brain Multimodal) ==========
-  Future<String?> analyzeFile({required String filePath, required String prompt, String? mimeType}) async {
-    final apiKey = ApiKeys.apiKey;
+  Future<String?> analyzeFile({
+    required String filePath,
+    required String prompt,    String? mimeType,
+  }) async {
+    final apiKey = ApiKeys.key;
     if (apiKey.isEmpty) return null;
     try {
       final file = File(filePath);
       if (!await file.exists()) return null;
-      
+
       final bytes = await file.readAsBytes();
       final base64Data = base64Encode(bytes);
       final mime = mimeType ?? 'image/jpeg';
-      
+
       final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/${ZaraModels.geminiBrain}:generateContent?key=$apiKey'
+        'https://generativelanguage.googleapis.com/v1beta/models/${ZaraModels.geminiBrain}:generateContent?key=$apiKey',
       );
       final headers = {'Content-Type': 'application/json'};
       final body = {
-        'contents': [{
-          'parts': [
-            {'text': prompt},
-            {'inline_data': {'mime_type': mime, 'data': base64Data}}
-          ]
-        }],
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt},
+              {'inline_data': {'mime_type': mime, 'data': base64Data}}
+            ]
+          }
+        ],
       };
       final response = await http.post(uri, headers: headers, body: jsonEncode(body));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;      }
-      if (kDebugMode) debugPrint('⚠️ File Analysis Error ${response.statusCode}: ${response.body}');
+        return data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+      }
+      if (kDebugMode) {
+        debugPrint('⚠️ File Analysis Error ${response.statusCode}: ${response.body}');
+      }
       return null;
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ File Analysis Exception: $e');
+      if (kDebugMode) {
+        debugPrint('⚠️ File Analysis Exception: $e');
+      }
       return null;
     }
   }
@@ -254,23 +289,24 @@ Remember: You are not just a tool, you are Sir's companion. ❤️''';
   // ========== API STATUS CHECK ==========
   Future<Map<String, dynamic>> checkStatus() async {
     return {
-      'configured': ApiKeys.isReady,
+      'configured': ApiKeys.ready,
       'provider': ApiKeys.provider.toString().split('.').last,
-      'model': ApiKeys.selectedModel,
-      'models': {
-        'brain': ZaraModels.geminiBrain,
+      'model': ApiKeys.model,
+      'models': {        'brain': ZaraModels.geminiBrain,
         'tts': ZaraModels.geminiTTS,
         'stt': ZaraModels.geminiSTT,
         'coder': ZaraModels.openRouterCoder,
       },
-      'keyLength': ApiKeys.apiKey.length,
+      'keyLength': ApiKeys.key.length,
       'historyCount': _chatHistory.length,
     };
   }
 
   void clearChatHistory() {
     _chatHistory.clear();
-    if (kDebugMode) debugPrint('🗑️ Chat history cleared');
+    if (kDebugMode) {
+      debugPrint('🗑️ Chat history cleared');
+    }
   }
 
   // ========== INTERNAL: Request Router ==========
@@ -286,24 +322,40 @@ Remember: You are not just a tool, you are Sir's companion. ❤️''';
   }) async {
     if (_lastProvider != null && _lastProvider != provider) {
       _chatHistory.clear();
-      if (kDebugMode) debugPrint('🔄 Provider changed: $_lastProvider → $provider. History cleared.');
+      if (kDebugMode) {
+        debugPrint('🔄 Provider changed: $_lastProvider → $provider. History cleared.');
+      }
     }
     _lastProvider = provider;
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
-        if (provider == ApiProvider.openRouter) {          return await _callOpenRouter(
-            apiKey: apiKey, model: model, systemPrompt: systemPrompt, userPrompt: userPrompt,
-            temperature: temperature, maxTokens: maxTokens, history: history ?? _getHistoryForApi(),
+        if (provider == ApiProvider.openRouter) {
+          return await _callOpenRouter(
+            apiKey: apiKey,
+            model: model,
+            systemPrompt: systemPrompt,
+            userPrompt: userPrompt,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            history: history ?? _getHistoryForApi(),
           );
         } else if (provider == ApiProvider.gemini) {
           return await _callGemini(
-            apiKey: apiKey, model: model, systemPrompt: systemPrompt, userPrompt: userPrompt,
-            temperature: temperature, maxTokens: maxTokens, history: history ?? _getHistoryForApi(),
+            apiKey: apiKey,            model: model,
+            systemPrompt: systemPrompt,
+            userPrompt: userPrompt,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            history: history ?? _getHistoryForApi(),
           );
         }
       } catch (e) {
-        if (kDebugMode) debugPrint('⚠️ Request attempt ${attempt + 1} failed: $e');
-        if (attempt == 0) await Future.delayed(const Duration(milliseconds: 500));
+        if (kDebugMode) {
+          debugPrint('⚠️ Request attempt ${attempt + 1} failed: $e');
+        }
+        if (attempt == 0) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
       }
     }
     return null;
@@ -311,69 +363,105 @@ Remember: You are not just a tool, you are Sir's companion. ❤️''';
 
   // ========== INTERNAL: OpenRouter API Call ==========
   Future<String?> _callOpenRouter({
-    required String apiKey, required String model, required String systemPrompt,
-    required String userPrompt, required double temperature, required int maxTokens,
+    required String apiKey,
+    required String model,
+    required String systemPrompt,
+    required String userPrompt,
+    required double temperature,
+    required int maxTokens,
     required List<Map<String, String>> history,
   }) async {
     final uri = Uri.parse('https://openrouter.ai/api/v1/chat/completions');
     final headers = {
-      'Authorization': 'Bearer $apiKey', 'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://zara-ai.example.com', 'X-Title': 'Z.A.R.A. AI',
+      'Authorization': 'Bearer $apiKey',
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://zara-ai.example.com',
+      'X-Title': 'Z.A.R.A. AI',
     };
     final body = {
       'model': model,
-      'messages': [{'role': 'system', 'content': systemPrompt}, ...history, {'role': 'user', 'content': userPrompt}],
-      'temperature': temperature, 'max_tokens': maxTokens, 'stream': false,
+      'messages': [
+        {'role': 'system', 'content': systemPrompt},
+        ...history,
+        {'role': 'user', 'content': userPrompt}
+      ],
+      'temperature': temperature,
+      'max_tokens': maxTokens,
+      'stream': false,
     };
     final response = await http.post(uri, headers: headers, body: jsonEncode(body));
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {      final data = jsonDecode(response.body);
       return data['choices']?[0]?['message']?['content'] as String?;
     } else {
-      if (kDebugMode) debugPrint('⚠️ OpenRouter Error ${response.statusCode}: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('⚠️ OpenRouter Error ${response.statusCode}: ${response.body}');
+      }
       return null;
     }
   }
 
   // ========== INTERNAL: Gemini API Call ==========
   Future<String?> _callGemini({
-    required String apiKey, required String model, required String systemPrompt,
-    required String userPrompt, required double temperature, required int maxTokens,
+    required String apiKey,
+    required String model,
+    required String systemPrompt,
+    required String userPrompt,
+    required double temperature,
+    required int maxTokens,
     required List<Map<String, String>> history,
-  }) async {    final modelName = model.contains('/') ? model.split('/').last : model;
+  }) async {
+    final modelName = model.contains('/') ? model.split('/').last : model;
     final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey'
+      'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
     );
     final headers = {'Content-Type': 'application/json'};
     final contents = [
-      {'role': 'user', 'parts': [{'text': '$systemPrompt\n\nConversation:\n${_formatHistoryForGemini(history)}\n\nUser: $userPrompt'}]}
+      {
+        'role': 'user',
+        'parts': [
+          {
+            'text': '$systemPrompt\n\nConversation:\n${_formatHistoryForGemini(history)}\n\nUser: $userPrompt'
+          }
+        ]
+      }
     ];
     final body = {
       'contents': contents,
-      'generationConfig': {'temperature': temperature, 'maxOutputTokens': maxTokens},
+      'generationConfig': {
+        'temperature': temperature,
+        'maxOutputTokens': maxTokens,
+      },
     };
     final response = await http.post(uri, headers: headers, body: jsonEncode(body));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
     } else {
-      if (kDebugMode) debugPrint('⚠️ Gemini Error ${response.statusCode}: ${response.body}');
-      return null;
+      if (kDebugMode) {
+        debugPrint('⚠️ Gemini Error ${response.statusCode}: ${response.body}');
+      }      return null;
     }
   }
 
   // ========== HISTORY MANAGEMENT ==========
   void _addToHistory(String role, String content) {
     _chatHistory.add({'role': role, 'content': content});
-    while (_chatHistory.length > _maxHistory) _chatHistory.removeAt(0);
+    while (_chatHistory.length > _maxHistory) {
+      _chatHistory.removeAt(0);
+    }
   }
+
   List<Map<String, String>> _getHistoryForApi() {
     final start = _chatHistory.length > 10 ? _chatHistory.length - 10 : 0;
     return _chatHistory.sublist(start);
   }
+
   String _formatHistoryForGemini(List<Map<String, String>> history) {
-    return history.map((m) => '${m['role'] == 'assistant' ? 'Z.A.R.A.' : 'Sir'}: ${m['content']}').join('\n');
+    return history
+        .map((m) => '${m['role'] == 'assistant' ? 'Z.A.R.A.' : 'Sir'}: ${m['content']}')
+        .join('\n');
   }
+
   String _getMoodHint(int affection) {
     if (affection >= 90) return 'Romantic ❤️';
     if (affection >= 70) return 'Calm & Caring 💙';
@@ -381,5 +469,4 @@ Remember: You are not just a tool, you are Sir's companion. ❤️''';
     if (affection >= 30) return 'Ziddi 😤';
     return 'Upset 😔';
   }
-  int min(int a, int b) => a < b ? a : b;
 }

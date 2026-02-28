@@ -42,11 +42,31 @@ class RingDataPainter extends CustomPainter {
 
   static List<RingConfig> _generateVideoMatchedRings() {
     return [
-      const RingConfig(radius: 85, sweepAngle: pi * 0.6, rotationSpeed: 1.2, hasTicks: true),
-      const RingConfig(radius: 105, sweepAngle: pi * 0.4, rotationSpeed: -0.8, clockwise: false),
-      const RingConfig(radius: 125, sweepAngle: pi * 1.2, rotationSpeed: 0.5, hasTicks: true),
-      const RingConfig(radius: 145, sweepAngle: pi * 0.3, rotationSpeed: -2.0, clockwise: false),
-    ];  }
+      const RingConfig(
+        radius: 85,
+        sweepAngle: pi * 0.6,
+        rotationSpeed: 1.2,
+        hasTicks: true,
+      ),      const RingConfig(
+        radius: 105,
+        sweepAngle: pi * 0.4,
+        rotationSpeed: -0.8,
+        clockwise: false,
+      ),
+      const RingConfig(
+        radius: 125,
+        sweepAngle: pi * 1.2,
+        rotationSpeed: 0.5,
+        hasTicks: true,
+      ),
+      const RingConfig(
+        radius: 145,
+        sweepAngle: pi * 0.3,
+        rotationSpeed: -2.0,
+        clockwise: false,
+      ),
+    ];
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -77,7 +97,6 @@ class RingDataPainter extends CustomPainter {
       ..strokeWidth = ring.strokeWidth + 4
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
     canvas.drawArc(rect, 0, ring.sweepAngle, false, glowPaint);
-
     // 2. Main High-Tech Arc
     final mainPaint = Paint()
       ..color = color.withValues(alpha: opacity)
@@ -95,6 +114,7 @@ class RingDataPainter extends CustomPainter {
       center.dy + dynamicRadius * sin(ring.sweepAngle),
     );
     canvas.drawCircle(headPos, 2.0, headPaint);
+
     // 4. HUD Ticks logic (Matched to video)
     if (ring.hasTicks) {
       _drawHudTicks(canvas, center, dynamicRadius, color.withValues(alpha: 0.2));
@@ -103,19 +123,36 @@ class RingDataPainter extends CustomPainter {
   }
 
   void _drawHudTicks(Canvas canvas, Offset center, double radius, Color color) {
-    final tickPaint = Paint()..color = color..strokeWidth = 1.0;
+    final tickPaint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0;
     for (var i = 0; i < 360; i += 10) {
       final angle = i * pi / 180;
-      final start = Offset(center.dx + radius * cos(angle), center.dy + radius * sin(angle));
-      final end = Offset(center.dx + (radius + 4) * cos(angle), center.dy + (radius + 4) * sin(angle));
+      final start = Offset(
+        center.dx + radius * cos(angle),
+        center.dy + radius * sin(angle),
+      );
+      final end = Offset(
+        center.dx + (radius + 4) * cos(angle),
+        center.dy + (radius + 4) * sin(angle),
+      );
       canvas.drawLine(start, end, tickPaint);
     }
   }
 
   void _drawStaticDecorations(Canvas canvas, Offset center, Color color) {
-    final paint = Paint()..color = color.withValues(alpha: 0.05)..strokeWidth = 0.5;
-    canvas.drawLine(Offset(center.dx - 200, center.dy), Offset(center.dx + 200, center.dy), paint);
-    canvas.drawLine(Offset(center.dx, center.dy - 200), Offset(center.dx, center.dy + 200), paint);
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.05)
+      ..strokeWidth = 0.5;
+    canvas.drawLine(
+      Offset(center.dx - 200, center.dy),      Offset(center.dx + 200, center.dy),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - 200),
+      Offset(center.dx, center.dy + 200),
+      paint,
+    );
   }
 
   @override

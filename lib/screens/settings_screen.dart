@@ -27,7 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   final _apiKeyCtrl = TextEditingController();
   ApiProvider _selectedProvider = ApiProvider.none;
-  String _selectedModel = ApiKeys.defaultModel;
+  String _selectedModel = 'google/gemma-3-4b-it:free';
 
   String _selectedVoice = 'hi-IN-SwaraNeural';
   String _selectedLanguage = 'hi-IN';
@@ -39,14 +39,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _validationMessage = '';
 
   final List<String> _voiceOptions = [
-    'hi-IN-SwaraNeural', 'hi-IN-MadhurNeural',
-    'en-US-JennyNeural', 'en-US-GuyNeural',
-    'en-GB-SoniaNeural', 'mr-IN-AarohiNeural',
+    'hi-IN-SwaraNeural',
+    'hi-IN-MadhurNeural',
+    'en-US-JennyNeural',
+    'en-US-GuyNeural',
+    'en-GB-SoniaNeural',
+    'mr-IN-AarohiNeural',
   ];
 
-  final List<String> _languageOptions = [
-    'hi-IN', 'en-US', 'en-GB', 'mr-IN', 'gu-IN', 'ta-IN', 'te-IN',
+  final List<String> _languageOptions = [    'hi-IN',
+    'en-US',
+    'en-GB',
+    'mr-IN',
+    'gu-IN',
+    'ta-IN',
+    'te-IN',
   ];
+
   @override
   void initState() {
     super.initState();
@@ -62,17 +71,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadAllData() async {
     setState(() => _loading = true);
-    _apiKeyCtrl.text = ApiKeys.apiKey;
+    
+    // ✅ UPDATED: Use new getter names from api_keys.dart
+    _apiKeyCtrl.text = ApiKeys.key;
     _selectedProvider = ApiKeys.provider;
-    _selectedModel = ApiKeys.selectedModel;
-    _selectedVoice = ApiKeys.voiceName;
-    _selectedLanguage = ApiKeys.languageCode;
-    _ownerNameCtrl.text = ApiKeys.ownerName;
-    _affectionLevel = ApiKeys.affectionLevel;
+    _selectedModel = ApiKeys.model;
+    _selectedVoice = ApiKeys.voice;
+    _selectedLanguage = ApiKeys.lang;
+    _ownerNameCtrl.text = ApiKeys.owner;
+    _affectionLevel = ApiKeys.aff;
+    
     _validateKey(_apiKeyCtrl.text, _selectedProvider);
     await _checkPermissions();
     try {
-      _accessibilityEnabled = await AccessibilityService().checkServiceEnabled();
+      _accessibilityEnabled = await AccessibilityService().checkEnabled();
     } catch (_) {
       _accessibilityEnabled = false;
     }
@@ -84,8 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Permission.camera,
       Permission.location,
       Permission.storage,
-      Permission.notification,
-    ];
+      Permission.notification,    ];
     Map<Permission, PermissionStatus> statuses = {};
     for (var permission in permissionList) {
       statuses[permission] = await permission.status;
@@ -95,15 +106,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _validateKey(String key, ApiProvider provider) {
     if (key.isEmpty) {
-      _isValidKey = false;      _validationMessage = 'API key required';
+      _isValidKey = false;
+      _validationMessage = 'API key required';
       return;
     }
     if (provider == ApiProvider.gemini) {
       _isValidKey = RegExp(r'^AIza[0-9A-Za-z-_]{35,}$').hasMatch(key);
-      _validationMessage = _isValidKey ? '✓ Valid Gemini key' : '✗ Invalid format (starts with AIza...)';
+      _validationMessage = _isValidKey
+          ? '✓ Valid Gemini key'
+          : '✗ Invalid format (starts with AIza...)';
     } else if (provider == ApiProvider.openRouter) {
-      _isValidKey = key.length >= 32 && RegExp(r'^[A-Za-z0-9\-_]+$').hasMatch(key);
-      _validationMessage = _isValidKey ? '✓ Valid OpenRouter key' : '✗ Key must be 32+ alphanumeric chars';
+      _isValidKey =
+          key.length >= 32 && RegExp(r'^[A-Za-z0-9\-_]+$').hasMatch(key);
+      _validationMessage = _isValidKey
+          ? '✓ Valid OpenRouter key'
+          : '✗ Key must be 32+ alphanumeric chars';
     } else {
       _isValidKey = false;
       _validationMessage = 'Select a provider first';
@@ -113,37 +130,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveConfig() async {
     if (!_isValidKey) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('⚠️ $_validationMessage'), backgroundColor: AppColors.errorRed),
+        SnackBar(
+          content: Text('⚠️ $_validationMessage'),
+          backgroundColor: AppColors.errorRed,
+        ),
       );
       return;
     }
     setState(() => _saving = true);
     try {
-      await ApiKeys.saveConfig(
-        apiKey: _apiKeyCtrl.text,
-        provider: _selectedProvider,
+      // ✅ UPDATED: Use new parameter names for save()
+      await ApiKeys.save(
+        orKey: _selectedProvider == ApiProvider.openRouter ? _apiKeyCtrl.text : null,
+        gemKey: _selectedProvider == ApiProvider.gemini ? _apiKeyCtrl.text : null,
+        prov: _selectedProvider,
         model: _selectedModel,
-        voice: _selectedVoice,
-        language: _selectedLanguage,
+        voice: _selectedVoice,        lang: _selectedLanguage,
         owner: _ownerNameCtrl.text,
-        affection: _affectionLevel,
+        aff: _affectionLevel,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Z.A.R.A. System Updated'), backgroundColor: AppColors.successGreen),
+          const SnackBar(
+            content: Text('✅ Z.A.R.A. System Updated'),
+            backgroundColor: AppColors.successGreen,
+          ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Save Failed: $e'), backgroundColor: AppColors.errorRed),
+          SnackBar(
+            content: Text('❌ Save Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
         );
       }
     } finally {
       setState(() => _saving = false);
     }
   }
+
   Future<void> _requestPermission(Permission permission) async {
     await permission.request();
     await _checkPermissions();
@@ -154,7 +182,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await AccessibilityService().openSettings();
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
-          AccessibilityService().checkServiceEnabled().then((enabled) {
+          AccessibilityService().checkEnabled().then((enabled) {
             setState(() => _accessibilityEnabled = enabled);
           });
         }
@@ -166,8 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (await canLaunchUrl(uri)) {      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -176,7 +203,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.deepSpaceBlack,
       appBar: AppBar(
-        title: const Text('Z.A.R.A. SYSTEM CONFIG', style: TextStyle(fontFamily: 'monospace', fontSize: 14, letterSpacing: 1.5)),
+        title: const Text(
+          'Z.A.R.A. SYSTEM CONFIG',
+          style: TextStyle(fontFamily: 'monospace', fontSize: 14, letterSpacing: 1.5),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.cyanPrimary,
@@ -189,37 +219,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
       body: _loading
-        ? const Center(child: CircularProgressIndicator(color: AppColors.cyanPrimary))
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,              children: [
-                _buildStatusBanner(),
-                const SizedBox(height: 20),
-                _buildSectionHeader('🔑 API PROVIDER'),
-                _buildProviderToggle(),
-                const SizedBox(height: 12),
-                _buildApiKeyInput(),
-                const SizedBox(height: 16),
-                if (_selectedProvider == ApiProvider.openRouter) ...[
-                  _buildSectionHeader('🤖 SELECT MODEL (Free)'),
-                  _buildModelDropdown(),
+          ? const Center(child: CircularProgressIndicator(color: AppColors.cyanPrimary))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildStatusBanner(),
+                  const SizedBox(height: 20),
+                  _buildSectionHeader('🔑 API PROVIDER'),
+                  _buildProviderToggle(),
+                  const SizedBox(height: 12),
+                  _buildApiKeyInput(),
                   const SizedBox(height: 16),
+                  if (_selectedProvider == ApiProvider.openRouter) ...[
+                    _buildSectionHeader('🤖 SELECT MODEL (Free)'),
+                    _buildModelDropdown(),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildSectionHeader('🗣️ VOICE & LANGUAGE'),
+                  _buildVoiceLanguageRow(),
+                  const SizedBox(height: 20),
+                  _buildSectionHeader('🔐 SYSTEM PERMISSIONS'),
+                  _buildPermissionCard(),
+                  const SizedBox(height: 20),
+                  _buildSectionHeader('👤 PERSONALIZATION'),                  _buildPersonalizationCard(),
+                  const SizedBox(height: 32),
+                  _buildSaveButton(),
+                  const SizedBox(height: 40),
                 ],
-                _buildSectionHeader('🗣️ VOICE & LANGUAGE'),
-                _buildVoiceLanguageRow(),
-                const SizedBox(height: 20),
-                _buildSectionHeader('🔐 SYSTEM PERMISSIONS'),
-                _buildPermissionCard(),
-                const SizedBox(height: 20),
-                _buildSectionHeader('👤 PERSONALIZATION'),
-                _buildPersonalizationCard(),
-                const SizedBox(height: 32),
-                _buildSaveButton(),
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
-          ),
     );
   }
 
@@ -231,8 +261,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isConfigured
-            ? [AppColors.successGreen.withOpacity(0.2), Colors.transparent]
-            : [AppColors.errorRed.withOpacity(0.2), Colors.transparent],
+              ? [AppColors.successGreen.withOpacity(0.2), Colors.transparent]
+              : [AppColors.errorRed.withOpacity(0.2), Colors.transparent],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -242,21 +272,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           width: 1,
         ),
       ),
-      child: Row(        children: [
-          Icon(isConfigured ? Icons.check_circle : Icons.warning_amber,
-            color: isConfigured ? AppColors.successGreen : AppColors.errorRed),
+      child: Row(
+        children: [
+          Icon(
+            isConfigured ? Icons.check_circle : Icons.warning_amber,
+            color: isConfigured ? AppColors.successGreen : AppColors.errorRed,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(isConfigured ? '✓ System Ready' : '⚠️ Configuration Required',
-                  style: TextStyle(color: isConfigured ? AppColors.successGreen : AppColors.errorRed, fontWeight: FontWeight.bold)),
+                Text(
+                  isConfigured ? '✓ System Ready' : '⚠️ Configuration Required',
+                  style: TextStyle(
+                    color: isConfigured ? AppColors.successGreen : AppColors.errorRed,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(isConfigured
-                  ? 'Provider: ${status['provider']} • Model: ${status['model']}'
-                  : 'Set API key in Settings to activate Z.A.R.A.',
-                  style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                Text(
+                  isConfigured                      ? 'Provider: ${status['provider']} • Model: ${status['model']}'
+                      : 'Set API key in Settings to activate Z.A.R.A.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -268,8 +307,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(title, style: const TextStyle(
-        color: AppColors.cyanPrimary, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: AppColors.cyanPrimary,
+          fontSize: 12,
+          letterSpacing: 2,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
@@ -288,26 +334,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               setState(() {
                 _selectedProvider = index == 0 ? ApiProvider.openRouter : ApiProvider.gemini;
                 if (_selectedProvider == ApiProvider.openRouter) {
-                  _selectedModel = ApiKeys.defaultModel;
+                  _selectedModel = 'google/gemma-3-4b-it:free';
                 }
                 _validateKey(_apiKeyCtrl.text, _selectedProvider);
-              });            },
+              });
+            },
             borderRadius: BorderRadius.circular(8),
             borderColor: AppColors.cyanPrimary.withOpacity(0.3),
-            selectedBorderColor: AppColors.cyanPrimary,
-            selectedColor: Colors.black,
+            selectedBorderColor: AppColors.cyanPrimary,            selectedColor: Colors.black,
             fillColor: AppColors.cyanPrimary,
             color: Colors.white70,
             children: const [
-              Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('OpenRouter (Free)', style: TextStyle(fontSize: 11))),
-              Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Gemini Direct', style: TextStyle(fontSize: 11))),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('OpenRouter (Free)', style: TextStyle(fontSize: 11)),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('Gemini Direct', style: TextStyle(fontSize: 11)),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             _selectedProvider == ApiProvider.openRouter
-              ? '✓ Free models via OpenRouter.ai — No credit card needed'
-              : '✓ Direct Google Gemini API — Requires billing setup',
+                ? '✓ Free models via OpenRouter.ai — No credit card needed'
+                : '✓ Direct Google Gemini API — Requires billing setup',
             style: const TextStyle(color: Colors.white60, fontSize: 10),
             textAlign: TextAlign.center,
           ),
@@ -335,12 +387,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _launchUrl('https://aistudio.google.com/apikey');
                   }
                 },
-                child: Text('Get Key →', style: TextStyle(color: const Color(0xFFFF00FF), fontSize: 10)),
-              ),
+                child: Text(
+                  'Get Key →',
+                  style: TextStyle(color: const Color(0xFFFF00FF), fontSize: 10),
+                ),              ),
             ],
           ),
           const SizedBox(height: 8),
-          TextField(            controller: _apiKeyCtrl,
+          TextField(
+            controller: _apiKeyCtrl,
             obscureText: true,
             style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
             decoration: InputDecoration(
@@ -349,7 +404,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               fillColor: Colors.black.withOpacity(0.3),
               hintText: 'Paste your ${_selectedProvider == ApiProvider.openRouter ? 'OpenRouter' : 'Gemini'} API key...',
               hintStyle: const TextStyle(color: Colors.white24, fontSize: 10),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.content_paste, size: 16),
                 onPressed: () async {
@@ -368,12 +426,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(_isValidKey ? Icons.check_circle : Icons.error_outline,
-                size: 14, color: _isValidKey ? AppColors.successGreen : AppColors.errorRed),
+              Icon(
+                _isValidKey ? Icons.check_circle : Icons.error_outline,
+                size: 14,
+                color: _isValidKey ? AppColors.successGreen : AppColors.errorRed,
+              ),
               const SizedBox(width: 4),
-              Text(_validationMessage, style: TextStyle(color: _isValidKey ? AppColors.successGreen : AppColors.errorRed, fontSize: 10)),
-            ],
-          ),
+              Text(
+                _validationMessage,
+                style: TextStyle(
+                  color: _isValidKey ? AppColors.successGreen : AppColors.errorRed,
+                  fontSize: 10,
+                ),
+              ),
+            ],          ),
         ],
       ),
     );
@@ -389,15 +455,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text('Free Models Available', style: TextStyle(color: Colors.white70, fontSize: 11)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _selectedModel,            dropdownColor: AppColors.deepSpaceBlue,
+            value: _selectedModel,
+            dropdownColor: AppColors.deepSpaceBlue,
             style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace'),
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.black.withOpacity(0.3),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
-            items: ApiKeys.openRouterFreeModels.map((model) {
+            items: ApiKeys.models.map((model) {
               return DropdownMenuItem(
                 value: model['id'],
                 child: Column(
@@ -418,8 +488,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildVoiceLanguageRow() {
-    return Container(
+  Widget _buildVoiceLanguageRow() {    return Container(
       padding: const EdgeInsets.all(12),
       decoration: _cardDecoration(),
       child: Row(
@@ -436,9 +505,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 10),
                   isDense: true,
                   decoration: _dropdownDecoration(),
-                  items: _voiceOptions.map((v) => DropdownMenuItem(value: v, child: Text(v, style: const TextStyle(fontSize: 10)))).toList(),
-                  onChanged: (v) { if (v != null) setState(() => _selectedVoice = v); },
-                ),              ],
+                  items: _voiceOptions
+                      .map((v) => DropdownMenuItem(value: v, child: Text(v, style: const TextStyle(fontSize: 10))))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _selectedVoice = v);
+                  },
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),
@@ -454,13 +528,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 10),
                   isDense: true,
                   decoration: _dropdownDecoration(),
-                  items: _languageOptions.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 10)))).toList(),
-                  onChanged: (l) { if (l != null) setState(() => _selectedLanguage = l); },
+                  items: _languageOptions
+                      .map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 10))))
+                      .toList(),
+                  onChanged: (l) {
+                    if (l != null) setState(() => _selectedLanguage = l);
+                  },
                 ),
               ],
             ),
-          ),
-        ],
+          ),        ],
       ),
     );
   }
@@ -471,11 +548,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: _cardDecoration(),
       child: Column(
         children: [
-          _buildPermissionTile('Accessibility Service', _accessibilityEnabled, _openAccessibilitySettings, isSpecial: true),
-          _buildPermissionTile('Camera', _permissions[Permission.camera]?.isGranted ?? false, () => _requestPermission(Permission.camera)),
-          _buildPermissionTile('Location', _permissions[Permission.location]?.isGranted ?? false, () => _requestPermission(Permission.location)),
-          _buildPermissionTile('Storage', _permissions[Permission.storage]?.isGranted ?? false, () => _requestPermission(Permission.storage)),
-          _buildPermissionTile('Notifications', _permissions[Permission.notification]?.isGranted ?? false, () => _requestPermission(Permission.notification)),
+          _buildPermissionTile(
+            'Accessibility Service',
+            _accessibilityEnabled,
+            _openAccessibilitySettings,
+            isSpecial: true,
+          ),
+          _buildPermissionTile(
+            'Camera',
+            _permissions[Permission.camera]?.isGranted ?? false,
+            () => _requestPermission(Permission.camera),
+          ),
+          _buildPermissionTile(
+            'Location',
+            _permissions[Permission.location]?.isGranted ?? false,
+            () => _requestPermission(Permission.location),
+          ),
+          _buildPermissionTile(
+            'Storage',
+            _permissions[Permission.storage]?.isGranted ?? false,
+            () => _requestPermission(Permission.storage),
+          ),
+          _buildPermissionTile(
+            'Notifications',
+            _permissions[Permission.notification]?.isGranted ?? false,
+            () => _requestPermission(Permission.notification),
+          ),
         ],
       ),
     );
@@ -487,12 +585,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(            child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 12)),
-          ),
+          Expanded(
+            child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 12)),          ),
           if (isSpecial && !isGranted)
             TextButton(
               onPressed: onRequest,
-              child: const Text('Enable →', style: TextStyle(color: const Color(0xFFFF00FF), fontSize: 10)),
+              child: const Text('Enable →', style: TextStyle(color: Color(0xFFFF00FF), fontSize: 10)),
             )
           else
             Container(
@@ -501,8 +599,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: isGranted ? AppColors.successGreen.withOpacity(0.2) : AppColors.errorRed.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(isGranted ? 'Granted' : 'Denied',
-                style: TextStyle(color: isGranted ? AppColors.successGreen : AppColors.errorRed, fontSize: 10)),
+              child: Text(
+                isGranted ? 'Granted' : 'Denied',
+                style: TextStyle(
+                  color: isGranted ? AppColors.successGreen : AppColors.errorRed,
+                  fontSize: 10,
+                ),
+              ),
             ),
         ],
       ),
@@ -523,20 +626,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               labelStyle: const TextStyle(color: Colors.white60, fontSize: 11),
               filled: true,
               fillColor: Colors.black.withOpacity(0.3),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              const Text('Affection Level', style: TextStyle(color: Colors.white70, fontSize: 11)),
-              const Spacer(),
-              Text('$_affectionLevel%', style: TextStyle(color: _getAffectionColor(_affectionLevel), fontWeight: FontWeight.bold)),
+              const Text('Affection Level', style: TextStyle(color: Colors.white70, fontSize: 11)),              const Spacer(),
+              Text(
+                '$_affectionLevel%',
+                style: TextStyle(color: _getAffectionColor(_affectionLevel), fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           Slider(
             value: _affectionLevel.toDouble(),
-            min: 0, max: 100, divisions: 10,            activeColor: _getAffectionColor(_affectionLevel),
+            min: 0,
+            max: 100,
+            divisions: 10,
+            activeColor: _getAffectionColor(_affectionLevel),
             onChanged: (v) => setState(() => _affectionLevel = v.toInt()),
           ),
         ],
@@ -562,16 +673,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: _saving
-          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-          : const Text('SAVE SYSTEM ARCHITECTURE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12)),
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+            : const Text(
+                'SAVE SYSTEM ARCHITECTURE',
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
       ),
     );
   }
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
-      color: Colors.white.withOpacity(0.05),
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.white.withOpacity(0.05),      borderRadius: BorderRadius.circular(12),
       border: Border.all(color: AppColors.cyanPrimary.withOpacity(0.2)),
     );
   }
@@ -580,7 +693,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return InputDecoration(
       filled: true,
       fillColor: Colors.black.withOpacity(0.3),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide.none,
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     );
   }

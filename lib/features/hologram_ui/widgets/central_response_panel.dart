@@ -7,6 +7,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:zara/core/constants/app_colors.dart';
 import 'package:zara/features/zara_engine/providers/zara_provider.dart';
 
@@ -25,23 +26,28 @@ class CentralResponsePanel extends StatelessWidget {
 
         // 2. 💬 CYBERPUNK CHAT BOX (Scrollable Left/Right Bubbles)
         Positioned.fill(
-          top: 90, 
-          bottom: 80, 
+          top: 90,
+          bottom: 80,
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            reverse: true, 
+            reverse: true,
             itemCount: state.dialogueHistory.length,
             itemBuilder: (context, index) {
               final message = state.dialogueHistory.reversed.toList()[index];
               final isZara = message.startsWith('>> ZARA:');
-              final displayText = isZara ? message.replaceAll('>> ZARA: ', '') : message;
+              final displayText = isZara
+                  ? message.replaceAll('>> ZARA: ', '')
+                  : message;
 
-              return _buildChatBubble(displayText, isZara, state.mood.primaryColor);
+              return _buildChatBubble(
+                displayText,
+                isZara,
+                state.mood.primaryColor,
+              );
             },
           ),
         ),
-      ],
-    );
+      ],    );
   }
 
   Widget _buildNeuralLogo() {
@@ -55,7 +61,11 @@ class CentralResponsePanel extends StatelessWidget {
             const SizedBox(height: 50),
             const Text(
               'BIOMETRIC INTELLIGENCE INTERFACE',
-              style: TextStyle(color: AppColors.neonCyan, fontSize: 8, letterSpacing: 4),
+              style: TextStyle(
+                color: AppColors.neonCyan,
+                fontSize: 8,
+                letterSpacing: 4,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -66,23 +76,36 @@ class CentralResponsePanel extends StatelessWidget {
                 fontWeight: FontWeight.w900,
                 letterSpacing: 12,
                 fontFamily: 'monospace',
-                shadows: [Shadow(color: AppColors.neonCyan.withOpacity(0.5), blurRadius: 20)],
+                shadows: [
+                  Shadow(
+                    color: AppColors.neonCyan.withOpacity(0.5),
+                    blurRadius: 20,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 5),
             const Text(
               'ADVANCED NEURAL COMMAND SYSTEM',
-              style: TextStyle(color: AppColors.neonCyan, fontSize: 10, letterSpacing: 3, fontFamily: 'monospace'),
+              style: TextStyle(
+                color: AppColors.neonCyan,
+                fontSize: 10,
+                letterSpacing: 3,
+                fontFamily: 'monospace',
+              ),
             ),
           ],
         ),
-      ),
-    );
+      ),    );
   }
 
   Widget _buildChatBubble(String text, bool isZara, Color moodColor) {
-    final borderColor = isZara ? moodColor.withOpacity(0.5) : AppColors.neonGreen.withOpacity(0.5);
-    final shadowColor = isZara ? moodColor.withOpacity(0.15) : AppColors.neonGreen.withOpacity(0.15);
+    final borderColor = isZara
+        ? moodColor.withOpacity(0.5)
+        : AppColors.neonGreen.withOpacity(0.5);
+    final shadowColor = isZara
+        ? moodColor.withOpacity(0.15)
+        : AppColors.neonGreen.withOpacity(0.15);
     final alignment = isZara ? CrossAxisAlignment.start : CrossAxisAlignment.end;
     final bubbleAlign = isZara ? Alignment.centerLeft : Alignment.centerRight;
 
@@ -111,24 +134,30 @@ class CentralResponsePanel extends StatelessWidget {
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
-                  bottomLeft: isZara ? Radius.zero : const Radius.circular(16), // ✅ FIXED: Removed 'const'
-                  bottomRight: !isZara ? Radius.zero : const Radius.circular(16), // ✅ FIXED: Removed 'const'
+                  bottomLeft: isZara ? Radius.zero : const Radius.circular(16),
+                  bottomRight: !isZara ? Radius.zero : const Radius.circular(16),
                 ),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      border: Border.all(color: borderColor, width: 1),
+                      color: Colors.black.withOpacity(0.4),                      border: Border.all(color: borderColor, width: 1),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
-                        bottomLeft: isZara ? Radius.zero : const Radius.circular(16), // ✅ FIXED: Removed 'const'
-                        bottomRight: !isZara ? Radius.zero : const Radius.circular(16), // ✅ FIXED: Removed 'const'
+                        bottomLeft: isZara ? Radius.zero : const Radius.circular(16),
+                        bottomRight: !isZara ? Radius.zero : const Radius.circular(16),
                       ),
                       boxShadow: [
-                        BoxShadow(color: shadowColor, blurRadius: 15, spreadRadius: 1),
+                        BoxShadow(
+                          color: shadowColor,
+                          blurRadius: 15,
+                          spreadRadius: 1,
+                        ),
                       ],
                     ),
                     child: Text(

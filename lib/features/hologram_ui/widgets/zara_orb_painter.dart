@@ -7,16 +7,19 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:zara/core/constants/app_colors.dart';
+import 'package:zara/core/enums/mood_enum.dart';
 import 'package:zara/features/hologram_ui/painters/ring_data_painter.dart';
 
 class ZaraOrbWidget extends StatefulWidget {
   final bool guardianMode;
-  final double pulseValue; // From Provider: Synced with Audio
+  final double pulseValue;
+  final Mood mood;
 
   const ZaraOrbWidget({
     super.key,
     this.guardianMode = false,
     this.pulseValue = 0.0,
+    required this.mood,
   });
 
   @override
@@ -44,8 +47,7 @@ class _ZaraOrbWidgetState extends State<ZaraOrbWidget> with TickerProviderStateM
   @override
   void dispose() {
     _rotationController.dispose();
-    _glowController.dispose();
-    super.dispose();
+    _glowController.dispose();    super.dispose();
   }
 
   @override
@@ -53,13 +55,11 @@ class _ZaraOrbWidgetState extends State<ZaraOrbWidget> with TickerProviderStateM
     return AnimatedBuilder(
       animation: Listenable.merge([_rotationController, _glowController]),
       builder: (context, child) {
-        // Combined pulse from breathing animation + real voice energy
         final combinedPulse = (_glowController.value * 0.3) + (widget.pulseValue * 0.7);
 
         return Stack(
           alignment: Alignment.center,
           children: [
-            // 1. BACKGROUND: Holographic DNA Helix (Vertical)
             Positioned.fill(
               child: CustomPaint(
                 painter: _DNAHelixPainter(
@@ -69,8 +69,6 @@ class _ZaraOrbWidgetState extends State<ZaraOrbWidget> with TickerProviderStateM
                 ),
               ),
             ),
-
-            // 2. MIDDLE: The Orbital Rings (From RingDataPainter)
             SizedBox(
               width: 320,
               height: 320,
@@ -82,11 +80,7 @@ class _ZaraOrbWidgetState extends State<ZaraOrbWidget> with TickerProviderStateM
                 ),
               ),
             ),
-
-            // 3. CORE: The High-Intensity Glowing Center
             _buildGlowingCore(combinedPulse),
-
-            // 4. PARTICLES: Cyber-Static floating around
             Positioned.fill(
               child: CustomPaint(
                 painter: _ParticleFieldPainter(
@@ -102,9 +96,8 @@ class _ZaraOrbWidgetState extends State<ZaraOrbWidget> with TickerProviderStateM
   }
 
   Widget _buildGlowingCore(double pulse) {
-    final color = widget.guardianMode ? AppColors.alertRed : AppColors.neonCyan;
-    return Container(
-      width: 60 + (pulse * 15), // Breathes with voice
+    final color = widget.mood.primaryColor;    return Container(
+      width: 60 + (pulse * 15),
       height: 60 + (pulse * 15),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -135,27 +128,28 @@ class _DNAHelixPainter extends CustomPainter {
   final double opacity;
   final bool guardianMode;
 
-  _DNAHelixPainter({required this.progress, required this.opacity, this.guardianMode = false});
+  _DNAHelixPainter({
+    required this.progress,
+    required this.opacity,
+    this.guardianMode = false,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final color = (guardianMode ? AppColors.alertRed : AppColors.neonCyan).withOpacity(opacity);
-    final paint = Paint()..color = color..strokeWidth = 1.0..style = PaintingStyle.stroke;
+    final color = AppColors.neonCyan.withOpacity(opacity);
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
 
-    const xSpacing = 120.0; // Helix width
+    const xSpacing = 120.0;
     for (double y = 0; y < size.height; y += 4) {
-      // Sin wave logic for the vertical helix
-      final waveValue = sin((y * 0.02) + (progress * 2 * pi));
-      final x1 = center.dx + (waveValue * xSpacing / 2);
+      final waveValue = sin((y * 0.02) + (progress * 2 * pi));      final x1 = center.dx + (waveValue * xSpacing / 2);
       final x2 = center.dx - (waveValue * xSpacing / 2);
-
-      // Draw horizontal bonds (bars)
       if (y % 20 == 0) {
         canvas.drawLine(Offset(x1, y), Offset(x2, y), paint..strokeWidth = 0.5);
       }
-      
-      // Draw strands
       canvas.drawCircle(Offset(x1, y), 1, paint..style = PaintingStyle.fill);
       canvas.drawCircle(Offset(x2, y), 1, paint..style = PaintingStyle.fill);
     }
@@ -171,7 +165,10 @@ class _ParticleFieldPainter extends CustomPainter {
   final double pulseValue;
   final Random _rnd = Random(42);
 
-  _ParticleFieldPainter({required this.progress, required this.pulseValue});
+  _ParticleFieldPainter({
+    required this.progress,
+    required this.pulseValue,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {

@@ -1,266 +1,216 @@
 // lib/core/constants/api_keys.dart
-// Z.A.R.A. — High-Security API Key & Identity Engine
-// ✅ Single API Key: OpenRouter OR Gemini • Free Models Supported
-// ✅ No Hardcoded Keys • Settings-Driven • Zero Dummy
+// Z.A.R.A. — API Key Manager (Clean + Real Models)
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// API Provider enum — user selects ONE provider in Settings
-enum ApiProvider {
-  openRouter,  // Uses free models via OpenRouter
-  gemini,      // Uses direct Google Gemini API
-  none,        // No API configured
-}
+enum ApiProvider { openRouter, gemini, none }
 
 class ApiKeys {
   static late SharedPreferences _prefs;
+  
+  // Separate keys for each provider
+  static String _orKey = '';
+  static String _gemKey = '';
+  static ApiProvider _prov = ApiProvider.none;
+  static String _model = '';
+  static String _voice = 'hi-IN-SwaraNeural';
+  static String _lang = 'hi-IN';
+  static String _owner = 'OWNER RAVI';
+  static int _aff = 85;
 
-  // ========== Internal Registers ==========
-  static String _apiKey = '';                    // Single key: OpenRouter OR Gemini
-  static ApiProvider _provider = ApiProvider.none; // Selected provider
-  static String _selectedModel = '';             // Model name for API calls
-  static String _voiceName = 'hi-IN-SwaraNeural';
-  static String _languageCode = 'hi-IN';
-  static String _ownerName = 'OWNER RAVI';
-  static int _affectionLevel = 85;
+  // Storage keys
+  static const _kOR = 'or_key';
+  static const _kGem = 'gem_key';
+  static const _kProv = 'provider';
+  static const _kModel = 'model';
+  static const _kVoice = 'voice';
+  static const _kLang = 'lang';
+  static const _kOwner = 'owner';
+  static const _kAff = 'affection';
 
-  // ========== Secure Storage Keys ==========
-  static const String _kApiKey = 'reg_api_key_core';
-  static const String _kProvider = 'cfg_api_provider';
-  static const String _kModel = 'cfg_selected_model';
-  static const String _kVoice = 'cfg_voice_module';
-  static const String _kLang = 'cfg_lang_code';
-  static const String _kOwner = 'id_owner_name';
-  static const String _kAffection = 'id_affection_val';
-
-  // ========== OpenRouter Free Models (Recommended) ==========
-  /// List of tested free models via OpenRouter
-  static const List<Map<String, String>> openRouterFreeModels = [
-    {'id': 'google/gemini-2.0-flash-lite:free', 'name': 'Gemini 2.0 Flash Lite (Free)', 'desc': 'Fast chat & code'},
-    {'id': 'google/gemini-2.0-flash-thinking-exp:free', 'name': 'Gemini 2.0 Flash Thinking (Free)', 'desc': 'Deep reasoning'},
-    {'id': 'meta-llama/llama-3.2-3b-instruct:free', 'name': 'Llama 3.2 3B (Free)', 'desc': 'Lightweight chat'},
-    {'id': 'meta-llama/llama-3.1-8b-instruct:free', 'name': 'Llama 3.1 8B (Free)', 'desc': 'Balanced performance'},
-    {'id': 'mistralai/mistral-7b-instruct:free', 'name': 'Mistral 7B (Free)', 'desc': 'Reliable general purpose'},
-    {'id': 'google/gemma-2-9b-it:free', 'name': 'Gemma 2 9B (Free)', 'desc': 'Google lightweight'},
+  // OpenRouter Free Models (YOUR REAL LIST)
+  static const List<Map<String, String>> orModels = [
+    {'id': 'google/gemma-3-4b-it:free', 'name': 'Gemma 3 4B IT', 'desc': 'Google latest free'},
+    {'id': 'nousresearch/hermes-3-llama-3.1-405b:free', 'name': 'Hermes 3 Llama 405B', 'desc': 'High reasoning'},
+    {'id': 'meta-llama/llama-3.2-3b-instruct:free', 'name': 'Llama 3.2 3B', 'desc': 'Lightweight'},
+    {'id': 'meta-llama/llama-3.3-70b-instruct:free', 'name': 'Llama 3.3 70B', 'desc': 'Powerful'},
+    {'id': 'qwen/qwen3-4b:free', 'name': 'Qwen3 4B', 'desc': 'Alibaba efficient'},
+    {'id': 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', 'name': 'Dolphin Mistral 24B', 'desc': 'Uncensored'},
+    {'id': 'qwen/qwen3-coder:free', 'name': 'Qwen3 Coder', 'desc': 'Code specialist'},
+    {'id': 'qwen/qwen3-235b-a22b-thinking-2507', 'name': 'Qwen3 235B Thinking', 'desc': 'Deep reasoning'},
+    {'id': 'z-ai/glm-4.5-air:free', 'name': 'GLM-4.5 Air', 'desc': 'Zhipu AI'},
+    {'id': 'openai/gpt-oss-20b:free', 'name': 'GPT-OSS 20B', 'desc': 'Open source'},
+    {'id': 'openai/gpt-oss-120b:free', 'name': 'GPT-OSS 120B', 'desc': 'Large model'},
+    {'id': 'nvidia/nemotron-nano-9b-v2:free', 'name': 'Nemotron Nano 9B v2', 'desc': 'NVIDIA optimized'},
+    {'id': 'qwen/qwen3-next-80b-a3b-instruct:free', 'name': 'Qwen3 Next 80B', 'desc': 'Next-gen'},
+    {'id': 'qwen/qwen3-vl-235b-a22b-thinking', 'name': 'Qwen3 VL 235B', 'desc': 'Vision + reasoning'},
+    {'id': 'qwen/qwen3-vl-30b-a3b-thinking', 'name': 'Qwen3 VL 30B', 'desc': 'Light vision'},
+    {'id': 'nvidia/nemotron-nano-12b-v2-vl:free', 'name': 'Nemotron Nano 12B VL', 'desc': 'Vision capable'},
+    {'id': 'black-forest-labs/flux.2-pro', 'name': 'Flux.2 Pro', 'desc': 'Image generation'},    {'id': 'upstage/solar-pro-3:free', 'name': 'Solar Pro 3', 'desc': 'Upstage efficient'},
+    {'id': 'nvidia/llama-nemotron-embed-vl-1b-v2:free', 'name': 'Nemotron Embed VL 1B', 'desc': 'Embedding'},
   ];
 
-  /// Default recommended model for Z.A.R.A.
-  static const String defaultModel = 'google/gemini-2.0-flash-lite:free';
-  // ========== Initialization (Boot Protocol) ==========
-  static Future<void> initialize() async {
-    _prefs = await SharedPreferences.getInstance();
+  // Gemini Models (YOUR REAL LIST)
+  static const List<Map<String, String>> gemModels = [
+    {'id': 'gemini-3-flash-preview', 'name': 'Gemini 3 Flash Preview', 'desc': 'Next-gen fast'},
+    {'id': 'gemini-2.5-pro', 'name': 'Gemini 2.5 Pro', 'desc': 'Google flagship'},
+    {'id': 'gemini-flash-latest', 'name': 'Gemini Flash Latest', 'desc': 'Auto-updating'},
+    {'id': 'gemini-flash-lite-latest', 'name': 'Gemini Flash Lite Latest', 'desc': 'Lightweight auto'},
+    {'id': 'gemini-2.5-flash', 'name': 'Gemini 2.5 Flash', 'desc': 'Balanced speed'},
+    {'id': 'gemini-2.5-flash-lite', 'name': 'Gemini 2.5 Flash Lite', 'desc': 'Efficient'},
+    {'id': 'gemini-2.0-flash', 'name': 'Gemini 2.0 Flash', 'desc': 'Previous stable'},
+    {'id': 'gemini-2.0-flash-lite', 'name': 'Gemini 2.0 Flash Lite', 'desc': 'Light 2.0'},
+    {'id': 'gemini-robotics-er-1.5-preview', 'name': 'Gemini Robotics ER 1.5', 'desc': 'Robotics'},
+    {'id': 'gemini-2.5-pro-preview-tts', 'name': 'Gemini 2.5 Pro TTS', 'desc': 'With TTS'},
+    {'id': 'gemini-2.5-flash-preview-tts', 'name': 'Gemini 2.5 Flash TTS', 'desc': 'Flash with TTS'},
+  ];
 
-    // Load API key and provider
-    _apiKey = _prefs.getString(_kApiKey) ?? '';
-    final providerStr = _prefs.getString(_kProvider) ?? 'none';
-    _provider = ApiProvider.values.firstWhere(
-      (p) => p.toString().split('.').last == providerStr,
+  // Defaults
+  static const _defOR = 'google/gemma-3-4b-it:free';
+  static const _defGem = 'gemini-2.0-flash-lite';
+
+  // Endpoints
+  static String get orEp => 'https://openrouter.ai/api/v1/chat/completions';
+  static String get gemEp => 'https://generativelanguage.googleapis.com/v1beta/models';
+  static String gemUrl(String m) => '$gemEp/$m:generateContent?key=$_gemKey';
+
+  // Init
+  static Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+    _orKey = _prefs.getString(_kOR) ?? '';
+    _gemKey = _prefs.getString(_kGem) ?? '';
+    final p = _prefs.getString(_kProv) ?? 'none';
+    _prov = ApiProvider.values.firstWhere(
+      (x) => x.toString().split('.').last == p,
       orElse: () => ApiProvider.none,
     );
-    _selectedModel = _prefs.getString(_kModel) ?? defaultModel;
-
-    // Load voice/language preferences
-    _voiceName = _prefs.getString(_kVoice) ?? 'hi-IN-SwaraNeural';
-    _languageCode = _prefs.getString(_kLang) ?? 'hi-IN';
-    _ownerName = _prefs.getString(_kOwner) ?? 'OWNER RAVI';
-    _affectionLevel = _prefs.getInt(_kAffection) ?? 85;
-
-    if (kDebugMode) {
-      debugPrint('🔐 ApiKeys Loaded: provider=$_provider, model=$_selectedModel, keyLength=${_apiKey.length}');
-    }
+    _model = _prefs.getString(_kModel) ?? (_prov == ApiProvider.openRouter ? _defOR : _defGem);
+    _voice = _prefs.getString(_kVoice) ?? _voice;
+    _lang = _prefs.getString(_kLang) ?? _lang;
+    _owner = _prefs.getString(_kOwner) ?? _owner;
+    _aff = _prefs.getInt(_kAff) ?? _aff;
   }
 
-  // ========== Public Accessors ==========
-  static String get apiKey => _apiKey;
-  static ApiProvider get provider => _provider;
-  static String get selectedModel => _selectedModel;
-  static String get voiceName => _voiceName;
-  static String get languageCode => _languageCode;
-  static String get ownerName => _ownerName;
-  static int get affectionLevel => _affectionLevel;
+  // Getters
+  static String get key => _prov == ApiProvider.openRouter ? _orKey : _gemKey;
+  static ApiProvider get provider => _prov;
+  static String get model => _model;
+  static String get voice => _voice;  static String get lang => _lang;
+  static String get owner => _owner;
+  static int get aff => _aff;
+  static List<Map<String, String>> get models => _prov == ApiProvider.openRouter ? orModels : gemModels;
 
-  // ========== Provider-Specific Helpers ==========
-  
-  /// Get OpenRouter API endpoint
-  static String get openRouterEndpoint => 'https://openrouter.ai/api/v1/chat/completions';
-  
-  /// Get Gemini API endpoint
-  static String get geminiEndpoint => 'https://generativelanguage.googleapis.com/v1beta/models';
-  
-  /// Get headers for API calls (provider-aware)
-  static Map<String, String> getApiHeaders() {
-    if (_provider == ApiProvider.openRouter) {
+  // Headers
+  static Map<String, String> get headers {
+    if (_prov == ApiProvider.openRouter) {
       return {
-        'Authorization': 'Bearer $_apiKey',
+        'Authorization': 'Bearer $_orKey',
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://zara-ai.example.com', // Required by OpenRouter
-        'X-Title': 'Z.A.R.A. AI',      };
-    } else if (_provider == ApiProvider.gemini) {
-      return {
-        'Content-Type': 'application/json',
-        // Gemini uses key as query param, not header
+        'HTTP-Referer': 'https://zara-ai.example.com',
+        'X-Title': 'Z.A.R.A. AI',
       };
     }
-    return {};
+    return {'Content-Type': 'application/json'};
   }
 
-  /// Get request body template for chat completion (provider-aware)
-  static Map<String, dynamic> getChatRequestBody({
-    required List<Map<String, String>> messages,
-    double temperature = 0.7,
-    int maxTokens = 2048,
+  // Request body
+  static Map<String, dynamic> body({
+    required List<Map<String, String>> msgs,
+    double temp = 0.7,
+    int maxTok = 2048,
   }) {
-    if (_provider == ApiProvider.openRouter) {
+    if (_prov == ApiProvider.openRouter) {
       return {
-        'model': _selectedModel,
-        'messages': messages.map((m) => {'role': m['role'], 'content': m['content']}).toList(),
-        'temperature': temperature,
-        'max_tokens': maxTokens,
+        'model': _model,
+        'messages': msgs,
+        'temperature': temp,
+        'max_tokens': maxTok,
         'stream': false,
       };
-    } else if (_provider == ApiProvider.gemini) {
-      // Gemini format is different
-      return {
-        'contents': messages.map((m) => {
-          'role': m['role'] == 'assistant' ? 'model' : 'user',
-          'parts': [{'text': m['content']}]
-        }).toList(),
-        'generationConfig': {
-          'temperature': temperature,
-          'maxOutputTokens': maxTokens,
-        },
-      };
     }
-    return {};
+    return {
+      'contents': msgs.map((m) => {
+        'role': m['role'] == 'assistant' ? 'model' : 'user',
+        'parts': [{'text': m['content'] ?? ''}],
+      }).toList(),
+      'generationConfig': {
+        'temperature': temp,
+        'maxOutputTokens': maxTok,
+      },
+    };
   }
 
-  // ========== Save Logic (Atomic Updates) ==========
-  static Future<bool> saveConfig({
-    String? apiKey,
-    ApiProvider? provider,
-    String? model,
+  // Save config
+  static Future<bool> save({
+    String? orKey,
+    String? gemKey,
+    ApiProvider? prov,    String? model,
     String? voice,
-    String? language,
+    String? lang,
     String? owner,
-    int? affection,
-  }) async {    try {
-      bool saved = true;
-      
-      if (apiKey != null) {
-        if (!_isValidApiKey(apiKey, provider ?? _provider)) return false;
-        _apiKey = apiKey;
-        saved = await _prefs.setString(_kApiKey, apiKey) && saved;
+    int? aff,
+  }) async {
+    try {
+      var ok = true;
+      if (orKey != null) {
+        if (orKey.isNotEmpty && !_validOR(orKey)) return false;
+        _orKey = orKey;
+        ok = await _prefs.setString(_kOR, orKey) && ok;
       }
-      
-      if (provider != null) {
-        _provider = provider;
-        saved = await _prefs.setString(_kProvider, provider.toString().split('.').last) && saved;
-        
-        // Reset model to default when provider changes
-        if (provider == ApiProvider.openRouter) {
-          _selectedModel = defaultModel;
-          await _prefs.setString(_kModel, defaultModel);
-        }
+      if (gemKey != null) {
+        if (gemKey.isNotEmpty && !_validGem(gemKey)) return false;
+        _gemKey = gemKey;
+        ok = await _prefs.setString(_kGem, gemKey) && ok;
       }
-      
+      if (prov != null) {
+        _prov = prov;
+        ok = await _prefs.setString(_kProv, prov.toString().split('.').last) && ok;
+        _model = prov == ApiProvider.openRouter ? _defOR : _defGem;
+        await _prefs.setString(_kModel, _model);
+      }
       if (model != null && model.isNotEmpty) {
-        _selectedModel = model;
-        saved = await _prefs.setString(_kModel, model) && saved;
+        _model = model;
+        ok = await _prefs.setString(_kModel, model) && ok;
       }
-      
-      if (voice != null) {
-        _voiceName = voice;
-        saved = await _prefs.setString(_kVoice, voice) && saved;
-      }
-      
-      if (language != null) {
-        _languageCode = language;
-        saved = await _prefs.setString(_kLang, language) && saved;
-      }
-      
-      if (owner != null) {
-        _ownerName = owner;
-        saved = await _prefs.setString(_kOwner, owner) && saved;
-      }
-      
-      if (affection != null) {
-        _affectionLevel = affection.clamp(0, 100);
-        saved = await _prefs.setInt(_kAffection, _affectionLevel) && saved;
-      }
-      
-      if (kDebugMode && saved) {
-        debugPrint('✅ ApiKeys Saved: provider=$_provider, model=$_selectedModel');
-      }
-      return saved;
-          } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Neural Storage Failure: $e');
+      if (voice != null) { _voice = voice; ok = await _prefs.setString(_kVoice, voice) && ok; }
+      if (lang != null) { _lang = lang; ok = await _prefs.setString(_kLang, lang) && ok; }
+      if (owner != null) { _owner = owner; ok = await _prefs.setString(_kOwner, owner) && ok; }
+      if (aff != null) { _aff = aff.clamp(0, 100); ok = await _prefs.setInt(_kAff, _aff) && ok; }
+      return ok;
+    } catch (e) {
+      if (kDebugMode) print('Save error: $e');
       return false;
     }
   }
 
-  // ========== Validation Logic ==========
-  static bool _isValidApiKey(String key, ApiProvider provider) {
-    if (key.isEmpty) return false;
-    
-    if (provider == ApiProvider.gemini) {
-      // Gemini keys start with AIza
-      return RegExp(r'^AIza[0-9A-Za-z-_]{35,}$').hasMatch(key);
-    } else if (provider == ApiProvider.openRouter) {
-      // OpenRouter keys are typically 32+ chars, alphanumeric + hyphens
-      return key.length >= 32 && RegExp(r'^[A-Za-z0-9\-_]+$').hasMatch(key);
-    }
-    return false;
+  // Validation
+  static bool _validOR(String k) => k.length >= 32 && RegExp(r'^[A-Za-z0-9\-_]+$').hasMatch(k);
+  static bool _validGem(String k) => RegExp(r'^AIza[0-9A-Za-z\-_]{35,}$').hasMatch(k);
+  static bool validCurrent(String k) => _prov == ApiProvider.openRouter ? _validOR(k) : _validGem(k);
+
+  // Status
+  static Map<String, dynamic> get status => {
+    'configured': key.isNotEmpty && _prov != ApiProvider.none,
+    'provider': _prov.toString().split('.').last,
+    'model': _model,
+    'orSet': _orKey.isNotEmpty,    'gemSet': _gemKey.isNotEmpty,
+  };
+
+  static bool get ready => key.isNotEmpty && _model.isNotEmpty && _prov != ApiProvider.none;
+
+  // Clear
+  static Future<void> clear() async {
+    await _prefs.clear();
+    await init();
   }
 
-  // ========== Status Engine (For Settings UI) ==========
-  static Map<String, dynamic> get status {
-    return {
-      'configured': _apiKey.isNotEmpty && _provider != ApiProvider.none,
-      'provider': _provider.toString().split('.').last,
-      'model': _selectedModel,
-      'modelType': _selectedModel.contains(':free') ? 'free' : 'paid',
-      'keyLength': _apiKey.length,
-      'voice': _voiceName,
-      'language': _languageCode,
-    };
+  // Parse responses
+  static String? parseOR(Map<String, dynamic> r) {
+    try { return r['choices']?[0]?['message']?['content'] as String?; } catch (_) { return null; }
   }
 
-  /// Quick check: Is API ready for calls?
-  static bool get isReady => _apiKey.isNotEmpty && _provider != ApiProvider.none;
-
-  /// Get available models based on selected provider
-  static List<Map<String, String>> get availableModels {
-    if (_provider == ApiProvider.openRouter) {
-      return openRouterFreeModels;
-    }
-    // For Gemini, return a single entry (model is fixed by endpoint)
-    return [
-      {'id': 'gemini-2.0-flash-lite', 'name': 'Gemini 2.0 Flash Lite', 'desc': 'Google official'},
-    ];
-  }
-
-  // ========== Reset Engine ==========
-  static Future<void> clearAll() async {
-    await _prefs.clear();    await initialize(); // Reload defaults
-    if (kDebugMode) debugPrint('🗑️ ApiKeys Reset to defaults');
-  }
-
-  // ========== Utility: Parse OpenRouter Response ==========
-  static String? parseOpenRouterResponse(Map<String, dynamic> response) {
-    try {
-      return response['choices']?[0]?['message']?['content'] as String?;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ========== Utility: Parse Gemini Response ==========
-  static String? parseGeminiResponse(Map<String, dynamic> response) {
-    try {
-      return response['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
-    } catch (_) {
-      return null;
-    }
+  static String? parseGem(Map<String, dynamic> r) {
+    try { return r['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?; } catch (_) { return null; }
   }
 }

@@ -33,7 +33,11 @@ class StatusHeader extends StatelessWidget {
     final accentColor = guardianMode ? AppColors.alertRed : AppColors.neonCyan;
 
     return Container(
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 5, left: 10, right: 10),
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 5,
+        left: 10,
+        right: 10,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -43,8 +47,7 @@ class StatusHeader extends StatelessWidget {
             children: [
               _buildDiamond(accentColor),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                child: Text(
+                padding: const EdgeInsets.symmetric(horizontal: 15),                child: Text(
                   'ZARA OWNER MAHAKAL RAVI',
                   style: TextStyle(
                     color: accentColor,
@@ -58,7 +61,7 @@ class StatusHeader extends StatelessWidget {
               _buildDiamond(accentColor),
             ],
           ),
-          
+
           const SizedBox(height: 15),
 
           // 2. MAIN HUD BAR (Menu | Topic | Actions)
@@ -93,12 +96,15 @@ class StatusHeader extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildStatusDot(systemOnline),
-                          const SizedBox(width: 6),
+                          _buildStatusDot(systemOnline),                          const SizedBox(width: 6),
                           Text(
-                            guardianMode ? 'GUARDIAN MODE: ACTIVE' : 'SYSTEM ONLINE — ALL CORES ACTIVE',
+                            guardianMode
+                                ? 'GUARDIAN MODE: ACTIVE'
+                                : 'SYSTEM ONLINE — ALL CORES ACTIVE',
                             style: TextStyle(
-                              color: systemOnline ? AppColors.neonGreen.withOpacity(0.7) : AppColors.alertRed,
+                              color: systemOnline
+                                  ? AppColors.neonGreen.withOpacity(0.7)
+                                  : AppColors.alertRed,
                               fontSize: 8,
                               letterSpacing: 1.2,
                               fontFamily: 'monospace',
@@ -113,7 +119,11 @@ class StatusHeader extends StatelessWidget {
 
               // RIGHT: New Chat & More (Settings)
               IconButton(
-                icon: Icon(Icons.add_circle_outline_rounded, color: accentColor, size: 22),
+                icon: Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: accentColor,
+                  size: 22,
+                ),
                 onPressed: onNewChat,
               ),
               IconButton(
@@ -135,7 +145,11 @@ class StatusHeader extends StatelessWidget {
         height: 8,
         decoration: BoxDecoration(
           color: color,
-          boxShadow: [BoxShadow(color: color.withOpacity(0.6), blurRadius: 8)],
+          boxShadow: [            BoxShadow(
+              color: color.withOpacity(0.6),
+              blurRadius: 8,
+            ),
+          ],
         ),
       ),
     );
@@ -150,9 +164,10 @@ class StatusHeader extends StatelessWidget {
         color: online ? AppColors.neonGreen : AppColors.alertRed,
         boxShadow: [
           BoxShadow(
-            color: (online ? AppColors.neonGreen : AppColors.alertRed).withOpacity(0.8),
+            color: (online ? AppColors.neonGreen : AppColors.alertRed)
+                .withOpacity(0.8),
             blurRadius: 5,
-          )
+          ),
         ],
       ),
     );
@@ -170,23 +185,36 @@ class StatusHeader extends StatelessWidget {
             side: BorderSide(color: AppColors.neonCyan.withOpacity(0.3)),
             borderRadius: BorderRadius.circular(15),
           ),
-          title: const Text('RENAME HUD TOPIC', style: TextStyle(color: AppColors.neonCyan, fontSize: 14)),
+          title: const Text(
+            'RENAME HUD TOPIC',
+            style: TextStyle(color: AppColors.neonCyan, fontSize: 14),
+          ),
           content: TextField(
             controller: controller,
             autofocus: true,
             style: const TextStyle(color: Colors.white),
             decoration: const InputDecoration(
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.neonCyan)),
+              enabledBorder: UnderlineInputBorder(                borderSide: BorderSide(color: AppColors.neonCyan),
+              ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL', style: TextStyle(color: Colors.white54))),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'CANCEL',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ),
             TextButton(
               onPressed: () {
                 onRenameTitle(controller.text);
                 Navigator.pop(context);
               },
-              child: const Text('CONFIRM', style: TextStyle(color: AppColors.neonCyan)),
+              child: const Text(
+                'CONFIRM',
+                style: TextStyle(color: AppColors.neonCyan),
+              ),
             ),
           ],
         ),
