@@ -200,13 +200,12 @@ class ZaraTtsService {
   }
 
   String _getGeminiVoice() {
-    // Map mood to a Gemini voice
     switch (_mood) {
-      case Mood.romantic:  return 'Kore';
-      case Mood.excited:   return 'Puck';
+      case Mood.romantic:  return 'Zephyr';   // warmest female
+      case Mood.excited:   return 'Leda';
       case Mood.angry:     return 'Fenrir';
       case Mood.ziddi:     return 'Charon';
-      default:             return 'Aoede';
+      default:             return 'Zephyr';   // default — Swara-like
     }
   }
 

@@ -180,43 +180,61 @@ class AiApiService {
   }
 
   // ── ElevenLabs TTS ────────────────────────────────────────────────────────
-  /// Returns audio bytes directly — play with just_audio or AudioPlayer
+  /// Returns audio bytes — mp3 format
   Future<List<int>?> elevenLabsTts({
     required String text,
     required String voiceId,
     required String apiKey,
   }) async {
-    if (apiKey.isEmpty || voiceId.isEmpty || text.trim().isEmpty) return null;
+    if (apiKey.isEmpty || voiceId.isEmpty || text.trim().isEmpty) {
+      if (kDebugMode) debugPrint('ElevenLabs: missing apiKey/voiceId/text');
+      return null;
+    }
     try {
-      final uri = Uri.parse('$_elBase/text-to-speech/$voiceId');
-      final body = {
-        'text':          _cleanTextForTts(text),
-        'model_id':      'eleven_multilingual_v2',
+      // ElevenLabs v1 endpoint
+      final uri = Uri.parse(
+        'https://api.elevenlabs.io/v1/text-to-speech/$voiceId'
+        '?output_format=mp3_44100_128',
+      );
+      final body = jsonEncode({
+        'text':           _cleanTextForTts(text),
+        'model_id':       'eleven_multilingual_v2',
         'voice_settings': {
-          'stability':        0.5,
-          'similarity_boost': 0.85,
-          'style':            0.35,
+          'stability':         0.5,
+          'similarity_boost':  0.85,
+          'style':             0.3,
           'use_speaker_boost': true,
         },
-      };
-      final response = await http.post(
-        uri,
-        headers: {
-          'xi-api-key':   apiKey,
-          'Content-Type': 'application/json',
-          'Accept':       'audio/mpeg',
-        },
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 15));
+      });
 
-      if (response.statusCode == 200) {
-        if (kDebugMode) debugPrint('ElevenLabs TTS OK — ${response.bodyBytes.length} bytes');
-        return response.bodyBytes;
+      if (kDebugMode) debugPrint('ElevenLabs calling voiceId: $voiceId');
+
+      final client  = http.Client();
+      try {
+        final request = http.Request('POST', uri);
+        request.headers['xi-api-key']   = apiKey;
+        request.headers['Content-Type'] = 'application/json';
+        request.headers['Accept']       = 'audio/mpeg';
+        request.body = body;
+
+        final streamed  = await client.send(request)
+            .timeout(const Duration(seconds: 20));
+        final respBytes = await streamed.stream.toBytes()
+            .timeout(const Duration(seconds: 30));
+
+        if (streamed.statusCode == 200 && respBytes.isNotEmpty) {
+          if (kDebugMode) debugPrint('ElevenLabs OK — ${respBytes.length} bytes');
+          return respBytes;
+        }
+
+        final errorBody = String.fromCharCodes(respBytes);
+        if (kDebugMode) debugPrint('ElevenLabs ${streamed.statusCode}: $errorBody');
+        return null;
+      } finally {
+        client.close();
       }
-      if (kDebugMode) debugPrint('ElevenLabs ${response.statusCode}: ${response.body}');
-      return null;
     } catch (e) {
-      if (kDebugMode) debugPrint('ElevenLabs TTS error: $e');
+      if (kDebugMode) debugPrint('ElevenLabs error: $e');
       return null;
     }
   }

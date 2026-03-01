@@ -39,7 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _selectedModel   = '';
   String _selectedVoice   = '';       // ElevenLabs voice ID
-  String _selectedGemVoice = 'Aoede'; // Gemini TTS voice
+  String _selectedGemVoice = 'Zephyr'; // Gemini TTS voice
   String _selectedLang    = 'hi-IN';
   int    _affection       = 85;
   bool   _elEnabled       = true;
@@ -89,7 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final gemVoiceIds = ApiKeys.geminiTtsVoices.map((v) => v['id']!).toList();
     _selectedGemVoice = gemVoiceIds.contains(ApiKeys.voice)
         ? ApiKeys.voice
-        : 'Aoede';
+        : 'Zephyr';
 
     _selectedLang = _langOptions.contains(ApiKeys.lang)
         ? ApiKeys.lang
@@ -570,7 +570,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           DropdownButtonFormField<String>(
             value: ApiKeys.geminiTtsVoices.any((v) => v['id'] == _selectedGemVoice)
                 ? _selectedGemVoice
-                : 'Aoede',
+                : 'Zephyr',
             dropdownColor: AppColors.deepSpaceBlue,
             isExpanded: true,
             isDense: true,
