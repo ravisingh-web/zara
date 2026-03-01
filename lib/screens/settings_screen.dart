@@ -21,7 +21,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen>
     with SingleTickerProviderStateMixin {
-  // ── State ──────────────────────────────────────────────────────────────────
   bool _loading = true;
   bool _saving = false;
   bool _accessibilityEnabled = false;
@@ -45,7 +44,6 @@ class _SettingsScreenState extends State<SettingsScreen>
   String _orValidMsg = '';
   String _gemValidMsg = '';
 
-  // ── Static Options ─────────────────────────────────────────────────────────
   static const _voiceOptions = [
     'hi-IN-SwaraNeural',
     'hi-IN-MadhurNeural',
@@ -65,7 +63,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     'te-IN',
   ];
 
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -76,7 +73,6 @@ class _SettingsScreenState extends State<SettingsScreen>
           _selectedProvider = _tabController.index == 0
               ? ApiProvider.openRouter
               : ApiProvider.gemini;
-          // FIX: Re-validate model when tab switches
           _safeSetModel();
         });
       }
@@ -93,7 +89,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     super.dispose();
   }
 
-  // ── Data Loading ───────────────────────────────────────────────────────────
   Future<void> _loadAllData() async {
     setState(() => _loading = true);
 
@@ -107,10 +102,8 @@ class _SettingsScreenState extends State<SettingsScreen>
     _selectedVoice = _safePickVoice(ApiKeys.voice);
     _selectedLanguage = _safePickLang(ApiKeys.lang);
 
-    // ✅ CRASH FIX: Always validate model against current list
     _safeSetModel();
 
-    // Set correct tab
     _tabController.index =
         _selectedProvider == ApiProvider.gemini ? 1 : 0;
 
@@ -127,20 +120,16 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (mounted) setState(() => _loading = false);
   }
 
-  /// ✅ THE CRASH FIX: Ensures _selectedModel always exists in the current list.
-  /// If saved model is missing → defaults to first available model.
   void _safeSetModel() {
     final list = _selectedProvider == ApiProvider.openRouter
         ? ApiKeys.orModels
         : ApiKeys.gemModels;
 
     final savedModel = ApiKeys.model;
-
     final exists = list.any((m) => m['id'] == savedModel);
     if (exists) {
       _selectedModel = savedModel;
     } else {
-      // Default to first model in list — prevents Dropdown assertion crash
       _selectedModel = list.isNotEmpty ? list.first['id']! : '';
     }
   }
@@ -151,7 +140,6 @@ class _SettingsScreenState extends State<SettingsScreen>
   String _safePickLang(String saved) =>
       _langOptions.contains(saved) ? saved : _langOptions.first;
 
-  // ── Permission Engine ──────────────────────────────────────────────────────
   Future<void> _checkPermissions() async {
     final perms = [
       Permission.camera,
@@ -159,6 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       Permission.storage,
       Permission.microphone,
       Permission.notification,
+      Permission.manageExternalStorage, // ✅ NEW
     ];
     final Map<Permission, PermissionStatus> statuses = {};
     for (final p in perms) {
@@ -167,27 +156,35 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (mounted) setState(() => _permissions = statuses);
   }
 
-  /// Smart permission handler — guides user to specific settings if permanently denied
   Future<void> _requestPermission(Permission permission) async {
-    final status = await permission.request();
-
-    if (status.isPermanentlyDenied) {
-      if (mounted) {
-        _showPermissionDeniedDialog(permission);
+    // ✅ MANAGE_EXTERNAL_STORAGE needs special handling on Android 11+
+    if (permission == Permission.manageExternalStorage) {
+      final status = await Permission.manageExternalStorage.status;
+      if (!status.isGranted) {
+        final result = await Permission.manageExternalStorage.request();
+        if (!result.isGranted && mounted) {
+          _showPermissionDeniedDialog(permission);
+        }
       }
+      await _checkPermissions();
       return;
     }
 
+    final status = await permission.request();
+    if (status.isPermanentlyDenied && mounted) {
+      _showPermissionDeniedDialog(permission);
+    }
     await _checkPermissions();
   }
 
   void _showPermissionDeniedDialog(Permission permission) {
     final names = {
-      Permission.camera: 'Camera',
-      Permission.location: 'Location',
-      Permission.storage: 'Storage',
-      Permission.microphone: 'Microphone',
-      Permission.notification: 'Notifications',
+      Permission.camera:                'Camera',
+      Permission.location:              'Location',
+      Permission.storage:               'Storage',
+      Permission.microphone:            'Microphone',
+      Permission.notification:          'Notifications',
+      Permission.manageExternalStorage: 'All Files Access',
     };
     final name = names[permission] ?? 'Permission';
 
@@ -217,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              openAppSettings(); // Opens app-specific settings page
+              openAppSettings();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.cyanPrimary,
@@ -230,7 +227,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Validation ─────────────────────────────────────────────────────────────
   void _validateOrKey(String key) {
     if (key.isEmpty) {
       _isOrKeyValid = false;
@@ -263,7 +259,6 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool get _currentKeyValid =>
       _selectedProvider == ApiProvider.openRouter ? _isOrKeyValid : _isGemKeyValid;
 
-  // ── Save ───────────────────────────────────────────────────────────────────
   Future<void> _saveConfig() async {
     if (!_currentKeyValid) {
       _showSnack('⚠️ Fix API key errors first', AppColors.errorRed);
@@ -273,14 +268,14 @@ class _SettingsScreenState extends State<SettingsScreen>
     setState(() => _saving = true);
     try {
       final ok = await ApiKeys.save(
-        orKey: _orKeyCtrl.text.isNotEmpty ? _orKeyCtrl.text : null,
+        orKey:  _orKeyCtrl.text.isNotEmpty  ? _orKeyCtrl.text  : null,
         gemKey: _gemKeyCtrl.text.isNotEmpty ? _gemKeyCtrl.text : null,
-        prov: _selectedProvider,
-        model: _selectedModel,
-        voice: _selectedVoice,
-        lang: _selectedLanguage,
-        owner: _ownerNameCtrl.text,
-        aff: _affectionLevel,
+        prov:   _selectedProvider,
+        model:  _selectedModel,
+        voice:  _selectedVoice,
+        lang:   _selectedLanguage,
+        owner:  _ownerNameCtrl.text,
+        aff:    _affectionLevel,
       );
 
       if (mounted) {
@@ -330,7 +325,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
   }
 
-  // ── BUILD ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -346,32 +340,21 @@ class _SettingsScreenState extends State<SettingsScreen>
                 children: [
                   _buildStatusBanner(),
                   const SizedBox(height: 20),
-
-                  // ── API PROVIDER TABS ──
                   _buildSectionHeader('🔑 API PROVIDER & KEY'),
                   _buildApiProviderSection(),
                   const SizedBox(height: 20),
-
-                  // ── MODEL SELECTION ──
                   _buildSectionHeader('🤖 NEURAL MODEL SELECTION'),
                   _buildModelDropdown(),
                   const SizedBox(height: 20),
-
-                  // ── VOICE & LANGUAGE ──
                   _buildSectionHeader('🗣️ VOICE & LANGUAGE ENGINE'),
                   _buildVoiceLanguageRow(),
                   const SizedBox(height: 20),
-
-                  // ── PERMISSIONS ──
                   _buildSectionHeader('🔐 SYSTEM PERMISSIONS'),
                   _buildPermissionCard(),
                   const SizedBox(height: 20),
-
-                  // ── PERSONALIZATION ──
                   _buildSectionHeader('👤 PERSONALIZATION'),
                   _buildPersonalizationCard(),
                   const SizedBox(height: 32),
-
                   _buildSaveButton(),
                   const SizedBox(height: 40),
                 ],
@@ -404,7 +387,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Status Banner ──────────────────────────────────────────────────────────
   Widget _buildStatusBanner() {
     final status = ApiKeys.status;
     final ok = status['configured'] as bool? ?? false;
@@ -452,7 +434,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Section Header ─────────────────────────────────────────────────────────
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -479,13 +460,11 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── API Provider Section ───────────────────────────────────────────────────
   Widget _buildApiProviderSection() {
     return Container(
       decoration: _cardDecoration(),
       child: Column(
         children: [
-          // Tab bar
           Container(
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.3),
@@ -509,8 +488,6 @@ class _SettingsScreenState extends State<SettingsScreen>
               ],
             ),
           ),
-
-          // Tab content
           SizedBox(
             height: 160,
             child: TabBarView(
@@ -566,8 +543,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 icon: const Icon(Icons.open_in_new,
                     size: 10, color: Color(0xFFFF00FF)),
                 label: const Text('Get Key',
-                    style:
-                        TextStyle(color: Color(0xFFFF00FF), fontSize: 10)),
+                    style: TextStyle(color: Color(0xFFFF00FF), fontSize: 10)),
                 style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 4)),
               ),
@@ -607,8 +583,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     icon: const Icon(Icons.content_paste,
                         size: 14, color: Colors.white38),
                     onPressed: () async {
-                      final clip =
-                          await Clipboard.getData('text/plain');
+                      final clip = await Clipboard.getData('text/plain');
                       if (clip?.text != null) {
                         controller.text = clip!.text!;
                         onChanged(clip.text!);
@@ -633,8 +608,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                 child: Text(
                   validMsg,
                   style: TextStyle(
-                    color:
-                        isValid ? AppColors.successGreen : AppColors.errorRed,
+                    color: isValid
+                        ? AppColors.successGreen
+                        : AppColors.errorRed,
                     fontSize: 9,
                   ),
                 ),
@@ -646,13 +622,11 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Model Dropdown — CRASH FIXED ───────────────────────────────────────────
   Widget _buildModelDropdown() {
     final modelList = _selectedProvider == ApiProvider.openRouter
         ? ApiKeys.orModels
         : ApiKeys.gemModels;
 
-    // ✅ SAFETY NET: Guarantee value is always in items list
     final validIds = modelList.map((m) => m['id']!).toSet();
     if (!validIds.contains(_selectedModel) && modelList.isNotEmpty) {
       _selectedModel = modelList.first['id']!;
@@ -729,7 +703,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Voice & Language ───────────────────────────────────────────────────────
   Widget _buildVoiceLanguageRow() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -741,16 +714,14 @@ class _SettingsScreenState extends State<SettingsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('🎙️ Voice',
-                    style:
-                        TextStyle(color: Colors.white60, fontSize: 10)),
+                    style: TextStyle(color: Colors.white60, fontSize: 10)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   value: _selectedVoice,
                   dropdownColor: AppColors.deepSpaceBlue,
                   isExpanded: true,
                   isDense: true,
-                  style:
-                      const TextStyle(color: Colors.white, fontSize: 10),
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
                   decoration: _dropdownDecoration(),
                   items: _voiceOptions
                       .map((v) => DropdownMenuItem(
@@ -772,16 +743,14 @@ class _SettingsScreenState extends State<SettingsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('🌐 Language',
-                    style:
-                        TextStyle(color: Colors.white60, fontSize: 10)),
+                    style: TextStyle(color: Colors.white60, fontSize: 10)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   value: _selectedLanguage,
                   dropdownColor: AppColors.deepSpaceBlue,
                   isExpanded: true,
                   isDense: true,
-                  style:
-                      const TextStyle(color: Colors.white, fontSize: 10),
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
                   decoration: _dropdownDecoration(),
                   items: _langOptions
                       .map((l) => DropdownMenuItem(
@@ -801,7 +770,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Permission Card ────────────────────────────────────────────────────────
   Widget _buildPermissionCard() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -820,42 +788,44 @@ class _SettingsScreenState extends State<SettingsScreen>
             icon: Icons.mic,
             title: 'Microphone',
             subtitle: 'Required for voice commands (STT)',
-            isGranted:
-                _permissions[Permission.microphone]?.isGranted ?? false,
+            isGranted: _permissions[Permission.microphone]?.isGranted ?? false,
             onAction: () => _requestPermission(Permission.microphone),
+          ),
+          // ✅ NEW: All Files Access (MANAGE_EXTERNAL_STORAGE)
+          _buildPermTile(
+            icon: Icons.folder_open_rounded,
+            title: 'All Files Access',
+            subtitle: 'God Mode — read/write any file on storage',
+            isGranted: _permissions[Permission.manageExternalStorage]?.isGranted ?? false,
+            onAction: () => _requestPermission(Permission.manageExternalStorage),
           ),
           _buildPermTile(
             icon: Icons.folder,
             title: 'Storage',
             subtitle: 'Required for file access',
-            isGranted:
-                _permissions[Permission.storage]?.isGranted ?? false,
+            isGranted: _permissions[Permission.storage]?.isGranted ?? false,
             onAction: () => _requestPermission(Permission.storage),
           ),
           _buildPermTile(
             icon: Icons.camera_alt,
             title: 'Camera',
             subtitle: 'Required for vision features',
-            isGranted:
-                _permissions[Permission.camera]?.isGranted ?? false,
+            isGranted: _permissions[Permission.camera]?.isGranted ?? false,
             onAction: () => _requestPermission(Permission.camera),
           ),
           _buildPermTile(
             icon: Icons.location_on,
             title: 'Location',
             subtitle: 'Required for location commands',
-            isGranted:
-                _permissions[Permission.location]?.isGranted ?? false,
+            isGranted: _permissions[Permission.location]?.isGranted ?? false,
             onAction: () => _requestPermission(Permission.location),
           ),
           _buildPermTile(
             icon: Icons.notifications,
             title: 'Notifications',
             subtitle: 'Required for Z.A.R.A. alerts',
-            isGranted:
-                _permissions[Permission.notification]?.isGranted ?? false,
-            onAction: () =>
-                _requestPermission(Permission.notification),
+            isGranted: _permissions[Permission.notification]?.isGranted ?? false,
+            onAction: () => _requestPermission(Permission.notification),
             isLast: true,
           ),
         ],
@@ -952,7 +922,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Personalization ────────────────────────────────────────────────────────
   Widget _buildPersonalizationCard() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -980,8 +949,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           Row(
             children: [
               const Text('💞 Affection Level',
-                  style:
-                      TextStyle(color: Colors.white70, fontSize: 11)),
+                  style: TextStyle(color: Colors.white70, fontSize: 11)),
               const Spacer(),
               Text(
                 '$_affectionLevel%',
@@ -1007,7 +975,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             child: Text(
               _getAffectionLabel(_affectionLevel),
               style: TextStyle(
-                  color: _getAffectionColor(_affectionLevel).withOpacity(0.7),
+                  color:
+                      _getAffectionColor(_affectionLevel).withOpacity(0.7),
                   fontSize: 10,
                   letterSpacing: 1),
             ),
@@ -1032,7 +1001,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     return '⚠️ MINIMAL ENGAGEMENT';
   }
 
-  // ── Save Button ────────────────────────────────────────────────────────────
   Widget _buildSaveButton() {
     final canSave = !_saving && _currentKeyValid;
     return SizedBox(
@@ -1041,7 +1009,8 @@ class _SettingsScreenState extends State<SettingsScreen>
       child: ElevatedButton(
         onPressed: canSave ? _saveConfig : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: canSave ? AppColors.cyanPrimary : Colors.grey.shade800,
+          backgroundColor:
+              canSave ? AppColors.cyanPrimary : Colors.grey.shade800,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12)),
           elevation: canSave ? 8 : 0,
@@ -1067,7 +1036,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Decorations ────────────────────────────────────────────────────────────
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: Colors.white.withOpacity(0.04),

@@ -18,9 +18,6 @@ import 'package:zara/features/hologram_ui/screens/zara_home_screen.dart';
 // Screen imports
 import 'package:zara/screens/settings_screen.dart';
 
-// Service imports (initialized on-demand, not at startup)
-import 'package:zara/services/accessibility_service.dart';
-
 void main() async {
   // 1. Ensure Flutter Engine is Ready
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,18 +39,11 @@ void main() async {
   // 4. Initialize API Keys from Settings (CRITICAL)
   await ApiKeys.init();
 
-  // 5. Initialize Accessibility Service (Guardian Mode)
-  try {
-    await AccessibilityService().initialize();
-    if (kDebugMode) {
-      debugPrint('✅ Accessibility Service: Ready');
-    }  } catch (e) {
-    if (kDebugMode) {
-      debugPrint('⚠️ Accessibility Service: Not available (optional)');
-    }
-  }
+  // 5. NOTE: AccessibilityService is initialized by Android natively.
+  // ZaraAccessibilityService.kt handles this — no Flutter init needed.
+  if (kDebugMode) debugPrint('✅ Z.A.R.A. starting...');
 
-  // 6. Launch App with API Key Check
+  // 6. Launch App
   runApp(
     MultiProvider(
       providers: [
@@ -75,28 +65,25 @@ class ZaraApp extends StatelessWidget {
       title: 'ZARA AI',
       debugShowCheckedModeBanner: false,
 
-      // 🎨 HOLOGRAPHIC THEME (Neon Cyan/Purple)
+      // 🎨 HOLOGRAPHIC THEME
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppColors.deepSpaceBlack,
         fontFamily: 'monospace',
         useMaterial3: true,
-
-        // Neon Color Scheme — using safe Color values
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00F0FF),   // neon cyan
-          secondary: Color(0xFFFF00FF),  // neon purple
-          surface: Color(0xFF0A0E17),    // deep space blue
-          error: Color(0xFFFF4444),      // error red
+          primary:   Color(0xFF00F0FF),
+          secondary: Color(0xFFFF00FF),
+          surface:   Color(0xFF0A0E17),
+          error:     Color(0xFFFF4444),
         ),
-
-        // Terminal-Style Typography
         textTheme: const TextTheme(
           bodyLarge: TextStyle(
             color: Colors.white,
             letterSpacing: 1.2,
             fontFamily: 'monospace',
-          ),          bodyMedium: TextStyle(
+          ),
+          bodyMedium: TextStyle(
             color: Colors.white70,
             fontFamily: 'monospace',
           ),
@@ -105,8 +92,6 @@ class ZaraApp extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-
-        // Neon Button Styling
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF00F0FF),
@@ -117,8 +102,6 @@ class ZaraApp extends StatelessWidget {
           ),
         ),
       ),
-
-      // Dark Theme Override (Consistency)
       darkTheme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppColors.deepSpaceBlack,
@@ -127,13 +110,13 @@ class ZaraApp extends StatelessWidget {
       ),
       themeMode: ThemeMode.dark,
 
-      // Home Screen with API Key Guard
+      // Home with API Key Guard
       home: const ApiKeyGuard(child: ZaraHomeScreen()),
     );
   }
 }
 
-// 🔐 API Key Guard Widget
+// 🔐 API Key Guard
 class ApiKeyGuard extends StatelessWidget {
   final Widget child;
   const ApiKeyGuard({super.key, required this.child});
@@ -142,11 +125,7 @@ class ApiKeyGuard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ZaraController>(
       builder: (context, controller, _) {
-        // ✅ FIXED: Use ApiKeys.ready getter (from updated api_keys.dart)
-        final isConfigured = ApiKeys.ready;
-
-        if (!isConfigured) {          return _buildSetupScreen(context);
-        }
+        if (!ApiKeys.ready) return _buildSetupScreen(context);
         return child;
       },
     );
@@ -161,7 +140,6 @@ class ApiKeyGuard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Neon Logo
               Text(
                 'Z.A.R.A.',
                 style: TextStyle(
@@ -174,7 +152,7 @@ class ApiKeyGuard extends StatelessWidget {
                     Shadow(
                       color: const Color(0xFF00F0FF).withOpacity(0.5),
                       blurRadius: 20,
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -189,24 +167,20 @@ class ApiKeyGuard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 40),
-
-              // Warning Card
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  border: Border.all(                    color: const Color(0xFFFF4444).withOpacity(0.5),
+                  border: Border.all(
+                    color: const Color(0xFFFF4444).withOpacity(0.5),
                   ),
                   borderRadius: BorderRadius.circular(12),
                   color: AppColors.deepSpaceBlue,
                 ),
-                child: Column(
+                child: const Column(
                   children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Color(0xFFFF4444),
-                      size: 40,
-                    ),
-                    const SizedBox(height: 12),
+                    Icon(Icons.warning_amber_rounded,
+                        color: Color(0xFFFF4444), size: 40),
+                    SizedBox(height: 12),
                     Text(
                       'API Key Required',
                       style: TextStyle(
@@ -215,9 +189,9 @@ class ApiKeyGuard extends StatelessWidget {
                         fontFamily: 'monospace',
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
-                      'Configure Gemini OR OpenRouter API key in Settings to activate Z.A.R.A.',
+                      'Configure Gemini OR OpenRouter API key\nin Settings to activate Z.A.R.A.',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -229,31 +203,25 @@ class ApiKeyGuard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-
-              // Go to Settings Button
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  );
-                },
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
                 icon: const Icon(Icons.settings, color: Colors.black),
                 label: const Text(
                   'Configure API Key',
                   style: TextStyle(fontFamily: 'monospace'),
                 ),
-                style: ElevatedButton.styleFrom(                  backgroundColor: const Color(0xFF00F0FF),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00F0FF),
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+                    horizontal: 24, vertical: 12,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Help Text
               Text(
                 'Get key: https://aistudio.google.com/apikey',
                 style: TextStyle(

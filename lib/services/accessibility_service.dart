@@ -1,179 +1,255 @@
-import 'dart:async';
+// lib/services/accessibility_service.dart
+// Z.A.R.A. — God Mode Bridge v2.0
+// ✅ openApp, clickText, typeText, scroll, swipe, tap
+// ✅ pressBack/Home, screenshot, notifications
+// ✅ getForegroundApp, findTextOnScreen
+// ✅ Proper error handling — never crashes Flutter
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class AccessibilityService {
+  static const _ch = MethodChannel('com.mahakal.zara/accessibility');
+
+  // ── Singleton ──────────────────────────────────────────────────────────────
   static final AccessibilityService _instance = AccessibilityService._internal();
   factory AccessibilityService() => _instance;
   AccessibilityService._internal();
 
-  static const MethodChannel _channel = MethodChannel('com.mahakal.zara/accessibility');
-  StreamController<Map<String, dynamic>>? _stream;
-  bool _active = false;
+  // ══════════════════════════════════════════════════════════════════════════
+  // STATUS
+  // ══════════════════════════════════════════════════════════════════════════
 
-  Stream<Map<String, dynamic>>? get events => _stream?.stream;
-  bool get active => _active;
-
-  Future<void> initialize() async {
-    try {
-      _stream ??= StreamController<Map<String, dynamic>>.broadcast();
-      _channel.setMethodCallHandler(_handle);
-      await Future.delayed(const Duration(milliseconds: 500));
-      _active = await _channel.invokeMethod<bool>('checkAccessibilityEnabled') ?? false;
-      if (kDebugMode) debugPrint('🔐 Accessibility: ${_active ? "ON" : "OFF"}');
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Init error: $e');
-      _active = false;
-    }
-  }
-
-  Future<dynamic> _handle(MethodCall call) async {
-    try {
-      switch (call.method) {
-        case 'onServiceStatusChanged':
-          _active = call.arguments['enabled'] as bool? ?? false;
-          _stream?.add({'type': 'status', 'data': {'enabled': _active}});
-          break;
-        case 'onSecurityEvent':
-          final data = call.arguments as Map<dynamic, dynamic>? ?? {};
-          final sanitized = <String, dynamic>{};
-          for (final e in data.entries) {
-            if (e.key is String) sanitized[e.key as String] = e.value;
-          }
-          _stream?.add(sanitized);
-          if (sanitized['type'] == 'intruder_detected') {
-            await _triggerIntruderAlert(sanitized);          }
-          break;
-        case 'onAutoTypeProgress':
-        case 'onAutoTypeComplete':
-        case 'onAutoTypeError':
-          _stream?.add({'type': call.method, 'data': call.arguments});
-          break;
-      }
-      return true;
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Handle error: $e');
-      return null;
-    }
-  }
-
-  Future<void> _triggerIntruderAlert(Map<String, dynamic> data) async {
-    final path = data['path'] as String?;
-    final loc = data['location'] as String?;
-    if (kDebugMode) debugPrint('🚨 INTRUDER: path=$path, loc=$loc');
-  }
-
+  /// Returns true if accessibility service is running
   Future<bool> checkEnabled() async {
     try {
-      _active = await _channel.invokeMethod<bool>('checkAccessibilityEnabled') ?? false;
-      return _active;
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Check error: $e');
-      return false;
-    }
-  }
-
-  Future<void> openSettings() async {
-    try {
-      await _channel.invokeMethod('openAccessibilitySettings');
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Settings error: $e');
-    }
-  }
-
-  Future<void> resetWrongCount() async {
-    try {
-      await _channel.invokeMethod('resetWrongPasswordCount');
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Reset error: $e');
-    }
-  }
-
-  Future<int> getWrongCount() async {
-    try {
-      final count = await _channel.invokeMethod<int>('getWrongPasswordCount');      return count ?? 0;
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ GetCount error: $e');
-      return 0;
-    }
-  }
-
-  Future<bool> queueAutoType(String text, {int delay = 10}) async {
-    try {
-      final result = await _channel.invokeMethod<bool>('queueAutoType', {'text': text, 'delayMs': delay});
+      final result = await _ch.invokeMethod<bool>('isEnabled');
       return result ?? false;
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Queue error: $e');
+      if (kDebugMode) debugPrint('⚠️ checkEnabled: $e');
       return false;
     }
   }
 
-  Future<void> cancelAutoType() async {
+  /// Opens Android Accessibility Settings page
+  Future<bool> openSettings() async {
     try {
-      await _channel.invokeMethod('cancelAutoType');
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Cancel error: $e');
-    }
-  }
-
-  Future<bool> isFieldFocused() async {
-    try {
-      final result = await _channel.invokeMethod<bool>('isTextFieldFocused');
+      final result = await _ch.invokeMethod<bool>('openSettings');
       return result ?? false;
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Focus error: $e');
+      if (kDebugMode) debugPrint('⚠️ openSettings: $e');
       return false;
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // GOD MODE — APP CONTROL
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Open any installed app by package name
+  /// Example: openApp('com.instagram.android')
+  Future<bool> openApp(String packageName) async {
+    try {
+      final result = await _ch.invokeMethod<bool>('openApp', {
+        'package': packageName,
+      });
+      if (kDebugMode) debugPrint('📱 openApp($packageName): $result');
+      return result ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ openApp: $e');
+      return false;
+    }
+  }
+
+  /// Click any visible text/button on screen
+  /// Example: clickText('Like') — clicks Like button on Instagram
   Future<bool> clickText(String text) async {
     try {
-      final result = await _channel.invokeMethod<bool>('clickOnText', {'text': text});
+      final result = await _ch.invokeMethod<bool>('clickText', {
+        'text': text,
+      });
+      if (kDebugMode) debugPrint('👆 clickText($text): $result');
       return result ?? false;
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Click error: $e');
+      if (kDebugMode) debugPrint('⚠️ clickText: $e');
       return false;
     }
   }
 
-  Future<bool> openApp(String pkg) async {
+  /// Click element by Android resource ID
+  /// Example: clickById('com.instagram.android:id/like_button')
+  Future<bool> clickById(String resourceId) async {
     try {
-      final result = await _channel.invokeMethod<bool>('openApp', {'package': pkg});
+      final result = await _ch.invokeMethod<bool>('clickById', {
+        'id': resourceId,
+      });
       return result ?? false;
-    } catch (e) {      if (kDebugMode) debugPrint('⚠️ OpenApp error: $e');
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ clickById: $e');
       return false;
     }
   }
 
+  /// Type text into currently focused input field
+  /// Example: typeText('Hello World')
+  Future<bool> typeText(String text) async {
+    try {
+      final result = await _ch.invokeMethod<bool>('typeText', {
+        'text': text,
+      });
+      if (kDebugMode) debugPrint('⌨️ typeText: $result');
+      return result ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ typeText: $e');
+      return false;
+    }
+  }
+
+  // Legacy alias — used in zara_provider.dart
+  Future<bool> queueAutoType(String text) => typeText(text);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GOD MODE — GESTURES
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Scroll down N times (for reels, feed, etc.)
+  Future<bool> scrollDown({int steps = 1}) async {
+    try {
+      final result = await _ch.invokeMethod<bool>('scrollDown', {
+        'steps': steps,
+      });
+      return result ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ scrollDown: $e');
+      return false;
+    }
+  }
+
+  /// Scroll up N times
+  Future<bool> scrollUp({int steps = 1}) async {
+    try {
+      final result = await _ch.invokeMethod<bool>('scrollUp', {
+        'steps': steps,
+      });
+      return result ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ scrollUp: $e');
+      return false;
+    }
+  }
+
+  /// Custom swipe from (x1,y1) to (x2,y2)
+  Future<bool> swipe({
+    required int x1, required int y1,
+    required int x2, required int y2,
+    int durationMs = 300,
+  }) async {
+    try {
+      final result = await _ch.invokeMethod<bool>('swipe', {
+        'x1': x1, 'y1': y1,
+        'x2': x2, 'y2': y2,
+        'durationMs': durationMs,
+      });
+      return result ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ swipe: $e');
+      return false;
+    }
+  }
+
+  /// Tap at exact screen coordinates
+  Future<bool> tapAt(int x, int y) async {
+    try {
+      final result = await _ch.invokeMethod<bool>('tapAt', {
+        'x': x, 'y': y,
+      });
+      return result ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ tapAt: $e');
+      return false;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GOD MODE — SYSTEM BUTTONS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<bool> pressBack()           => _invoke('pressBack');
+  Future<bool> pressHome()           => _invoke('pressHome');
+  Future<bool> pressRecents()        => _invoke('pressRecents');
+  Future<bool> takeScreenshot()      => _invoke('takeScreenshot');
+  Future<bool> openNotifications()   => _invoke('openNotifications');
+  Future<bool> openQuickSettings()   => _invoke('openQuickSettings');
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // QUERIES
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Returns package name of app currently on screen
+  Future<String> getForegroundApp() async {
+    try {
+      final result = await _ch.invokeMethod<String>('getForegroundApp');
+      return result ?? '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// Returns true if given text is visible on current screen
+  Future<bool> findTextOnScreen(String text) async {
+    try {
+      final result = await _ch.invokeMethod<bool>('findTextOnScreen', {
+        'text': text,
+      });
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COMMON GOD MODE SHORTCUTS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Instagram kholo
+  Future<bool> openInstagram() => openApp('com.instagram.android');
+
+  /// WhatsApp kholo
+  Future<bool> openWhatsApp() => openApp('com.whatsapp');
+
+  /// YouTube kholo
+  Future<bool> openYouTube() => openApp('com.google.android.youtube');
+
+  /// Facebook kholo
+  Future<bool> openFacebook() => openApp('com.facebook.katana');
+
+  /// Settings kholo
+  Future<bool> openSettings2() => openApp('com.android.settings');
+
+  /// Camera kholo
+  Future<bool> openCamera() => openApp('com.android.camera2');
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // INTERNAL
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<bool> _invoke(String method) async {
+    try {
+      final result = await _ch.invokeMethod<bool>(method);
+      return result ?? true;
+    } catch (e) {
+      if (kDebugMode) debugPrint('⚠️ $method: $e');
+      return false;
+    }
+  }
+
+  /// Status map — for settings screen
   Future<Map<String, dynamic>> status() async {
-    try {
-      final s = await _channel.invokeMethod<Map<dynamic, dynamic>>('getServiceStatus');
-      final result = <String, dynamic>{'active': _active, 'focused': await isFieldFocused()};
-      if (s != null) {
-        for (final entry in s.entries) {
-          if (entry.key is String) {
-            result[entry.key as String] = entry.value;
-          }
-        }
-      }
-      return result;
-    } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Status error: $e');
-      return {'active': _active};
-    }
-  }
-
-  Future<void> refresh() async {
-    _active = await checkEnabled();
-  }
-
-  void dispose() {
-    _stream?.close();
-    _stream = null;
-    _active = false;
-  }
-
-  static Future<bool> ready() async {
-    return await AccessibilityService().checkEnabled();
+    final enabled = await checkEnabled();
+    final pkg     = enabled ? await getForegroundApp() : '';
+    return {
+      'enabled':        enabled,
+      'foregroundApp':  pkg,
+    };
   }
 }
