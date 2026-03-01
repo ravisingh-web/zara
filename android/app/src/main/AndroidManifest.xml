@@ -35,18 +35,24 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <!-- ✅ FIX: Added tools:replace to resolve maxSdkVersion conflict with camera_android_camerax -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29"
         tools:replace="android:maxSdkVersion" />
+
+    <!-- ========== 📁 ALL FILES ACCESS (Android 11+ God Mode) ========== -->
+    <!-- Zara ko poori storage access — koi bhi file read/write/delete -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
 
     <!-- ========== 📍 LOCATION ========== -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
-    <!-- ========== 💬 SMS & MMS ========== -->    <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- ========== 💬 SMS & MMS ========== -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_MMS" />
@@ -70,20 +76,25 @@
         android:name="android.permission.POST_NOTIFICATIONS"
         android:minSdkVersion="33" />
 
-    <!-- ========== ♿ ACCESSIBILITY (Guardian Mode) ========== -->
+    <!-- ========== ♿ ACCESSIBILITY (God Mode) ========== -->
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.USAGE_STATS" />
 
-    <!-- ========== Hardware Features (Optional for broader compatibility) ========== -->
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- ✅ GOD MODE: See & launch ALL installed apps (Android 11+) -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- ========== Hardware Features ========== -->
+    <uses-feature android:name="android.hardware.camera"          android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash"    android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps"    android:required="false" />
+    <uses-feature android:name="android.hardware.microphone"      android:required="false" />
+    <uses-feature android:name="android.hardware.telephony"       android:required="false" />
 
     <application
         android:label="Z.A.R.A."
@@ -95,7 +106,8 @@
         android:requestLegacyExternalStorage="true"
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true"
-        tools:targetApi="tiramisu"        tools:ignore="UnusedAttribute">
+        tools:targetApi="tiramisu"
+        tools:ignore="UnusedAttribute">
 
         <!-- ========== 🚀 MAIN ACTIVITY ========== -->
         <activity
@@ -120,7 +132,7 @@
             </intent-filter>
         </activity>
 
-        <!-- ========== 🛡️ ACCESSIBILITY SERVICE (Guardian Mode) ========== -->
+        <!-- ========== 🛡️ ACCESSIBILITY SERVICE (God Mode) ========== -->
         <service
             android:name=".ZaraAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -138,20 +150,21 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- ========== 🔄 BOOT RECEIVER (Auto-start Guardian) ========== -->
+        <!-- ========== 🔄 BOOT RECEIVER ========== -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true"
             android:enabled="true"
             android:process=":guardian">
-            <intent-filter>                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 
-        <!-- ========== 📧 FILE PROVIDER (For sharing photos securely) ========== -->
+        <!-- ========== 📧 FILE PROVIDER ========== -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -162,7 +175,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- ========== 🔔 NOTIFICATION CHANNELS (Android 8+) ========== -->
+        <!-- ========== 🔔 NOTIFICATION CHANNEL ========== -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="guardian_alerts" />
@@ -174,31 +187,59 @@
 
     </application>
 
-    <!-- ========== 🔍 QUERIES FOR PACKAGE VISIBILITY (Android 11+) ========== -->
+    <!-- ========== 🔍 QUERIES — God Mode App Detection ========== -->
     <queries>
-        <!-- Email apps -->
+        <!-- Email -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="mailto" />
         </intent>
 
-        <!-- SMS apps -->
+        <!-- SMS -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="vnd.android-dir/mms-sms" />
         </intent>
 
-        <!-- Phone/Dialer -->
+        <!-- Phone -->
         <intent>
             <action android:name="android.intent.action.DIAL" />
         </intent>
 
-        <!-- Browser/Maps -->        <intent>
+        <!-- Browser -->
+        <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
+
+        <!-- ✅ GOD MODE: Social & common apps Zara can open/control -->
+        <package android:name="com.instagram.android" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.facebook.lite" />
+        <package android:name="com.twitter.android" />
+        <package android:name="com.snapchat.android" />
+        <package android:name="com.spotify.music" />
+        <package android:name="com.google.android.gm" />
         <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.google.android.apps.photos" />
+        <package android:name="com.google.android.dialer" />
+        <package android:name="com.android.dialer" />
         <package android:name="com.android.chrome" />
+        <package android:name="com.android.camera2" />
+        <package android:name="com.android.settings" />
+        <package android:name="com.android.gallery3d" />
+        <package android:name="com.sec.android.app.camera" />       <!-- Samsung camera -->
+        <package android:name="com.miui.camera" />                  <!-- Xiaomi camera -->
+        <package android:name="org.telegram.messenger" />
+        <package android:name="com.linkedin.android" />
+        <package android:name="com.amazon.mShop.android.shopping" />
+        <package android:name="com.flipkart.android" />
+        <package android:name="com.phonepe.app" />
+        <package android:name="net.one97.paytm" />
+        <package android:name="com.google.android.apps.tachyon" />  <!-- Google Meet -->
+        <package android:name="us.zoom.videomeetings" />            <!-- Zoom -->
 
         <!-- Accessibility -->
         <intent>
@@ -209,6 +250,12 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
+        </intent>
+
+        <!-- ✅ App launch intent — catches any app not listed above -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
 

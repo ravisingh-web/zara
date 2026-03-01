@@ -18,15 +18,12 @@ dependencies:
   # ========== State Management ==========
   provider: ^6.1.5+1
 
-  # ========== Persistent Storage (API Keys) ==========
+  # ========== Persistent Storage ==========
   shared_preferences: ^2.3.3
 
   # ========== HTTP for API Calls (OpenRouter + Gemini) ==========
   http: ^1.6.0
   dio: ^5.4.0
-
-  # ========== Google Gemini AI (Optional - Using Direct HTTP) ==========
-  # google_generative_ai: ^0.4.7
 
   # ========== Device Metrics ==========
   battery_plus: ^6.1.0
@@ -45,25 +42,26 @@ dependencies:
   geolocator: ^13.0.2
   geocoding: ^3.0.0
 
-  # ========== Code Analysis (Z.A.R.A. Coder Feature) ==========
+  # ========== Code Analysis ==========
   analyzer: ^7.3.0
   dart_style: ^3.0.1
 
   # ========== Email & URLs ==========
   url_launcher: ^6.3.2
-  # mailer: ^7.1.0  # Optional - Uncomment if using SMTP background sending
 
   # ========== UI & Animations ==========
   google_fonts: ^8.0.2
   flutter_animate: ^4.5.0
 
-  # ========== Audio (TTS/STT Fallback) ==========
-  audioplayers: ^6.5.1
-  record: ^6.2.0
-  # flutter_tts: ^4.2.0  # Optional - Uncomment for native TTS fallback
+  # ========== Audio ==========
+  # ✅ just_audio: TTS playback (replaces audioplayers — more stable)
+  just_audio: ^0.9.40
 
-  # ========== Background Tasks (Guardian Mode) ==========
-  # workmanager: ^0.5.2  # Optional - Uncomment for background monitoring
+  # ✅ record: Real STT microphone recording
+  record: ^6.2.0
+
+  # ✅ flutter_tts: Native TTS fallback (offline voice synthesis)
+  flutter_tts: ^4.2.0
 
   # ========== Utilities ==========
   intl: ^0.20.2
