@@ -1,3 +1,5 @@
+
+//mahakal
 // lib/services/ai_api_service.dart
 // Z.A.R.A. — Neural API Hub v3.0
 // ✅ Gemini Only — OpenRouter removed

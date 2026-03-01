@@ -1,3 +1,4 @@
+//mahakal
 // lib/services/tts_service.dart
 // Z.A.R.A. — Human Voice Engine v3.0
 // ✅ ElevenLabs — primary (human-like, multilingual)

@@ -1,3 +1,4 @@
+//mahakal
 // lib/screens/settings_screen.dart
 // Z.A.R.A. — System Config v3.0
 // ✅ Gemini Only — OpenRouter removed
