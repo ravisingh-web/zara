@@ -60,8 +60,9 @@ class ZaraController extends ChangeNotifier {
     await _loadNeuralMemory();
     await _email.initialize();
 
-    // ✅ TTS init — Zara hamesha bolegi
+    // TTS init — Zara hamesha bolegi
     await _tts.initialize();
+    _tts.setEnabled(true);   // Always ON
     _tts.onSpeakStart = () {
       _state = _state.copyWith(isSpeaking: true);
       notifyListeners();
@@ -70,7 +71,7 @@ class ZaraController extends ChangeNotifier {
       _state = _state.copyWith(isSpeaking: false);
       notifyListeners();
     };
-    _tts.startIdleSystem();                                   // ✅ idle baat
+_tts.startIdleSystem();
 
     _startNeuralVibration();
     if (kDebugMode) debugPrint('✅ Z.A.R.A. Neural Core initialized');

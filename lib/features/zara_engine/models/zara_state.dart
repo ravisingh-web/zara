@@ -278,7 +278,7 @@ class ZaraState {
         isProcessing:       false,
         isSpeaking:         false,
         isListening:        false,
-        ttsEnabled:         false,
+        ttsEnabled:         true,   // ✅ Auto-speak ON by default
       );
 
   // ── Computed ──────────────────────────────────────────────────────────────
@@ -326,7 +326,7 @@ class ZaraState {
       isGuardianActive: map['isGuardianActive'] as bool?   ?? false,
       currentTopic:     map['currentTopic']     as String? ?? 'SYSTEM INITIALIZED',
       currentChatId:    map['currentChatId']    as String? ?? UniqueKey.id(),
-      ttsEnabled:       map['ttsEnabled']       as bool?   ?? false,
+      ttsEnabled:       map['ttsEnabled']       as bool?   ?? true,
     );
   }
 
