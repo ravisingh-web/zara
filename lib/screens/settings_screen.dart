@@ -1,4 +1,3 @@
-//mahakal
 // lib/screens/settings_screen.dart
 // Z.A.R.A. — System Config v3.0
 // ✅ Gemini Only — OpenRouter removed
@@ -40,7 +39,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _selectedModel   = '';
   String _selectedVoice   = '';       // ElevenLabs voice ID
-  String _selectedGemVoice = 'Zephyr'; // Gemini TTS voice
   String _selectedLang    = 'hi-IN';
   int    _affection       = 85;
   bool   _elEnabled       = true;
@@ -87,10 +85,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? ApiKeys.voice
         : elIds.first;
 
-    final gemVoiceIds = ApiKeys.geminiTtsVoices.map((v) => v['id']!).toList();
-    _selectedGemVoice = gemVoiceIds.contains(ApiKeys.voice)
-        ? ApiKeys.voice
-        : 'Zephyr';
 
     _selectedLang = _langOptions.contains(ApiKeys.lang)
         ? ApiKeys.lang
@@ -198,8 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!_isGemValid) { _showSnack('Fix Gemini API key first', AppColors.errorRed); return; }
     setState(() => _saving = true);
     try {
-      // Voice to save: ElevenLabs ID if elEnabled, else Gemini TTS voice name
-      final voiceToSave = _elEnabled ? _selectedVoice : _selectedGemVoice;
+      final voiceToSave = _selectedVoice; // ElevenLabs only
 
       final ok = await ApiKeys.save(
         gemKey:    _gemKeyCtrl.text,
@@ -335,7 +328,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(ok ? 'Z.A.R.A. System Ready' : 'Configuration Required',
               style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
           const SizedBox(height: 2),
-          Text(ok ? 'Brain: ${ApiKeys.model}  •  Voice: ${ApiKeys.elEnabled ? "ElevenLabs" : "Gemini TTS"}'
+          Text(ok ? 'Brain: ${ApiKeys.model}  •  Voice: ElevenLabs (Simran)'
               : 'Gemini API key daalo activate karne ke liye',
               style: const TextStyle(color: Colors.white60, fontSize: 10)),
         ])),
@@ -559,31 +552,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
 
-        if (!_elEnabled) ...[
-          const SizedBox(height: 12),
-          const Divider(color: Colors.white12, height: 1),
-          const SizedBox(height: 12),
-
-          // Gemini TTS Voice Selection
-          const Text('Gemini TTS Voice',
-              style: TextStyle(color: Colors.white60, fontSize: 10)),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            value: ApiKeys.geminiTtsVoices.any((v) => v['id'] == _selectedGemVoice)
-                ? _selectedGemVoice
-                : 'Zephyr',
-            dropdownColor: AppColors.deepSpaceBlue,
-            isExpanded: true,
-            isDense: true,
-            style: const TextStyle(color: Colors.white, fontSize: 10),
-            decoration: _dropdownDeco(),
-            items: ApiKeys.geminiTtsVoices.map((v) => DropdownMenuItem(
-              value: v['id'],
-              child: Text(v['name']!, style: const TextStyle(fontSize: 10)),
-            )).toList(),
-            onChanged: (v) { if (v != null) setState(() => _selectedGemVoice = v); },
-          ),
-        ],
       ]),
     );
   }
