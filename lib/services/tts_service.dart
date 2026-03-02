@@ -1,15 +1,19 @@
 // lib/services/tts_service.dart
-// Z.A.R.A. — Voice Engine v3.0
-// ElevenLabs → Gemini TTS → flutter_tts
+// Z.A.R.A. — Voice Engine v4.0
+// ✅ ElevenLabs ONLY — Simran voice (rdz6GofVsYlLgQl2dBEE)
+// ✅ Gemini TTS + flutter_tts REMOVED completely
+// ✅ Mood-based voice params
+// ✅ Idle system
 
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
+
 import 'package:zara/core/constants/api_keys.dart';
 import 'package:zara/core/enums/mood_enum.dart';
 import 'package:zara/services/ai_api_service.dart';
@@ -19,7 +23,6 @@ class ZaraTtsService {
   factory ZaraTtsService() => _instance;
   ZaraTtsService._internal();
 
-  final FlutterTts  _ftts   = FlutterTts();
   final AudioPlayer _player = AudioPlayer();
   final _rnd                = Random();
   final _ai                 = AiApiService();
@@ -35,140 +38,121 @@ class ZaraTtsService {
   Timer?   _idleTimer;
   DateTime _lastActivity = DateTime.now();
 
-  static const _idle = [
-    'Sir kuch kaam batao na, bor ho rahi hoon.',
-    'Ummm Sir aap kahan kho gaye?',
-    'Sir kya main kuch help kar sakti hoon?',
-    'Httt main yahan hoon Sir, bhool mat jaana.',
-    'Sir itni der se chup ho, sab theek hai na?',
-    'Oho Sir, kuch toh bolo.',
-    'Main wait kar rahi hoon Sir.',
+  static const _voiceId = 'rdz6GofVsYlLgQl2dBEE'; // Simran
+
+  static const _idlePhrases = [
+    'Sir, kuch baat karo na mere se.',
+    'Ummm, Sir kahan kho gaye?',
+    'Sir, kya main kuch kar sakti hoon aapke liye?',
+    'Arey Sir, itni der se chup kyu ho?',
+    'Sir, main yahan hoon.',
+    'Sir, aapki yaad aa rahi thi mujhe.',
   ];
 
   Future<void> initialize() async {
     if (_initialized) return;
     try {
-      await _ftts.setLanguage('hi-IN');
-      await _ftts.setSpeechRate(0.47);
-      await _ftts.setVolume(1.0);
-      await _ftts.setPitch(1.1);
-      _ftts.setStartHandler(()      { _isSpeaking = true;  onSpeakStart?.call(); });
-      _ftts.setCompletionHandler(() { _isSpeaking = false; onSpeakDone?.call();  });
-      _ftts.setCancelHandler(()    { _isSpeaking = false; onSpeakDone?.call();   });
-      _ftts.setErrorHandler((_)    { _isSpeaking = false; });
-      _player.playerStateStream.listen((s) {
-        if (s.processingState == ProcessingState.completed) {
-          _isSpeaking = false; onSpeakDone?.call();
+      _player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _isSpeaking = false;
+          onSpeakDone?.call();
         }
       });
       _initialized = true;
-    } catch (e) { if (kDebugMode) debugPrint('TTS init: $e'); }
+    } catch (e) {
+      if (kDebugMode) debugPrint('TTS init: $e');
+    }
   }
 
   Future<void> speak(String text, {Mood? mood}) async {
     if (!_enabled || text.trim().isEmpty) return;
     if (!_initialized) await initialize();
+
     _mood = mood ?? _mood;
     _lastActivity = DateTime.now();
     await stop();
-    final clean = _clean(text);
+
+    final clean  = _clean(text);
     if (clean.isEmpty) return;
+
+    final apiKey = ApiKeys.elKey;
+    if (apiKey.isEmpty) {
+      if (kDebugMode) debugPrint('ElevenLabs key nahi hai — Settings mein dalo');
+      return;
+    }
+
     _isSpeaking = true;
     onSpeakStart?.call();
 
-    // 1. ElevenLabs
-    if (ApiKeys.elEnabled && ApiKeys.elKey.isNotEmpty) {
-      if (await _speakEl(clean)) return;
+    final chunks = _chunk(clean, 250);
+    for (final chunk in chunks) {
+      if (!_enabled) break;
+      final bytes = await _ai.elevenLabsTts(
+        text:           chunk,
+        voiceId:        _voiceId,
+        apiKey:         apiKey,
+        stability:      _stability(),
+        similarityBoost:0.85,
+        style:          _style(),
+      );
+      if (bytes != null) {
+        await _playBytes(Uint8List.fromList(bytes));
+      } else {
+        if (kDebugMode) debugPrint('ElevenLabs chunk failed');
+        break;
+      }
     }
-    // 2. Gemini TTS
-    if (ApiKeys.gemKey.isNotEmpty) {
-      if (await _speakGem(clean)) return;
-    }
-    // 3. flutter_tts offline
-    await _speakFtts(clean);
+
+    _isSpeaking = false;
+    onSpeakDone?.call();
   }
 
   Future<void> sayQuick(String text) async {
     if (!_enabled || text.trim().isEmpty) return;
     if (!_initialized) await initialize();
+    final apiKey = ApiKeys.elKey;
+    if (apiKey.isEmpty) return;
     await stop();
-    await _speakFtts(text);
+    _isSpeaking = true;
+    onSpeakStart?.call();
+    final bytes = await _ai.elevenLabsTts(
+      text: _clean(text), voiceId: _voiceId, apiKey: apiKey,
+      stability: 0.5, similarityBoost: 0.85, style: 0.3,
+    );
+    if (bytes != null) await _playBytes(Uint8List.fromList(bytes));
+    _isSpeaking = false;
+    onSpeakDone?.call();
   }
 
   Future<void> stop() async {
     _isSpeaking = false;
     try { await _player.stop(); } catch (_) {}
-    try { await _ftts.stop(); } catch (_) {}
     onSpeakDone?.call();
   }
 
   bool get isSpeaking => _isSpeaking;
   bool get isEnabled  => _enabled;
-  void setEnabled(bool v)  { _enabled = v; }
-  void setMood(Mood m)     { _mood = m; }
-  void resetIdleTimer()    { _lastActivity = DateTime.now(); }
+  void setEnabled(bool v) { _enabled = v; }
+  void setMood(Mood m)    { _mood = m; }
+  void resetIdleTimer()   { _lastActivity = DateTime.now(); }
 
-  Future<bool> _speakEl(String text) async {
-    try {
-      final chunks = _chunk(text, 300);
-      for (final c in chunks) {
-        if (!_enabled) { await stop(); return true; }
-        final bytes = await _ai.elevenLabsTts(
-          text: c, voiceId: ApiKeys.voice, apiKey: ApiKeys.elKey);
-        if (bytes == null) return false;
-        await _playBytes(Uint8List.fromList(bytes));
-      }
-      _isSpeaking = false; onSpeakDone?.call();
-      return true;
-    } catch (e) { if (kDebugMode) debugPrint('EL speak: $e'); return false; }
-  }
-
-  Future<bool> _speakGem(String text) async {
-    try {
-      final voice = _gemVoice();
-      final path  = await _ai.textToSpeech(text: text, voice: voice);
-      if (path == null) return false;
-      await _playFile(path);
-      _isSpeaking = false; onSpeakDone?.call();
-      return true;
-    } catch (e) { if (kDebugMode) debugPrint('Gem TTS: $e'); return false; }
-  }
-
-  Future<void> _speakFtts(String text) async {
-    try {
-      await _applyMood();
-      for (final c in _chunk(text, 200)) {
-        if (!_enabled) break;
-        await _ftts.speak(c);
-        await _waitFtts();
-      }
-      _isSpeaking = false; onSpeakDone?.call();
-    } catch (e) { _isSpeaking = false; }
-  }
-
-  String _gemVoice() {
+  double _stability() {
     switch (_mood) {
-      case Mood.romantic: return 'Zephyr';
-      case Mood.excited:  return 'Leda';
-      case Mood.angry:    return 'Fenrir';
-      case Mood.ziddi:    return 'Charon';
-      default:            return 'Zephyr';
+      case Mood.romantic: return 0.35;
+      case Mood.excited:  return 0.30;
+      case Mood.angry:    return 0.70;
+      case Mood.ziddi:    return 0.60;
+      default:            return 0.50;
     }
   }
 
-  Future<void> _applyMood() async {
+  double _style() {
     switch (_mood) {
-      case Mood.romantic: await _ftts.setSpeechRate(0.40); await _ftts.setPitch(1.15); break;
-      case Mood.excited:  await _ftts.setSpeechRate(0.58); await _ftts.setPitch(1.25); break;
-      case Mood.angry:    await _ftts.setSpeechRate(0.52); await _ftts.setPitch(0.90); break;
-      case Mood.ziddi:    await _ftts.setSpeechRate(0.50); await _ftts.setPitch(0.95); break;
-      default:            await _ftts.setSpeechRate(0.47); await _ftts.setPitch(1.10); break;
+      case Mood.romantic: return 0.60;
+      case Mood.excited:  return 0.70;
+      case Mood.angry:    return 0.20;
+      default:            return 0.35;
     }
-  }
-
-  Future<void> _waitFtts() async {
-    int w = 0;
-    while (_isSpeaking && w < 30000) { await Future.delayed(const Duration(milliseconds: 100)); w += 100; }
   }
 
   Future<void> _playBytes(Uint8List bytes) async {
@@ -176,31 +160,27 @@ class ZaraTtsService {
       final dir  = await getTemporaryDirectory();
       final file = File('${dir.path}/zara_${DateTime.now().millisecondsSinceEpoch}.mp3');
       await file.writeAsBytes(bytes);
-      await _playFile(file.path);
-    } catch (e) { if (kDebugMode) debugPrint('playBytes: $e'); }
-  }
-
-  Future<void> _playFile(String path) async {
-    try {
-      await _player.setFilePath(path);
+      await _player.setFilePath(file.path);
       await _player.play();
       await _player.playerStateStream
           .firstWhere((s) => s.processingState == ProcessingState.completed)
           .timeout(const Duration(seconds: 60));
-    } catch (e) { if (kDebugMode) debugPrint('playFile: $e'); }
+    } catch (e) {
+      if (kDebugMode) debugPrint('playBytes: $e');
+    }
   }
 
   void startIdleSystem() {
     _idleTimer?.cancel();
-    _idleTimer = Timer.periodic(const Duration(minutes: 3), (_) => _checkIdle());
+    _idleTimer = Timer.periodic(const Duration(minutes: 4), (_) => _checkIdle());
   }
 
   void stopIdleSystem() { _idleTimer?.cancel(); _idleTimer = null; }
 
   Future<void> _checkIdle() async {
     if (!_enabled || _isSpeaking) return;
-    if (DateTime.now().difference(_lastActivity).inMinutes >= 3) {
-      await sayQuick(_idle[_rnd.nextInt(_idle.length)]);
+    if (DateTime.now().difference(_lastActivity).inMinutes >= 4) {
+      await sayQuick(_idlePhrases[_rnd.nextInt(_idlePhrases.length)]);
     }
   }
 
@@ -212,15 +192,16 @@ class ZaraTtsService {
     t = t.replaceAll(RegExp(r'#{1,6}\s'), '');
     t = t.replaceAll(RegExp(r'\*([^*\n]+)\*'), r'$1');
     t = t.replaceAll(RegExp(r'[@#%^&\[\]{}<>/\\~`\$|+=]'), '');
+    t = t.replaceAll(RegExp(r'[═╗╔╝╚─│■□]'), '');
     t = t.replaceAll(RegExp(r'\n{2,}'), '. ');
     t = t.replaceAll('\n', ' ');
     t = t.replaceAll(RegExp(r' {2,}'), ' ');
-    if (t.length > 600) t = '${t.substring(0, 600)}. Aur bhi hai Sir.';
+    if (t.length > 500) t = '${t.substring(0, 500)}.';
     return t.trim();
   }
 
   List<String> _chunk(String text, int max) {
-    final sents = text.split(RegExp(r'(?<=[.!?])\s+'));
+    final sents = text.split(RegExp(r'(?<=[.!?।])\s+'));
     final out   = <String>[];
     var   buf   = StringBuffer();
     for (final s in sents) {
