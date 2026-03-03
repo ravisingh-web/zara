@@ -218,7 +218,42 @@ class AccessibilityService {
   Future<bool> openWhatsApp() => openApp('com.whatsapp');
 
   /// YouTube kholo
-  Future<bool> openYouTube() => openApp('com.google.android.youtube');
+  Future<bool> openYouTube()   => openApp('com.google.android.youtube');
+  Future<bool> openFlipkart()  => openApp('com.flipkart.android');
+  Future<bool> openSpotify()   => openApp('com.spotify.music');
+  Future<bool> openGmail()     => openApp('com.google.android.gm');
+  Future<bool> openMaps()      => openApp('com.google.android.apps.maps');
+
+  // ── Instagram God Mode ─────────────────────────────────────────────────────
+  Future<bool> instagramOpenReels()           => _callBool('instagramOpenReels');
+  Future<bool> instagramScrollReels(int n)    => _callBool('instagramScrollReels', {'count': n});
+  Future<bool> instagramLikeReel()            => _callBool('instagramLikeReel');
+  Future<bool> instagramPostComment(String t) => _callBool('instagramPostComment', {'text': t});
+  Future<bool> instagramSearchUser(String u)  => _callBool('instagramSearchUser',  {'username': u});
+
+  // ── Flipkart Shopping Flow ─────────────────────────────────────────────────
+  Future<bool> flipkartSearchProduct(String q) => _callBool('flipkartSearchProduct', {'query': q});
+  Future<bool> flipkartSelectSize(String s)    => _callBool('flipkartSelectSize',    {'size': s});
+  Future<bool> flipkartAddToCart()             => _callBool('flipkartAddToCart');
+  Future<bool> flipkartGoToPayment()           => _callBool('flipkartGoToPayment');
+
+  // ── WhatsApp ───────────────────────────────────────────────────────────────
+  Future<bool> whatsappSendMessage(String contact, String message) =>
+      _callBool('whatsappSendMessage', {'contact': contact, 'message': message});
+
+  // ── YouTube ────────────────────────────────────────────────────────────────
+  Future<bool> youtubeSearch(String q) => _callBool('youtubeSearch', {'query': q});
+  Future<bool> youtubePlayFirst()      => _callBool('youtubePlayFirst');
+
+  Future<bool> _callBool(String method, [Map<String, dynamic>? args]) async {
+    try {
+      final r = await _channel.invokeMethod<bool>(method, args);
+      return r ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Accessibility._callBool $method: $e');
+      return false;
+    }
+  }
 
   /// Facebook kholo
   Future<bool> openFacebook() => openApp('com.facebook.katana');

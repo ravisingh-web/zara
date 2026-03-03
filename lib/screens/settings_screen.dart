@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:zara/core/constants/app_colors.dart';
 import 'package:zara/core/constants/api_keys.dart';
 import 'package:zara/services/accessibility_service.dart';
+import 'package:zara/services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,7 +22,9 @@ class _SettingsScreenState extends State<SettingsScreen>
   late TabController _tabs;
   bool _loading = false;
   bool _saving  = false;
-  bool _accessOn = false;
+  bool _accessOn   = false;
+  bool _notifOn    = false;
+  bool _overlayOn  = false;
   Map<Permission, PermissionStatus> _perms = {};
 
   // Controllers
@@ -87,7 +90,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     _validate('el',    _elCtrl.text);
 
     await _loadPerms();
-    try { _accessOn = await AccessibilityService().checkEnabled(); } catch (_) {}
+    try { _accessOn  = await AccessibilityService().checkEnabled(); } catch (_) {}
+    try { _notifOn   = await NotificationService().isEnabled(); } catch (_) {}
+    try { _overlayOn = await NotificationService().hasOverlayPermission(); } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
@@ -371,6 +376,20 @@ class _SettingsScreenState extends State<SettingsScreen>
             await Future.delayed(const Duration(seconds: 2));
             try { final e = await AccessibilityService().checkEnabled();
               if (mounted) setState(() => _accessOn = e); } catch (_) {}
+          }),
+      _permRow(Icons.notifications_active, 'Notification Listener', 'Proactive WhatsApp/Gmail alerts',
+          _notifOn, onTap: () async {
+            await NotificationService().openSettings();
+            await Future.delayed(const Duration(seconds: 2));
+            try { final e = await NotificationService().isEnabled();
+              if (mounted) setState(() => _notifOn = e); } catch (_) {}
+          }),
+      _permRow(Icons.picture_in_picture, 'Overlay Permission', 'Floating orb on screen',
+          _overlayOn, onTap: () async {
+            await NotificationService().openOverlaySettings();
+            await Future.delayed(const Duration(seconds: 2));
+            try { final e = await NotificationService().hasOverlayPermission();
+              if (mounted) setState(() => _overlayOn = e); } catch (_) {}
           }),
       _permRow(Icons.mic, 'Microphone', 'Voice commands + Whisper STT',
           _perms[Permission.microphone]?.isGranted ?? false,

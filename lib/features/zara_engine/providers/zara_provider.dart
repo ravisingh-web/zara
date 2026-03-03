@@ -20,7 +20,8 @@ import 'package:zara/services/camera_service.dart';
 import 'package:zara/services/location_service.dart';
 import 'package:zara/services/accessibility_service.dart';
 import 'package:zara/services/email_service.dart';
-import 'package:zara/services/tts_service.dart';               // ✅ NEW
+import 'package:zara/services/tts_service.dart';
+import 'package:zara/services/notification_service.dart';      // ✅ Proactive alerts
 import 'package:zara/features/zara_engine/models/zara_state.dart';
 import 'package:zara/services/whisper_stt_service.dart';
 import 'package:zara/services/livekit_service.dart';
@@ -28,7 +29,7 @@ import 'package:zara/services/livekit_service.dart';
 enum TaskType { message, post, system, analysis }
 
 // ─── God-Mode Command Types ───────────────────────────────────────────────
-enum GodCommand { openApp, scrollReels, likeReel, ytSearch, unknown }
+enum GodCommand { openApp, scrollReels, likeReel, ytSearch, instagramComment, flipkartBuy, whatsappSend, unknown }
 
 class ParsedCommand {
   final GodCommand type;
@@ -45,6 +46,7 @@ class ZaraController extends ChangeNotifier {
   final _access   = AccessibilityService();
   final _email    = EmailService();
   final _tts      = ZaraTtsService();
+  final _notif    = NotificationService();                      // ✅ Proactive
   final _whisper  = WhisperSttService();                        // ✅ Whisper STT
   final _livekit  = LiveKitService();                           // ✅ LiveKit voice
 
@@ -84,6 +86,11 @@ class ZaraController extends ChangeNotifier {
       notifyListeners();
     };
 _tts.startIdleSystem();
+
+    // Proactive notification alerts
+    _notif.onProactiveAlert = (alert) {
+      _handleProactiveNotification(alert);
+    };
 
     _startNeuralVibration();
     if (kDebugMode) debugPrint('✅ Z.A.R.A. Neural Core initialized');
@@ -151,9 +158,10 @@ _tts.startIdleSystem();
     );
     notifyListeners();
 
-    // ✅ Stop speaking when user sends command
+    // Stop speaking, update orb
     await _tts.stop();
     _tts.resetIdleTimer();
+    _notif.updateOrb('thinking');
 
     try {
       String response = '';
@@ -180,6 +188,7 @@ _tts.startIdleSystem();
       }
 
       await _saveNeuralMemory();
+      _notif.updateOrb('idle');
     } catch (e) {
       await _processResponse(
         "⚠️ Sir, ek chhoti problem aayi: ${e.toString().substring(0, min(60, e.toString().length))}",
@@ -203,11 +212,14 @@ _tts.startIdleSystem();
     }
 
     switch (cmdStr) {
-      case 'OPEN_APP':     return ParsedCommand(GodCommand.openApp,     params);
-      case 'SCROLL_REELS': return ParsedCommand(GodCommand.scrollReels, params);
-      case 'LIKE_REEL':    return ParsedCommand(GodCommand.likeReel,    params);
-      case 'YT_SEARCH':    return ParsedCommand(GodCommand.ytSearch,    params);
-      default:             return const ParsedCommand(GodCommand.unknown, {});
+      case 'OPEN_APP':        return ParsedCommand(GodCommand.openApp,        params);
+      case 'SCROLL_REELS':    return ParsedCommand(GodCommand.scrollReels,    params);
+      case 'LIKE_REEL':       return ParsedCommand(GodCommand.likeReel,       params);
+      case 'YT_SEARCH':       return ParsedCommand(GodCommand.ytSearch,       params);
+      case 'IG_COMMENT':      return ParsedCommand(GodCommand.instagramComment,params);
+      case 'FLIPKART_BUY':    return ParsedCommand(GodCommand.flipkartBuy,    params);
+      case 'WHATSAPP_SEND':   return ParsedCommand(GodCommand.whatsappSend,   params);
+      default:                return const ParsedCommand(GodCommand.unknown, {});
     }
   }
 
@@ -260,10 +272,55 @@ _tts.startIdleSystem();
         }
         break;
 
+      case GodCommand.instagramComment:
+        final commentText = cmd.params['TEXT'] ?? '';
+        await _processResponse('$cleanResponse\n\n💬 *commenting on Instagram...*');
+        await _access.instagramPostComment(commentText);
+        break;
+
+      case GodCommand.flipkartBuy:
+        final product = cmd.params['PRODUCT'] ?? '';
+        final size    = cmd.params['SIZE'] ?? 'M';
+        await _processResponse('$cleanResponse\n\n🛍️ *searching Flipkart for $product...*');
+        await _access.flipkartSearchProduct(product);
+        await Future.delayed(const Duration(seconds: 3));
+        await _access.flipkartSelectSize(size);
+        await Future.delayed(const Duration(seconds: 1));
+        await _access.flipkartAddToCart();
+        await Future.delayed(const Duration(seconds: 1));
+        await _access.flipkartGoToPayment();
+        break;
+
+      case GodCommand.whatsappSend:
+        final contact = cmd.params['TO'] ?? '';
+        final message = cmd.params['MSG'] ?? '';
+        await _processResponse('$cleanResponse\n\n📤 *sending WhatsApp to $contact...*');
+        await _access.whatsappSendMessage(contact, message);
+        break;
+
       case GodCommand.unknown:
         await _processResponse(cleanResponse);
         break;
     }
+  }
+
+  // ── Proactive Notification Handler ─────────────────────────────────────────
+  void _handleProactiveNotification(NotificationAlert alert) {
+    if (alert.zaraAlert.isEmpty) return;
+
+    // Add Zara's alert as a message in chat
+    final zaraMsg = ChatMessage.fromZara(alert.zaraAlert);
+    final msgs    = List<ChatMessage>.from(_state.messages)..add(zaraMsg);
+    _state = _state.copyWith(
+      messages:     msgs,
+      lastResponse: alert.zaraAlert,
+      isActive:     true,
+      lastActivity: DateTime.now(),
+    );
+    notifyListeners();
+
+    // Zara bolegi proactively
+    _tts.speak(alert.zaraAlert);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -462,6 +519,7 @@ _tts.startIdleSystem();
       );
       notifyListeners();
       await _saveNeuralMemory();
+      _notif.updateOrb('idle');
 
       final loc  = await _location.getCurrentLocation();
       final link = loc != null ? _location.getGoogleMapsLink() : null;
@@ -635,6 +693,7 @@ _tts.startIdleSystem();
       await Future.delayed(const Duration(seconds: 1));
       await _processResponse('✅ Task complete: $description');
       await _saveNeuralMemory();
+      _notif.updateOrb('idle');
     } catch (_) {
       await _processResponse('⚠️ Task failed, Sir.');
     }
