@@ -1,163 +1,226 @@
 // lib/core/constants/api_keys.dart
-// Z.A.R.A. — Neural Core v5.0
-// ✅ Keys hardcoded — no SharedPreferences dependency for API calls
-// ✅ ElevenLabs Simran voice hardcoded
-// ✅ Settings se sirf save hota hai, default mein keys kaam karte hain
+// Z.A.R.A. v7.0 — All 5 API Keys Config
+// 1. Gemini   — Brain (chat, reasoning, vision)
+// 2. Mem0     — Long-term memory (Ravi ji ko yaad rakhna)
+// 3. LiveKit  — Real-time voice room (low-latency)
+// 4. OpenAI   — Whisper STT (speech-to-text)
+// 5. ElevenLabs — Voice output (Simran)
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum ApiProvider { gemini, none }
-
 class ApiKeys {
   static late SharedPreferences _prefs;
 
-  // ── HARDCODED DEFAULTS — ye hamesha kaam karenge ─────────────────────────
-  // Settings mein key daalne par override ho jaayegi, warna ye use hogi
-  static String _gemKey   = '';   // User Settings mein daalega
-  static String _elKey    = '';   // User Settings mein daalega
-  static String _model    = 'gemini-2.5-flash-preview-05-20';
-  static String _voice    = 'rdz6GofVsYlLgQl2dBEE';  // Simran — hardcoded
-  static String _lang     = 'hi-IN';
-  static String _owner    = 'OWNER RAVI';
-  static int    _aff      = 85;
-  static bool   _elEnabled = true;
+  // ── Runtime values ─────────────────────────────────────────────────────────
+  static String _geminiKey    = '';
+  static String _mem0Key      = '';
+  static String _livekitUrl   = '';
+  static String _livekitToken = '';
+  static String _openaiKey    = '';
+  static String _elevenKey    = '';
+  static String _mem0UserId   = 'zara_ravi';
 
-  // ── Storage Keys ──────────────────────────────────────────────────────────
-  static const _kGem      = 'gem_key';
-  static const _kElKey    = 'el_key';
-  static const _kElEnable = 'el_enabled';
-  static const _kModel    = 'model';
-  static const _kVoice    = 'voice';
-  static const _kLang     = 'lang';
-  static const _kOwner    = 'owner';
-  static const _kAff      = 'affection';
+  static String _geminiModel  = 'gemini-2.5-flash';
+  static String _lang         = 'hi-IN';
+  static String _ownerName    = 'Ravi';
+  static int    _affection    = 85;
 
-  // ── Gemini Brain Models ───────────────────────────────────────────────────
-  static const List<Map<String, String>> gemModels = [
-    {'id': 'gemini-2.5-flash-preview-05-20',      'name': 'Gemini 2.5 Flash',      'desc': 'Best balance'},
-    {'id': 'gemini-2.5-flash-lite-preview-06-17', 'name': 'Gemini 2.5 Flash Lite', 'desc': 'Lightest'},
-    {'id': 'gemini-2.5-flash-preview-tts',        'name': 'Gemini 2.5 Flash TTS',  'desc': 'TTS quality'},
-    {'id': 'gemini-exp-1206',                      'name': 'Gemini 3 Flash',        'desc': 'Latest'},
-    {'id': 'gemma-3-27b-it',                       'name': 'Gemma 3 27B',           'desc': 'Open model'},
-  ];
+  // ── SharedPrefs keys ───────────────────────────────────────────────────────
+  static const _kGemini    = 'gemini_key';
+  static const _kMem0      = 'mem0_key';
+  static const _kLKUrl     = 'livekit_url';
+  static const _kLKToken   = 'livekit_token';
+  static const _kOpenAI    = 'openai_key';
+  static const _kEleven    = 'eleven_key';
+  static const _kMem0User  = 'mem0_user_id';
+  static const _kModel     = 'gemini_model';
+  static const _kLang      = 'lang';
+  static const _kOwner     = 'owner_name';
+  static const _kAff       = 'affection';
 
-  // ── ElevenLabs — Simran voice only ───────────────────────────────────────
+  // ── ElevenLabs — Simran voice hardcoded ───────────────────────────────────
   static const String simranVoiceId = 'rdz6GofVsYlLgQl2dBEE';
 
-  static const List<Map<String, String>> elevenLabsVoices = [
-    {'id': 'rdz6GofVsYlLgQl2dBEE', 'name': 'Simran (Default)'},
-    {'id': 'Z454IZ827TNOaUaaQSzE',  'name': 'Voice 2'},
-    {'id': 'qFwAIpwqlpqZbTYpttVi',  'name': 'Voice 3'},
-    {'id': 'CpLFIATEbkaZdJr01erZ',  'name': 'Voice 4'},
-    {'id': 'OtEfb2LVzIE45wdYe54M',  'name': 'Voice 5'},
+  // ── Gemini Models (Sir-verified) ───────────────────────────────────────────
+  static const List<Map<String, String>> geminiModels = [
+    {'id': 'gemini-2.5-flash',              'name': 'Gemini 2.5 Flash',     'desc': '⭐ Best'},
+    {'id': 'gemini-2.5-flash-lite',         'name': 'Gemini 2.5 Lite',      'desc': 'Fastest'},
+    {'id': 'gemini-2.0-flash',              'name': 'Gemini 2.0 Flash',     'desc': 'Stable'},
+    {'id': 'gemini-2.5-flash-preview-tts',  'name': 'Gemini 2.5 TTS',       'desc': 'TTS optimized'},
+    {'id': 'gemini-2.5-pro-preview-tts',    'name': 'Gemini 2.5 Pro TTS',   'desc': 'Pro TTS'},
+    {'id': 'gemini-3-flash-preview',        'name': 'Gemini 3 Flash',       'desc': 'Latest'},
+    {'id': 'gemini-flash-latest',           'name': 'Gemini Flash Latest',  'desc': 'Auto-latest'},
+    {'id': 'gemini-flash-lite-latest',      'name': 'Gemini Lite Latest',   'desc': 'Auto-lite'},
+    {'id': 'gemini-2.5-flash-native-audio-preview-12-2025',
+                                            'name': 'Gemini Native Audio',  'desc': 'Audio preview'},
   ];
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
-    // Load saved keys — override defaults if user has set them
-    final savedGem = _prefs.getString(_kGem) ?? '';
-    final savedEl  = _prefs.getString(_kElKey) ?? '';
-    if (savedGem.isNotEmpty) _gemKey = savedGem;
-    if (savedEl.isNotEmpty)  _elKey  = savedEl;
+    _geminiKey    = _prefs.getString(_kGemini)   ?? '';
+    _mem0Key      = _prefs.getString(_kMem0)     ?? '';
+    _livekitUrl   = _prefs.getString(_kLKUrl)    ?? '';
+    _livekitToken = _prefs.getString(_kLKToken)  ?? '';
+    _openaiKey    = _prefs.getString(_kOpenAI)   ?? '';
+    _elevenKey    = _prefs.getString(_kEleven)   ?? '';
+    _mem0UserId   = _prefs.getString(_kMem0User) ?? 'zara_ravi';
+    _ownerName    = _prefs.getString(_kOwner)    ?? 'Ravi';
+    _lang         = _prefs.getString(_kLang)     ?? 'hi-IN';
+    _affection    = _prefs.getInt(_kAff)         ?? 85;
 
-    // Model
-    final saved    = _prefs.getString(_kModel) ?? '';
-    final validIds = gemModels.map((m) => m['id']!).toList();
-    if (validIds.contains(saved)) _model = saved;
-
-    // Other prefs
-    _lang      = _prefs.getString(_kLang)   ?? _lang;
-    _owner     = _prefs.getString(_kOwner)  ?? _owner;
-    _aff       = _prefs.getInt(_kAff)       ?? _aff;
-    _elEnabled = _prefs.getBool(_kElEnable) ?? true;
+    final savedModel = _prefs.getString(_kModel) ?? '';
+    final validIds   = geminiModels.map((m) => m['id']!).toList();
+    _geminiModel = validIds.contains(savedModel) ? savedModel : 'gemini-2.5-flash';
 
     if (kDebugMode) {
-      debugPrint('ApiKeys init — gemKey:${_gemKey.isNotEmpty ? "SET" : "EMPTY"} '
-          'elKey:${_elKey.isNotEmpty ? "SET" : "EMPTY"} model:$_model');
+      debugPrint('ApiKeys.init ─────────────────────');
+      debugPrint('  Gemini  : ${_geminiKey.isNotEmpty  ? "✅ SET" : "❌ EMPTY"}');
+      debugPrint('  Mem0    : ${_mem0Key.isNotEmpty    ? "✅ SET" : "❌ EMPTY"}');
+      debugPrint('  LiveKit : ${_livekitUrl.isNotEmpty ? "✅ SET" : "❌ EMPTY"}');
+      debugPrint('  OpenAI  : ${_openaiKey.isNotEmpty  ? "✅ SET" : "❌ EMPTY"}');
+      debugPrint('  Eleven  : ${_elevenKey.isNotEmpty  ? "✅ SET" : "❌ EMPTY"}');
+      debugPrint('  Model   : $_geminiModel');
     }
   }
 
-  // ── Getters ───────────────────────────────────────────────────────────────
-  static String      get gemKey    => _gemKey;
-  static String      get elKey     => _elKey;
-  static String      get key       => _gemKey;
-  static bool        get elEnabled => _elEnabled;
-  static String      get model     => _model;
-  static String      get voice     => simranVoiceId;  // Always Simran
-  static String      get lang      => _lang;
-  static String      get owner     => _owner;
-  static int         get aff       => _aff;
-  static String      get orKey     => '';
+  // ── Getters ────────────────────────────────────────────────────────────────
+  static String get geminiKey    => _geminiKey;
+  static String get mem0Key      => _mem0Key;
+  static String get livekitUrl   => _livekitUrl;
+  static String get livekitToken => _livekitToken;
+  static String get openaiKey    => _openaiKey;
+  static String get elevenKey    => _elevenKey;
+  static String get mem0UserId   => _mem0UserId;
+  static String get geminiModel  => _geminiModel;
+  static String get lang         => _lang;
+  static String get ownerName    => _ownerName;
+  static int    get affection    => _affection;
 
-  static ApiProvider get provider  =>
-      _gemKey.isNotEmpty ? ApiProvider.gemini : ApiProvider.none;
+  // Backward compat
+  static String get gemKey  => _geminiKey;
+  static String get key     => _geminiKey;
+  static String get elKey   => _elevenKey;
+  static String get model   => _geminiModel;
+  static String get voice   => simranVoiceId;
+  static String get owner   => _ownerName;
+  static int    get aff     => _affection;
 
-  static List<Map<String, String>> get models   => gemModels;
-  static List<Map<String, String>> get orModels => [];
+  static bool get geminiReady => _geminiKey.isNotEmpty;
+  static bool get mem0Ready   => _mem0Key.isNotEmpty;
+  static bool get livekitReady => _livekitUrl.isNotEmpty && _livekitToken.isNotEmpty;
+  static bool get openaiReady => _openaiKey.isNotEmpty;
+  static bool get elevenReady => _elevenKey.isNotEmpty;
 
-  static bool get ready => _gemKey.isNotEmpty;
+  static List<Map<String, String>> get gemModels => geminiModels;
+  static List<Map<String, String>> get geminiTtsVoices => []; // removed
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── Save ───────────────────────────────────────────────────────────────────
   static Future<bool> save({
-    String? gemKey, String? elKey, bool? elEnabled,
-    String? model,  String? voice, String? lang,
-    String? owner,  int?    aff,
-    String? orKey, ApiProvider? prov,
+    String? geminiKey,
+    String? mem0Key,
+    String? livekitUrl,
+    String? livekitToken,
+    String? openaiKey,
+    String? elevenKey,
+    String? mem0UserId,
+    String? geminiModel,
+    String? lang,
+    String? ownerName,
+    int?    affection,
+    // backward compat params
+    String? gemKey,
+    String? elKey,
+    String? model,
+    String? owner,
+    int?    aff,
+    String? voice,
+    String? orKey,
+    dynamic prov,
+    bool?   elEnabled,
   }) async {
     try {
-      var ok = true;
-      if (gemKey != null && gemKey.isNotEmpty) {
-        if (!_validGem(gemKey)) return false;
-        _gemKey = gemKey;
-        ok = await _prefs.setString(_kGem, gemKey) && ok;
+      bool ok = true;
+
+      final gk = geminiKey ?? gemKey ?? '';
+      if (gk.isNotEmpty) {
+        if (!_isValidGemKey(gk)) return false;
+        _geminiKey = gk;
+        ok = await _prefs.setString(_kGemini, gk) && ok;
       }
-      if (elKey != null) {
-        _elKey = elKey;
-        ok = await _prefs.setString(_kElKey, elKey) && ok;
+
+      final ek = elevenKey ?? elKey ?? '';
+      if (ek.isNotEmpty) {
+        _elevenKey = ek;
+        ok = await _prefs.setString(_kEleven, ek) && ok;
       }
-      if (elEnabled != null) {
-        _elEnabled = elEnabled;
-        ok = await _prefs.setBool(_kElEnable, elEnabled) && ok;
+
+      if (mem0Key != null && mem0Key.isNotEmpty) {
+        _mem0Key = mem0Key;
+        ok = await _prefs.setString(_kMem0, mem0Key) && ok;
       }
-      if (model != null && gemModels.any((m) => m['id'] == model)) {
-        _model = model;
-        ok = await _prefs.setString(_kModel, model) && ok;
+
+      if (livekitUrl != null && livekitUrl.isNotEmpty) {
+        _livekitUrl = livekitUrl;
+        ok = await _prefs.setString(_kLKUrl, livekitUrl) && ok;
       }
-      // voice ignored — Simran hardcoded
-      if (lang  != null) { _lang  = lang;  ok = await _prefs.setString(_kLang,  lang)  && ok; }
-      if (owner != null) { _owner = owner; ok = await _prefs.setString(_kOwner, owner) && ok; }
-      if (aff   != null) { _aff   = aff.clamp(0,100); ok = await _prefs.setInt(_kAff, _aff) && ok; }
+
+      if (livekitToken != null && livekitToken.isNotEmpty) {
+        _livekitToken = livekitToken;
+        ok = await _prefs.setString(_kLKToken, livekitToken) && ok;
+      }
+
+      if (openaiKey != null && openaiKey.isNotEmpty) {
+        _openaiKey = openaiKey;
+        ok = await _prefs.setString(_kOpenAI, openaiKey) && ok;
+      }
+
+      if (mem0UserId != null && mem0UserId.isNotEmpty) {
+        _mem0UserId = mem0UserId;
+        ok = await _prefs.setString(_kMem0User, mem0UserId) && ok;
+      }
+
+      final gm = geminiModel ?? model ?? '';
+      if (gm.isNotEmpty) {
+        final validIds = geminiModels.map((m) => m['id']!).toList();
+        if (validIds.contains(gm)) {
+          _geminiModel = gm;
+          ok = await _prefs.setString(_kModel, gm) && ok;
+        }
+      }
+
+      final lg = lang;
+      if (lg != null && lg.isNotEmpty) {
+        _lang = lg;
+        ok = await _prefs.setString(_kLang, lg) && ok;
+      }
+
+      final on = ownerName ?? owner ?? '';
+      if (on.isNotEmpty) {
+        _ownerName = on;
+        ok = await _prefs.setString(_kOwner, on) && ok;
+      }
+
+      final af = affection ?? aff;
+      if (af != null) {
+        _affection = af.clamp(0, 100);
+        ok = await _prefs.setInt(_kAff, _affection) && ok;
+      }
+
+      if (kDebugMode) debugPrint('ApiKeys.save ✅ ok:$ok');
       return ok;
     } catch (e) {
-      if (kDebugMode) debugPrint('ApiKeys.save: $e');
+      if (kDebugMode) debugPrint('ApiKeys.save error: $e');
       return false;
     }
   }
 
-  static bool _validGem(String k) =>
+  static bool _isValidGemKey(String k) =>
       RegExp(r'^AIza[0-9A-Za-z\-_]{35,}$').hasMatch(k);
-  static bool validCurrent(String k) => _validGem(k);
-
-  static Map<String, dynamic> get status => {
-    'configured': ready, 'model': _model,
-    'gemSet': _gemKey.isNotEmpty, 'elSet': _elKey.isNotEmpty,
-  };
-
-  // Backward compat stubs
-  static String defaultModelFor(ApiProvider p) => _model;
-  static bool isValidModel(String id, ApiProvider p) =>
-      gemModels.any((m) => m['id'] == id);
-  static List<Map<String, String>> modelsFor(ApiProvider p) => gemModels;
-  static Map<String, String> get headers => {'Content-Type': 'application/json'};
-  static String? parseGem(Map<String, dynamic> r) {
-    try { return r['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?; }
-    catch (_) { return null; }
-  }
+  static bool validCurrent(String k) => _isValidGemKey(k);
+  static bool get ready => _geminiKey.isNotEmpty;
   static Future<void> clear() async { await _prefs.clear(); await init(); }
-
-  // Removed: geminiTtsVoices — ElevenLabs only
-  static List<Map<String, String>> get geminiTtsVoices => [];
+  static Map<String, String> get headers => {'Content-Type': 'application/json'};
 }

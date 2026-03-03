@@ -22,6 +22,8 @@ import 'package:zara/services/accessibility_service.dart';
 import 'package:zara/services/email_service.dart';
 import 'package:zara/services/tts_service.dart';               // ✅ NEW
 import 'package:zara/features/zara_engine/models/zara_state.dart';
+import 'package:zara/services/whisper_stt_service.dart';
+import 'package:zara/services/livekit_service.dart';
 
 enum TaskType { message, post, system, analysis }
 
@@ -42,7 +44,9 @@ class ZaraController extends ChangeNotifier {
   final _location = LocationService();
   final _access   = AccessibilityService();
   final _email    = EmailService();
-  final _tts      = ZaraTtsService();                         // ✅ NEW
+  final _tts      = ZaraTtsService();
+  final _whisper  = WhisperSttService();                        // ✅ Whisper STT
+  final _livekit  = LiveKitService();                           // ✅ LiveKit voice
 
   // ── State ─────────────────────────────────────────────────────────────────
   ZaraState _state = ZaraState.initial();
@@ -292,22 +296,41 @@ _tts.startIdleSystem();
 
   Future<void> startListening() async {
     if (_isListening) return;
-    _isListening = true;
-    // ✅ Zara bolna band kare jab user mic pe bole
     await _tts.stop();
+    _isListening = true;
     _state = _state.copyWith(
       lastResponse: '🎤 Bol Sir, sun rahi hoon...',
       isActive:     true,
       isListening:  true,
     );
     notifyListeners();
+
+    // Start Whisper recording
+    final started = await _whisper.startRecording();
+    if (!started) {
+      _isListening = false;
+      _state = _state.copyWith(isListening: false,
+          lastResponse: '⚠️ Mic start nahi hua. Permission check karo.');
+      notifyListeners();
+    }
   }
 
-  void stopListening() {
+  Future<void> stopListening() async {
+    if (!_isListening) return;
     _isListening = false;
     _tts.resetIdleTimer();
-    _state = _state.copyWith(isListening: false);
+    _state = _state.copyWith(isListening: false,
+        lastResponse: '🔄 Samajh rahi hoon...');
     notifyListeners();
+
+    // Transcribe via Whisper
+    final text = await _whisper.stopAndTranscribe();
+    if (text != null && text.isNotEmpty) {
+      await receiveCommand(text);
+    } else {
+      _state = _state.copyWith(lastResponse: 'Ummm, kuch suna nahi. Dobara bolna?');
+      notifyListeners();
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
