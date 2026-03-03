@@ -67,6 +67,14 @@ class ZaraController extends ChangeNotifier {
     // TTS init — Zara hamesha bolegi
     await _tts.initialize();
     _tts.setEnabled(true);   // Always ON
+    if (kDebugMode) {
+      debugPrint('=== ZARA STARTUP CHECK ===');
+      debugPrint('Gemini key  : \${ApiKeys.geminiKey.isNotEmpty ? "✅ SET" : "❌ EMPTY — Settings mein daalo!"}');
+      debugPrint('ElevenLabs  : \${ApiKeys.elevenKey.isNotEmpty ? "✅ SET" : "❌ EMPTY — Awaaz nahi aayegi!"}');
+      debugPrint('Mem0        : \${ApiKeys.mem0Key.isNotEmpty ? "✅ SET" : "⚠️  EMPTY (optional)"}');
+      debugPrint('Model       : \${ApiKeys.geminiModel}');
+      debugPrint('=========================');
+    }
     _tts.onSpeakStart = () {
       _state = _state.copyWith(isSpeaking: true);
       notifyListeners();

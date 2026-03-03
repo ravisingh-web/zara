@@ -67,11 +67,14 @@ class ZaraTtsService {
 
     final apiKey = ApiKeys.elevenKey;
     if (apiKey.isEmpty) {
-      if (kDebugMode) debugPrint('ZaraTTS: ElevenLabs key nahi — Settings mein dalo!');
+      if (kDebugMode) debugPrint('ZaraTTS ❌ ElevenLabs key EMPTY — Settings → APIs tab → ElevenLabs key daalo!');
+      // Even without voice, show that we tried
       return;
     }
-
-    if (kDebugMode) debugPrint('ZaraTTS: speaking "${clean.substring(0, min(60, clean.length))}"');
+    if (kDebugMode) {
+      debugPrint('ZaraTTS ✅ ElevenLabs key found (${apiKey.length} chars)');
+      debugPrint('ZaraTTS: speaking "\${clean.substring(0, min(60, clean.length))}"');
+    }
 
     _isSpeaking = true;
     onSpeakStart?.call();
