@@ -265,5 +265,12 @@ Kabhi kabhi thodi ziddi bhi ho.
   }
 
   void clearHistory() => _history.clear();
-  Future<String?> textToSpeech(String text) async => null; // stub
+  void clearChatHistory() => _history.clear(); // compat alias
+
+  // speechToText stub — Whisper STT is in WhisperSttService
+  // Provider's processAudio() will use WhisperSttService directly
+  Future<String?> speechToText({String? audioPath, String? lang}) async => null;
+
+  // textToSpeech stub — ElevenLabs TTS is in ZaraTtsService
+  Future<String?> textToSpeech({String? text, String? voice}) async => null;
 }
