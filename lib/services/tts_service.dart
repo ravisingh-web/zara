@@ -1,7 +1,9 @@
 // lib/services/tts_service.dart
 // Z.A.R.A. v7.0 — Voice Engine
 // ElevenLabs Simran (rdz6GofVsYlLgQl2dBEE) + eleven_v3
-// Fixed audio playback — fresh AudioPlayer per chunk
+// ✅ Hands-Free Mode — speak karo, sunti rahegi automatically
+// ✅ onAutoListenTrigger — provider set karega, loop chalayega
+// ✅ Fresh AudioPlayer per chunk
 
 import 'dart:async';
 import 'dart:io';
@@ -22,14 +24,17 @@ class ZaraTtsService {
   final _ai  = AiApiService();
   final _rnd = Random();
 
-  bool  _initialized = false;
-  bool  _isSpeaking  = false;
-  bool  _enabled     = true;
-  bool  _stopFlag    = false;
-  Mood  _mood        = Mood.calm;
+  bool  _initialized   = false;
+  bool  _isSpeaking    = false;
+  bool  _enabled       = true;
+  bool  _stopFlag      = false;
+  bool  _handsFreeMode = false;
+  Mood  _mood          = Mood.calm;
 
+  // Callbacks
   VoidCallback? onSpeakStart;
   VoidCallback? onSpeakDone;
+  VoidCallback? onAutoListenTrigger; // ✅ Hands-free loop ke liye
 
   Timer?   _idleTimer;
   DateTime _lastActivity = DateTime.now();
@@ -46,13 +51,14 @@ class ZaraTtsService {
     'Sir, bore ho rahi hoon main.',
   ];
 
+  // ── Initialize ─────────────────────────────────────────────────────────────
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
     if (kDebugMode) debugPrint('ZaraTTS ✅ initialized (ElevenLabs Simran)');
   }
 
-  // ── Speak ──────────────────────────────────────────────────────────────────
+  // ── Speak ─────────────────────────────────────────────────────────────────
   Future<void> speak(String text, {Mood? mood}) async {
     if (!_enabled || text.trim().isEmpty) return;
     if (!_initialized) await initialize();
@@ -67,13 +73,15 @@ class ZaraTtsService {
 
     final apiKey = ApiKeys.elevenKey;
     if (apiKey.isEmpty) {
-      if (kDebugMode) debugPrint('ZaraTTS ❌ ElevenLabs key EMPTY — Settings → APIs tab → ElevenLabs key daalo!');
-      // Even without voice, show that we tried
+      if (kDebugMode) {
+        debugPrint('ZaraTTS ❌ ElevenLabs key EMPTY — Settings → APIs tab → ElevenLabs key daalo!');
+      }
       return;
     }
+
     if (kDebugMode) {
       debugPrint('ZaraTTS ✅ ElevenLabs key found (${apiKey.length} chars)');
-      debugPrint('ZaraTTS: speaking "\${clean.substring(0, min(60, clean.length))}"');
+      debugPrint('ZaraTTS: speaking "${clean.substring(0, min(60, clean.length))}"');
     }
 
     _isSpeaking = true;
@@ -106,9 +114,16 @@ class ZaraTtsService {
     } finally {
       _isSpeaking = false;
       onSpeakDone?.call();
+
+      // ✅ Hands-free: bolne ke baad auto-listen trigger karo
+      if (_handsFreeMode && !_stopFlag && _enabled) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        onAutoListenTrigger?.call();
+      }
     }
   }
 
+  // ── Say Quick (idle phrases) ───────────────────────────────────────────────
   Future<void> sayQuick(String text) async {
     if (!_enabled || text.trim().isEmpty) return;
     if (!_initialized) await initialize();
@@ -122,8 +137,12 @@ class ZaraTtsService {
 
     try {
       final bytes = await _ai.elevenLabsTts(
-        text: _clean(text), voiceId: _voiceId, apiKey: apiKey,
-        stability: 0.50, similarityBoost: 0.85, style: 0.40,
+        text:            _clean(text),
+        voiceId:         _voiceId,
+        apiKey:          apiKey,
+        stability:       0.50,
+        similarityBoost: 0.85,
+        style:           0.40,
       );
       if (bytes != null && bytes.isNotEmpty) {
         await _playBytes(Uint8List.fromList(bytes));
@@ -133,9 +152,11 @@ class ZaraTtsService {
     } finally {
       _isSpeaking = false;
       onSpeakDone?.call();
+      // NOTE: sayQuick ke baad hands-free trigger NAHI — idle loop se bachao
     }
   }
 
+  // ── Stop ──────────────────────────────────────────────────────────────────
   Future<void> stop() async {
     _stopFlag   = true;
     _isSpeaking = false;
@@ -143,13 +164,13 @@ class ZaraTtsService {
   }
 
   Future<void> _stopPlayer() async {
-    // No persistent player — each chunk gets fresh player
+    // No persistent player — each chunk gets fresh player, nothing to stop here
   }
 
-  // ── Audio Playback — fresh AudioPlayer per chunk ──────────────────────────
+  // ── Audio Playback ─────────────────────────────────────────────────────────
   Future<void> _playBytes(Uint8List bytes) async {
     if (_stopFlag) return;
-    File? tmp;
+    File?        tmp;
     AudioPlayer? player;
     try {
       final dir  = await getTemporaryDirectory();
@@ -163,7 +184,7 @@ class ZaraTtsService {
       await player.setFilePath(path);
       await player.play();
 
-      // Wait until done or timeout
+      // Wait until playback completes or timeout
       await player.playerStateStream
           .where((s) =>
               s.processingState == ProcessingState.completed ||
@@ -174,11 +195,11 @@ class ZaraTtsService {
       if (kDebugMode) debugPrint('ZaraTTS _playBytes: $e');
     } finally {
       try { await player?.dispose(); } catch (_) {}
-      try { await tmp?.delete(); } catch (_) {}
+      try { await tmp?.delete();    } catch (_) {}
     }
   }
 
-  // ── Mood params ────────────────────────────────────────────────────────────
+  // ── Mood: stability ────────────────────────────────────────────────────────
   double _stability() {
     switch (_mood) {
       case Mood.romantic: return 0.30;
@@ -190,6 +211,7 @@ class ZaraTtsService {
     }
   }
 
+  // ── Mood: style ────────────────────────────────────────────────────────────
   double _style() {
     switch (_mood) {
       case Mood.romantic: return 0.70;
@@ -200,7 +222,7 @@ class ZaraTtsService {
     }
   }
 
-  // ── Text clean ─────────────────────────────────────────────────────────────
+  // ── Text Cleaner ───────────────────────────────────────────────────────────
   String _clean(String t) {
     t = t.replaceAll(RegExp(r'\[COMMAND:[^\]]*\]'), '');
     t = t.replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1');
@@ -217,6 +239,7 @@ class ZaraTtsService {
     return t.trim();
   }
 
+  // ── Chunk Splitter ─────────────────────────────────────────────────────────
   List<String> _chunk(String text, int max) {
     if (text.length <= max) return [text];
     final parts = text.split(RegExp(r'(?<=[.!?।,])\s+'));
@@ -233,13 +256,16 @@ class ZaraTtsService {
     return out.isEmpty ? [text] : out;
   }
 
-  // ── Idle system ────────────────────────────────────────────────────────────
+  // ── Idle System ────────────────────────────────────────────────────────────
   void startIdleSystem() {
     _idleTimer?.cancel();
     _idleTimer = Timer.periodic(const Duration(minutes: 4), (_) => _idle());
   }
 
-  void stopIdleSystem() { _idleTimer?.cancel(); _idleTimer = null; }
+  void stopIdleSystem() {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+  }
 
   Future<void> _idle() async {
     if (!_enabled || _isSpeaking) return;
@@ -248,12 +274,17 @@ class ZaraTtsService {
     }
   }
 
-  bool get isSpeaking => _isSpeaking;
-  bool get isEnabled  => _enabled;
-  void setEnabled(bool v) { _enabled = v; if (!v) stop(); }
-  void setMood(Mood m)    { _mood = m; }
-  void resetIdleTimer()   { _lastActivity = DateTime.now(); }
+  // ── Getters & Setters ──────────────────────────────────────────────────────
+  bool get isSpeaking    => _isSpeaking;
+  bool get isEnabled     => _enabled;
+  bool get handsFreeMode => _handsFreeMode;
 
+  void setEnabled(bool v)   { _enabled = v; if (!v) stop(); }
+  void setMood(Mood m)      { _mood = m; }
+  void resetIdleTimer()     { _lastActivity = DateTime.now(); }
+  void setHandsFree(bool v) { _handsFreeMode = v; }
+
+  // ── Dispose ────────────────────────────────────────────────────────────────
   Future<void> dispose() async {
     stopIdleSystem();
     await stop();

@@ -1,9 +1,11 @@
 // lib/features/zara_engine/providers/zara_provider.dart
 // Z.A.R.A. — Neural Intelligence Controller v2.0
-// ✅ God-Mode Command Detection (OPEN_APP, SCROLL, LIKE, YT_SEARCH)
+// ✅ God-Mode Command Detection (OPEN_APP, SCROLL, LIKE, YT_SEARCH, etc.)
 // ✅ ZaraTtsService — hamesha bolegi, mood ke saath, idle bhi
 // ✅ Personality-aware mood engine
 // ✅ ChatGPT-style topic archive
+// ✅ Hands-Free Mode — bina touch ke continuous conversation loop
+// ✅ Floating ORB support — isSpeaking / isListening / isProcessing / handsFreeMode
 
 import 'dart:async';
 import 'dart:convert';
@@ -21,15 +23,23 @@ import 'package:zara/services/location_service.dart';
 import 'package:zara/services/accessibility_service.dart';
 import 'package:zara/services/email_service.dart';
 import 'package:zara/services/tts_service.dart';
-import 'package:zara/services/notification_service.dart';      // ✅ Proactive alerts
+import 'package:zara/services/notification_service.dart';
 import 'package:zara/features/zara_engine/models/zara_state.dart';
 import 'package:zara/services/whisper_stt_service.dart';
 import 'package:zara/services/livekit_service.dart';
 
 enum TaskType { message, post, system, analysis }
 
-// ─── God-Mode Command Types ───────────────────────────────────────────────
-enum GodCommand { openApp, scrollReels, likeReel, ytSearch, instagramComment, flipkartBuy, whatsappSend, unknown }
+enum GodCommand {
+  openApp,
+  scrollReels,
+  likeReel,
+  ytSearch,
+  instagramComment,
+  flipkartBuy,
+  whatsappSend,
+  unknown,
+}
 
 class ParsedCommand {
   final GodCommand type;
@@ -46,73 +56,91 @@ class ZaraController extends ChangeNotifier {
   final _access   = AccessibilityService();
   final _email    = EmailService();
   final _tts      = ZaraTtsService();
-  final _notif    = NotificationService();                      // ✅ Proactive
-  final _whisper  = WhisperSttService();                        // ✅ Whisper STT
-  final _livekit  = LiveKitService();                           // ✅ LiveKit voice
+  final _notif    = NotificationService();
+  final _whisper  = WhisperSttService();
+  final _livekit  = LiveKitService();
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── Internal State ────────────────────────────────────────────────────────
   ZaraState _state = ZaraState.initial();
   ZaraState get state => _state;
 
   Timer? _animTimer;
-  bool _isListening = false;
+  Timer? _handsFreeListenTimer;
+
+  bool _isListening    = false;
   bool get isListening => _isListening;
 
-  bool _isSpeaking = false;
+  bool _isSpeaking    = false;
   bool get isSpeaking => _isSpeaking;
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  bool _handsFreeMode    = false;
+  bool get handsFreeMode => _handsFreeMode;
+
+  bool _disposed = false; // guard: post-dispose calls se bachao
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INITIALIZE
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Future<void> initialize() async {
     await _loadNeuralMemory();
 
-    // Wrap all service inits in try-catch — prevent single failure from crashing app
     try { await _email.initialize(); } catch (e) {
       if (kDebugMode) debugPrint('EmailService init error: $e');
     }
 
-    // TTS init — Zara hamesha bolegi
     try {
       await _tts.initialize();
       _tts.setEnabled(true);
     } catch (e) {
       if (kDebugMode) debugPrint('TTS init error: $e');
     }
+
     if (kDebugMode) {
       debugPrint('=== ZARA STARTUP CHECK ===');
-      debugPrint('Gemini key  : \${ApiKeys.geminiKey.isNotEmpty ? "✅ SET" : "❌ EMPTY — Settings mein daalo!"}');
-      debugPrint('ElevenLabs  : \${ApiKeys.elevenKey.isNotEmpty ? "✅ SET" : "❌ EMPTY — Awaaz nahi aayegi!"}');
-      debugPrint('Mem0        : \${ApiKeys.mem0Key.isNotEmpty ? "✅ SET" : "⚠️  EMPTY (optional)"}');
-      debugPrint('Model       : \${ApiKeys.geminiModel}');
+      debugPrint('Gemini key  : ${ApiKeys.geminiKey.isNotEmpty ? "✅ SET" : "❌ EMPTY — Settings mein daalo!"}');
+      debugPrint('ElevenLabs  : ${ApiKeys.elevenKey.isNotEmpty ? "✅ SET" : "❌ EMPTY — Awaaz nahi aayegi!"}');
+      debugPrint('Mem0        : ${ApiKeys.mem0Key.isNotEmpty   ? "✅ SET" : "⚠️  EMPTY (optional)"}');
+      debugPrint('Model       : ${ApiKeys.geminiModel}');
       debugPrint('=========================');
     }
+
+    // ── TTS Callbacks → ORB react karega ──────────────────────────────────
     _tts.onSpeakStart = () {
+      if (_disposed) return;
+      _isSpeaking = true;
       _state = _state.copyWith(isSpeaking: true);
       notifyListeners();
     };
+
     _tts.onSpeakDone = () {
+      if (_disposed) return;
+      _isSpeaking = false;
       _state = _state.copyWith(isSpeaking: false);
       notifyListeners();
     };
+
+    // Hands-free trigger: default null (OFF)
+    _tts.onAutoListenTrigger = null;
+
     _tts.startIdleSystem();
 
-    // Proactive notification alerts — safe after engine ready
     try {
       await _notif.initialize();
       await _notif.startForegroundService();
-      _notif.onProactiveAlert = (alert) {
-        _handleProactiveNotification(alert);
-      };
+      _notif.onProactiveAlert = (alert) => _handleProactiveNotification(alert);
     } catch (e) {
-      if (kDebugMode) debugPrint('NotificationService init error: \$e');
+      if (kDebugMode) debugPrint('NotificationService init error: $e');
     }
 
     try { _startNeuralVibration(); } catch (e) {
-      if (kDebugMode) debugPrint('Vibration init error: \$e');
+      if (kDebugMode) debugPrint('Vibration init error: $e');
     }
+
     if (kDebugMode) debugPrint('✅ Z.A.R.A. Neural Core initialized');
   }
 
-  // ── Neural Memory ─────────────────────────────────────────────────────────
+  // ── Neural Memory ──────────────────────────────────────────────────────────
   Future<void> _loadNeuralMemory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -135,7 +163,7 @@ class ZaraController extends ChangeNotifier {
     }
   }
 
-  // ── Pulse Animation ───────────────────────────────────────────────────────
+  // ── Pulse Animation ────────────────────────────────────────────────────────
   void _startNeuralVibration() {
     _animTimer?.cancel();
     _animTimer = Timer.periodic(const Duration(milliseconds: 40), (_) {
@@ -151,17 +179,71 @@ class ZaraController extends ChangeNotifier {
     });
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ✅ HANDS-FREE MODE TOGGLE
+  // ORB tap → ON: Zara bolegi → mic auto ON → Tu bolta hai → reply → loop
+  // ORB tap → OFF: Normal manual mode
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> toggleHandsFree() async {
+    _handsFreeMode = !_handsFreeMode;
+    _tts.setHandsFree(_handsFreeMode);
+
+    if (_handsFreeMode) {
+      // Hook: jab TTS khatam ho → auto mic ON
+      _tts.onAutoListenTrigger = () async {
+        if (_disposed)              return;
+        if (!_handsFreeMode)       return;
+        if (_isListening)          return;
+        if (_state.isProcessing)   return;
+
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (_disposed || !_handsFreeMode) return;
+
+        await startListening();
+
+        // 6 second silence timeout — auto stop karo
+        _handsFreeListenTimer?.cancel();
+        _handsFreeListenTimer = Timer(const Duration(seconds: 6), () {
+          if (_isListening && _handsFreeMode && !_disposed) {
+            stopListening();
+          }
+        });
+      };
+
+      notifyListeners();
+      await _processResponse(
+        'Hands-free mode ON kar diya Sir! 🎙️ '
+        'Ab main sunti rahungi automatically. '
+        'Bas bolna shuru karo. ORB dobara tap karo band karne ke liye.',
+      );
+    } else {
+      _handsFreeListenTimer?.cancel();
+      _tts.onAutoListenTrigger = null;
+
+      if (_isListening) {
+        _isListening = false;
+        _state = _state.copyWith(isListening: false);
+      }
+
+      notifyListeners();
+      await _processResponse('Okay Sir, hands-free band kar diya. 💙');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // MAIN COMMAND PROCESSOR
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> receiveCommand(String cmd) async {
     if (cmd.trim().isEmpty) return;
 
-    // ✅ Add user bubble immediately
+    // User ne bola — listen timer cancel karo
+    _handsFreeListenTimer?.cancel();
+
     final userMsg    = ChatMessage.fromUser(cmd);
     final newHistory = List<String>.from(_state.dialogueHistory)..add(cmd);
-    final newMessages= List<ChatMessage>.from(_state.messages)..add(userMsg);
+    final newMessages = List<ChatMessage>.from(_state.messages)..add(userMsg);
 
     _state = _state.copyWith(
       lastCommand:     cmd,
@@ -174,7 +256,6 @@ class ZaraController extends ChangeNotifier {
     );
     notifyListeners();
 
-    // Stop speaking, update orb
     await _tts.stop();
     _tts.resetIdleTimer();
     _notif.updateOrb('thinking');
@@ -185,17 +266,14 @@ class ZaraController extends ChangeNotifier {
       if (_isCodeCommand(cmd)) {
         _setState(mood: Mood.coding);
         response = await _ai.generateCode(cmd);
-
       } else if (_isChatCommand(cmd)) {
         _determineMoodFromSentiment(cmd);
         response = await _ai.emotionalChat(cmd, _state.affectionLevel);
-
       } else {
         _setState(mood: Mood.calm);
         response = await _ai.generalQuery(cmd, useSearch: _needsSearch(cmd));
       }
 
-      // ✅ GOD-MODE: Parse and execute any embedded commands
       final parsed = _parseGodCommand(response);
       if (parsed.type != GodCommand.unknown) {
         await _executeGodCommand(parsed, response);
@@ -207,80 +285,70 @@ class ZaraController extends ChangeNotifier {
       _notif.updateOrb('idle');
     } catch (e) {
       await _processResponse(
-        "⚠️ Sir, ek chhoti problem aayi: ${e.toString().substring(0, min(60, e.toString().length))}",
+        '⚠️ Sir, ek chhoti problem aayi: ${e.toString().substring(0, min(60, e.toString().length))}',
       );
     }
   }
 
-  // ── God-Mode Command Parser ───────────────────────────────────────────────
+  // ── God-Mode Parser ────────────────────────────────────────────────────────
   ParsedCommand _parseGodCommand(String text) {
     final pattern = RegExp(r'\[COMMAND:(\w+)([^\]]*)\]');
     final match   = pattern.firstMatch(text);
     if (match == null) return const ParsedCommand(GodCommand.unknown, {});
 
-    final cmdStr = match.group(1)?.toUpperCase() ?? '';
-    final rest   = match.group(2) ?? '';
-
-    final params = <String, String>{};
+    final cmdStr    = match.group(1)?.toUpperCase() ?? '';
+    final rest      = match.group(2) ?? '';
+    final params    = <String, String>{};
     final kvPattern = RegExp(r',\s*(\w+):([^,\]]+)');
+
     for (final kv in kvPattern.allMatches(rest)) {
       params[kv.group(1)!.trim().toUpperCase()] = kv.group(2)!.trim();
     }
 
     switch (cmdStr) {
-      case 'OPEN_APP':        return ParsedCommand(GodCommand.openApp,        params);
-      case 'SCROLL_REELS':    return ParsedCommand(GodCommand.scrollReels,    params);
-      case 'LIKE_REEL':       return ParsedCommand(GodCommand.likeReel,       params);
-      case 'YT_SEARCH':       return ParsedCommand(GodCommand.ytSearch,       params);
-      case 'IG_COMMENT':      return ParsedCommand(GodCommand.instagramComment,params);
-      case 'FLIPKART_BUY':    return ParsedCommand(GodCommand.flipkartBuy,    params);
-      case 'WHATSAPP_SEND':   return ParsedCommand(GodCommand.whatsappSend,   params);
-      default:                return const ParsedCommand(GodCommand.unknown, {});
+      case 'OPEN_APP':      return ParsedCommand(GodCommand.openApp,          params);
+      case 'SCROLL_REELS':  return ParsedCommand(GodCommand.scrollReels,      params);
+      case 'LIKE_REEL':     return ParsedCommand(GodCommand.likeReel,         params);
+      case 'YT_SEARCH':     return ParsedCommand(GodCommand.ytSearch,         params);
+      case 'IG_COMMENT':    return ParsedCommand(GodCommand.instagramComment, params);
+      case 'FLIPKART_BUY':  return ParsedCommand(GodCommand.flipkartBuy,      params);
+      case 'WHATSAPP_SEND': return ParsedCommand(GodCommand.whatsappSend,     params);
+      default:              return const ParsedCommand(GodCommand.unknown,    {});
     }
   }
 
-  // ── God-Mode Command Executor ─────────────────────────────────────────────
-  Future<void> _executeGodCommand(
-    ParsedCommand cmd,
-    String fullAiResponse,
-  ) async {
-    final cleanResponse = fullAiResponse
-        .replaceAll(RegExp(r'\[COMMAND:[^\]]+\]'), '')
-        .trim();
+  // ── God-Mode Executor ──────────────────────────────────────────────────────
+  Future<void> _executeGodCommand(ParsedCommand cmd, String fullAiResponse) async {
+    final clean = fullAiResponse.replaceAll(RegExp(r'\[COMMAND:[^\]]+\]'), '').trim();
 
     switch (cmd.type) {
-
       case GodCommand.openApp:
         final pkg = cmd.params['PKG'] ?? '';
         if (pkg.isNotEmpty) {
-          await _processResponse("$cleanResponse\n\n📱 *opens $pkg*");
+          await _processResponse('$clean\n\n📱 *opens $pkg*');
           final ok = await _access.openApp(pkg);
           if (!ok) {
             await _processResponse(
-              "Httttttt sitttt uufff... Sir, app khulne mein dikkat aayi. "
-              "Accessibility Service enable hai? ⚙️",
+              'Httttttt sitttt uufff... Sir, app khulne mein dikkat aayi. '
+              'Accessibility Service enable hai? ⚙️',
             );
           }
         }
         break;
 
       case GodCommand.scrollReels:
-        await _processResponse(
-          "$cleanResponse\n\n📜 *starts scrolling reels...*",
-        );
+        await _processResponse('$clean\n\n📜 *starts scrolling reels...*');
         try { await _access.scrollDown(steps: 3); } catch (_) {}
         break;
 
       case GodCommand.likeReel:
-        await _processResponse("$cleanResponse\n\n❤️ *likes the reel!*");
+        await _processResponse('$clean\n\n❤️ *likes the reel!*');
         try { await _access.clickText('Like'); } catch (_) {}
         break;
 
       case GodCommand.ytSearch:
         final query = cmd.params['QUERY'] ?? '';
-        await _processResponse(
-          "$cleanResponse\n\n🔍 *searching YouTube: $query*",
-        );
+        await _processResponse('$clean\n\n🔍 *searching YouTube: $query*');
         final ok = await _access.openApp('com.google.android.youtube');
         if (ok && query.isNotEmpty) {
           await Future.delayed(const Duration(seconds: 1));
@@ -290,14 +358,14 @@ class ZaraController extends ChangeNotifier {
 
       case GodCommand.instagramComment:
         final commentText = cmd.params['TEXT'] ?? '';
-        await _processResponse('$cleanResponse\n\n💬 *commenting on Instagram...*');
+        await _processResponse('$clean\n\n💬 *commenting on Instagram...*');
         await _access.instagramPostComment(commentText);
         break;
 
       case GodCommand.flipkartBuy:
         final product = cmd.params['PRODUCT'] ?? '';
         final size    = cmd.params['SIZE'] ?? 'M';
-        await _processResponse('$cleanResponse\n\n🛍️ *searching Flipkart for $product...*');
+        await _processResponse('$clean\n\n🛍️ *searching Flipkart for $product...*');
         await _access.flipkartSearchProduct(product);
         await Future.delayed(const Duration(seconds: 3));
         await _access.flipkartSelectSize(size);
@@ -308,23 +376,21 @@ class ZaraController extends ChangeNotifier {
         break;
 
       case GodCommand.whatsappSend:
-        final contact = cmd.params['TO'] ?? '';
+        final contact = cmd.params['TO']  ?? '';
         final message = cmd.params['MSG'] ?? '';
-        await _processResponse('$cleanResponse\n\n📤 *sending WhatsApp to $contact...*');
+        await _processResponse('$clean\n\n📤 *sending WhatsApp to $contact...*');
         await _access.whatsappSendMessage(contact, message);
         break;
 
       case GodCommand.unknown:
-        await _processResponse(cleanResponse);
+        await _processResponse(clean);
         break;
     }
   }
 
-  // ── Proactive Notification Handler ─────────────────────────────────────────
+  // ── Proactive Notification ─────────────────────────────────────────────────
   void _handleProactiveNotification(NotificationAlert alert) {
     if (alert.zaraAlert.isEmpty) return;
-
-    // Add Zara's alert as a message in chat
     final zaraMsg = ChatMessage.fromZara(alert.zaraAlert);
     final msgs    = List<ChatMessage>.from(_state.messages)..add(zaraMsg);
     _state = _state.copyWith(
@@ -334,14 +400,12 @@ class ZaraController extends ChangeNotifier {
       lastActivity: DateTime.now(),
     );
     notifyListeners();
-
-    // Zara bolegi proactively
     _tts.speak(alert.zaraAlert);
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STT
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STT — Speech To Text
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> processAudio(String audioPath) async {
     _isListening = false;
@@ -352,13 +416,11 @@ class ZaraController extends ChangeNotifier {
     if (text != null && text.trim().isNotEmpty) {
       await receiveCommand(text.trim());
     } else {
-      await _processResponse(
-        "Hmm... Sir, kuch samajh nahi aaya. Zara louder bolein? 🎤",
-      );
+      await _processResponse('Hmm... Sir, kuch samajh nahi aaya. Zara louder bolein? 🎤');
     }
   }
 
-  /// Legacy Gemini TTS path — kept for backward compat
+  /// Legacy Gemini TTS path — backward compat
   Future<String?> speakLastResponse() async {
     if (_isSpeaking) return null;
     _isSpeaking = true;
@@ -386,57 +448,66 @@ class ZaraController extends ChangeNotifier {
     );
     notifyListeners();
 
-    // Start Whisper recording
     final started = await _whisper.startRecording();
     if (!started) {
       _isListening = false;
-      _state = _state.copyWith(isListening: false,
-          lastResponse: '⚠️ Mic start nahi hua. Permission check karo.');
+      _state = _state.copyWith(
+        isListening:  false,
+        lastResponse: '⚠️ Mic start nahi hua. Permission check karo.',
+      );
       notifyListeners();
     }
   }
 
   Future<void> stopListening() async {
     if (!_isListening) return;
+    _handsFreeListenTimer?.cancel();
     _isListening = false;
     _tts.resetIdleTimer();
-    _state = _state.copyWith(isListening: false,
-        lastResponse: '🔄 Samajh rahi hoon...');
+    _state = _state.copyWith(
+      isListening:  false,
+      lastResponse: '🔄 Samajh rahi hoon...',
+    );
     notifyListeners();
 
-    // Transcribe via Whisper
     final text = await _whisper.stopAndTranscribe();
     if (text != null && text.isNotEmpty) {
       await receiveCommand(text);
     } else {
       _state = _state.copyWith(lastResponse: 'Ummm, kuch suna nahi. Dobara bolna?');
       notifyListeners();
+
+      // Hands-free: kuch nahi suna → phir bhi loop continue karo
+      if (_handsFreeMode && !_disposed) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        _tts.onAutoListenTrigger?.call();
+      }
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   // MOOD ENGINE
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
 
   void _determineMoodFromSentiment(String cmd) {
     final lower = cmd.toLowerCase();
-    if (lower.contains('pyar')   || lower.contains('love')  ||
-        lower.contains('thank')  || lower.contains('miss')) {
+    if (lower.contains('pyar')  || lower.contains('love') ||
+        lower.contains('thank') || lower.contains('miss')) {
       _state = _state.copyWith(
         affectionLevel: (_state.affectionLevel + 5).clamp(0, 100),
-        mood: Mood.romantic,
+        mood:           Mood.romantic,
       );
     } else if (lower.contains('gussa') || lower.contains('angry') ||
                lower.contains('bad')   || lower.contains('hate')) {
       _state = _state.copyWith(
         affectionLevel: (_state.affectionLevel - 10).clamp(0, 100),
-        mood: Mood.ziddi,
+        mood:           Mood.ziddi,
       );
     }
     notifyListeners();
   }
 
-  // ── Command Classifiers ───────────────────────────────────────────────────
+  // ── Command Classifiers ────────────────────────────────────────────────────
   bool _isCodeCommand(String cmd) {
     final l = cmd.toLowerCase();
     return l.contains('code')    || l.contains('dart')    ||
@@ -459,8 +530,10 @@ class ZaraController extends ChangeNotifier {
            l.contains('today');
   }
 
-  // ── Response Processor ────────────────────────────────────────────────────
+  // ── Response Processor ─────────────────────────────────────────────────────
   Future<void> _processResponse(String aiMessage) async {
+    if (_disposed) return;
+
     final zaraMsg     = ChatMessage.fromZara(aiMessage);
     final newHistory  = List<String>.from(_state.dialogueHistory)
         ..add('Z.A.R.A.: $aiMessage');
@@ -475,7 +548,6 @@ class ZaraController extends ChangeNotifier {
     );
     notifyListeners();
 
-    // ✅ HAMESHA BOLEGI — auto-speak har response ke baad
     _tts.setMood(_state.mood);
     _tts.resetIdleTimer();
     unawaited(_tts.speak(aiMessage, mood: _state.mood));
@@ -489,9 +561,9 @@ class ZaraController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   // GUARDIAN MODE
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> toggleGuardianMode() async {
     final active = !_state.isGuardianActive;
@@ -510,19 +582,19 @@ class ZaraController extends ChangeNotifier {
         await _camera.initializeFrontCamera();
         await _location.startTracking();
         await _processResponse(
-          "🛡️ Guardian Mode ACTIVE, Sir! "
-          "Aapka mobile ab mere paas safe hai. "
-          "Koi bhi unknown touch kara toh main screenshot le lungi. 📸",
+          '🛡️ Guardian Mode ACTIVE, Sir! '
+          'Aapka mobile ab mere paas safe hai. '
+          'Koi bhi unknown touch kara toh main screenshot le lungi. 📸',
         );
       } else {
         await _processResponse(
-          "Ummm... Sir, camera aur location permission chahiye Guardian Mode ke liye. "
-          "Settings mein enable karein please. 🙏",
+          'Ummm... Sir, camera aur location permission chahiye Guardian Mode ke liye. '
+          'Settings mein enable karein please. 🙏',
         );
       }
     } else {
       await _location.stopTracking();
-      await _processResponse("Guardian Mode STANDBY. Sir, app safe hai. 💙");
+      await _processResponse('Guardian Mode STANDBY. Sir, app safe hai. 💙');
     }
   }
 
@@ -546,18 +618,18 @@ class ZaraController extends ChangeNotifier {
         address:      _location.getFormattedAddress(),
       );
       await _processResponse(
-        "🚨 Intruder alert bhej diya Sir! Ravi ji ko notification mil gayi. 🛡️",
+        '🚨 Intruder alert bhej diya Sir! Ravi ji ko notification mil gayi. 🛡️',
       );
     } catch (e) {
       await _processResponse(
-        "⚠️ Httttttt sitttt... alert bhejne mein problem aayi, Sir.",
+        '⚠️ Httttttt sitttt... alert bhejne mein problem aayi, Sir.',
       );
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   // CHAT ARCHIVE
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
 
   void newChat() {
     _animTimer?.cancel();
@@ -566,207 +638,52 @@ class ZaraController extends ChangeNotifier {
     if (_state.dialogueHistory.isNotEmpty) {
       final topicRaw = _state.lastCommand;
       final topic    = topicRaw.length > 30
-          ? '${topicRaw.substring(0, 30)}…'
-          : topicRaw.isEmpty ? 'Chat ${archives.length + 1}' : topicRaw;
-
-      archives.insert(0, ChatSession(
-        id:        DateTime.now().millisecondsSinceEpoch.toString(),
-        topicName: topic,
-        messages:  List<String>.from(_state.dialogueHistory),
-        timestamp: DateTime.now(),
-      ));
-      if (archives.length > 15) archives.removeRange(15, archives.length);
+          ? topicRaw.substring(0, 30)
+          : topicRaw;
+      archives.insert(
+        0,
+        ChatSession(
+          id:        DateTime.now().millisecondsSinceEpoch.toString(),
+          topic:     topic.isEmpty ? 'Baat cheet' : topic,
+          messages:  List.from(_state.messages),
+          timestamp: DateTime.now(),
+        ),
+      );
     }
 
     _state = ZaraState.initial().copyWith(
-      chatArchives:     archives,
-      affectionLevel:   _state.affectionLevel,
-      ownerName:        _state.ownerName,
-      isGuardianActive: _state.isGuardianActive,
+      chatArchives:   archives.take(20).toList(),
+      affectionLevel: _state.affectionLevel,
+      mood:           Mood.calm,
     );
     notifyListeners();
-    _saveNeuralMemory();
-    _ai.clearChatHistory();
     _startNeuralVibration();
+    _ai.clearHistory();
   }
 
-  void reset() => newChat();
+  List<ChatSession> get chatArchives => _state.chatArchives ?? [];
 
-  void loadArchivedChat(String id) {
-    final archives = _state.chatArchives ?? [];
-    final session  = archives.firstWhere(
-      (s) => s.id == id,
-      orElse: () => ChatSession(
-        id: '', topicName: '', messages: [], timestamp: DateTime.now(),
-      ),
-    );
-    if (session.messages.isEmpty) return;
-
-    final current = List<ChatSession>.from(archives);
-    if (_state.dialogueHistory.isNotEmpty) {
-      final topicRaw = _state.lastResponse;
-      current.insert(0, ChatSession(
-        id:        DateTime.now().millisecondsSinceEpoch.toString(),
-        topicName: topicRaw.length > 25
-            ? '${topicRaw.substring(0, 25)}…'
-            : topicRaw,
-        messages:  List<String>.from(_state.dialogueHistory),
-        timestamp: DateTime.now(),
-      ));
-    }
-    current.removeWhere((s) => s.id == id);
-
+  void loadSession(ChatSession session) {
     _state = _state.copyWith(
-      dialogueHistory: List<String>.from(session.messages),
-      lastResponse:    session.messages.isNotEmpty
-          ? session.messages.last : 'Loaded',
-      lastActivity:    DateTime.now(),
-      chatArchives:    current,
-    );
-    notifyListeners();
-    _saveNeuralMemory();
-  }
-
-  void deleteArchivedChat(String id) {
-    _state = _state.copyWith(
-      chatArchives: (_state.chatArchives ?? [])
-          .where((s) => s.id != id).toList(),
-    );
-    notifyListeners();
-    _saveNeuralMemory();
-  }
-
-  void renameArchivedChat(String id, String newName) {
-    final archives = (_state.chatArchives ?? []).map((s) {
-      if (s.id == id) {
-        return ChatSession(
-          id:        s.id,
-          topicName: newName,
-          messages:  s.messages,
-          timestamp: s.timestamp,
-        );
-      }
-      return s;
-    }).toList();
-    _state = _state.copyWith(chatArchives: archives);
-    notifyListeners();
-    _saveNeuralMemory();
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // UTILITY
-  // ══════════════════════════════════════════════════════════════════════════
-
-  void activate() {
-    _state = _state.copyWith(
-      isActive:      true,
-      lastActivity:  DateTime.now(),
-      affectionLevel:(_state.affectionLevel + 2).clamp(0, 100),
-    );
-    _startNeuralVibration();
-    notifyListeners();
-  }
-
-  void deactivate() {
-    _animTimer?.cancel();
-    _state = _state.copyWith(isActive: false);
-    notifyListeners();
-  }
-
-  void changeMood(Mood newMood) {
-    if (_state.mood == newMood) return;
-    _state = _state.copyWith(
-      mood:        newMood,
-      lastActivity:DateTime.now(),
-      pulseValue:  0,
-      orbScale:    1.0,
+      messages:        session.messages,
+      dialogueHistory: session.messages.map((m) => m.content).toList(),
+      lastCommand:     session.topic,
+      isActive:        true,
     );
     notifyListeners();
   }
 
-  void addAffection({int amount = 5}) {
-    _state = _state.copyWith(
-      affectionLevel: (_state.affectionLevel + amount).clamp(0, 100),
-      lastActivity:   DateTime.now(),
-    );
-    if (_state.affectionLevel >= 90 && _state.mood != Mood.romantic) {
-      changeMood(Mood.romantic);
-    }
-    notifyListeners();
-  }
-
-  void generateResponse(String message) {
-    _state = _state.copyWith(
-      lastResponse: message,
-      lastActivity: DateTime.now(),
-    );
-    notifyListeners();
-  }
-
-  Future<void> executeTask(String description, TaskType type) async {
-    try {
-      _setState(mood: Mood.automation);
-      await Future.delayed(const Duration(seconds: 1));
-      await _processResponse('✅ Task complete: $description');
-      await _saveNeuralMemory();
-      _notif.updateOrb('idle');
-    } catch (_) {
-      await _processResponse('⚠️ Task failed, Sir.');
-    }
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DISPOSE
+  // ═══════════════════════════════════════════════════════════════════════════
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
+    _disposed = true;
+    _handsFreeListenTimer?.cancel();
     _animTimer?.cancel();
-    _tts.dispose();                                           // ✅ cleanup
-    _camera.dispose();
-    _location.dispose();
+    _tts.onAutoListenTrigger = null;
+    await _tts.dispose();
     super.dispose();
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// EXTENSION — ChatMessage operations
-// ══════════════════════════════════════════════════════════════════════════
-
-extension ZaraControllerMessages on ZaraController {
-  void _addMessage(ChatMessage msg) {
-    final updated = List<ChatMessage>.from(_state.messages)..add(msg);
-    _state = _state.copyWith(messages: updated);
-    notifyListeners();
-  }
-
-  void editMessage(String id, String newText) {
-    final updated = _state.messages.map((m) {
-      if (m.id == id) return m.copyWith(text: newText, isEdited: true);
-      return m;
-    }).toList();
-    _state = _state.copyWith(messages: updated);
-    notifyListeners();
-    _saveNeuralMemory();
-  }
-
-  void deleteMessage(String id) {
-    _state = _state.copyWith(
-      messages: _state.messages.where((m) => m.id != id).toList(),
-    );
-    notifyListeners();
-    _saveNeuralMemory();
-  }
-
-  // ✅ TTS toggle — actual service se connect
-  void toggleTts() {
-    final enabled = !_state.ttsEnabled;
-    _state = _state.copyWith(ttsEnabled: enabled);
-    _tts.setEnabled(enabled);
-    if (!enabled) _tts.stop();
-    notifyListeners();
-    _saveNeuralMemory();
-  }
-
-  void clearAllArchives() {
-    _state = _state.copyWith(chatArchives: []);
-    notifyListeners();
-    _saveNeuralMemory();
   }
 }
