@@ -259,8 +259,7 @@ class ZaraAccessibilityService : AccessibilityService() {
 
         // Submit search
         val editable = findEditableNode(rootInActiveWindow ?: return false)
-        editable?.performAction(AccessibilityNodeInfo.ACTION_IME_ENTER)
-            ?: performGlobalAction(66)
+        performGlobalAction(66) // KEYCODE_ENTER — submit search
         sleep(2500)
 
         // Tap first non-ad product (usually 3rd clickable)
@@ -342,7 +341,7 @@ class ZaraAccessibilityService : AccessibilityService() {
         typeTextInFocused(query)
         sleep(500)
         val editable = findEditableNode(rootInActiveWindow ?: return false)
-        editable?.performAction(AccessibilityNodeInfo.ACTION_IME_ENTER) ?: performGlobalAction(66)
+        performGlobalAction(66) // KEYCODE_ENTER
         sleep(2200)
         Log.d(TAG, "YouTube search: $query")
         return true

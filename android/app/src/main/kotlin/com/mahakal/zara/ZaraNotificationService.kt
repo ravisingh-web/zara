@@ -23,6 +23,19 @@ class ZaraNotificationService : NotificationListenerService() {
             private set
         var methodChannel: MethodChannel? = null
 
+        fun isEnabled(context: android.content.Context): Boolean {
+            val cn   = android.content.ComponentName(context, ZaraNotificationService::class.java)
+            val flat = android.provider.Settings.Secure.getString(
+                context.contentResolver, "enabled_notification_listeners") ?: return false
+            return flat.contains(cn.flattenToString())
+        }
+
+        fun openSettings(context: android.content.Context) {
+            val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+            intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+            context.startActivity(intent)
+        }
+
         val WATCHED_APPS = mapOf(
             "com.whatsapp"              to "WhatsApp",
             "com.whatsapp.w4b"          to "WhatsApp Business",
