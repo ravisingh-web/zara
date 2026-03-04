@@ -595,7 +595,7 @@ class ZaraController extends ChangeNotifier {
       final topicRaw = _state.lastCommand;
       final topic    = topicRaw.length > 30 ? topicRaw.substring(0, 30) : topicRaw;
       archives.insert(0, ChatSession(
-        id:           UniqueKey.id(),
+        id:           DateTime.now().millisecondsSinceEpoch.toString(),
         topicName:    topic.isEmpty ? 'Baat cheet' : topic,
         messages:     List<String>.from(_state.dialogueHistory),
         chatMessages: List<ChatMessage>.from(_state.messages),

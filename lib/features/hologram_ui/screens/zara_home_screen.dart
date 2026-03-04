@@ -599,7 +599,7 @@ class _ZaraHomeScreenState extends State<ZaraHomeScreen>
     try {
       final photoPath = await _cameraService.captureIntruderPhoto();
       if (photoPath != null && mounted) {
-        context.read<ZaraController>().generateResponse(
+        context.read<ZaraController>().receiveCommand(
           '📸 Photo captured: $photoPath\nEmail bhej doon Sir?',
         );
       }
@@ -615,7 +615,7 @@ class _ZaraHomeScreenState extends State<ZaraHomeScreen>
     try {
       final pos = await _locationService.getCurrentLocation();
       if (pos != null && mounted) {
-        context.read<ZaraController>().generateResponse(
+        context.read<ZaraController>().receiveCommand(
           '📍 ${_locationService.getFormattedAddress()}\n'
           'Lat: ${pos.latitude}, Lng: ${pos.longitude}\n'
           '${_locationService.getGoogleMapsLink()}',
