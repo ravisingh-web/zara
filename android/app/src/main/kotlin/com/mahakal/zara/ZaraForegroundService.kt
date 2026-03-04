@@ -35,7 +35,12 @@ class ZaraForegroundService : Service() {
     override fun onCreate() { super.onCreate(); instance = this; createNotifChannel() }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIF_ID, buildNotif())
+        try {
+            startForeground(NOTIF_ID, buildNotif())
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground failed: ${e.message}")
+            // Still continue — don't crash the app
+        }
         handler.post { methodChannel?.invokeMethod("onForegroundStarted", mapOf("alive" to true)) }
         Log.d(TAG, "Zara alive in background")
         return START_STICKY

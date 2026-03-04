@@ -12,7 +12,7 @@ plugins {
 
 android {
     namespace = "com.mahakal.zara"
-    compileSdk = 36
+    compileSdk = 34
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -29,7 +29,7 @@ android {
     defaultConfig {
         applicationId = "com.mahakal.zara"
         minSdk = 24
-        targetSdk = 35        // ✅ Updated: 34 → 35
+        targetSdk = 33        // ✅ Safe: avoids Android 14/15 FGS restrictions
         versionCode = 1
         versionName = "1.0.0"
     }

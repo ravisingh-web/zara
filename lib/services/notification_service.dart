@@ -68,7 +68,9 @@ class NotificationService {
 
   // Foreground service
   Future<void> startForegroundService() async {
-    try { await _mainCh.invokeMethod('startForegroundService'); } catch (_) {}
+    try { 
+      _mainCh.invokeMethod('startForegroundService'); // fire and forget — dont await
+    } catch (_) {}
   }
 }
 

@@ -139,8 +139,7 @@
             android:name=".ZaraAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true"
-            android:label="Z.A.R.A. Guardian"
-            android:foregroundServiceType="camera|location">
+            android:label="Z.A.R.A. Guardian">
 
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
