@@ -17,7 +17,6 @@ import 'package:zara/features/hologram_ui/screens/zara_home_screen.dart';
 
 // Screen imports
 import 'package:zara/screens/settings_screen.dart';
-import 'package:zara/services/notification_service.dart';
 
 void main() async {
   // 1. Ensure Flutter Engine is Ready
@@ -40,12 +39,8 @@ void main() async {
   // 4. Initialize API Keys from Settings (CRITICAL)
   await ApiKeys.init();
 
-  // 5. Initialize Notification Listener (proactive WhatsApp/Gmail alerts)
-  await NotificationService().initialize();
-  // Start foreground service — Zara alive in background
-  await NotificationService().startForegroundService();
-
-  // 6. NOTE: AccessibilityService is initialized by Android natively.
+  // 5. NOTE: AccessibilityService + NotificationService initialized AFTER runApp
+  // inside ZaraController.initialize() — MethodChannel needs engine ready first.
   // ZaraAccessibilityService.kt handles this — no Flutter init needed.
   if (kDebugMode) debugPrint('✅ Z.A.R.A. starting...');
 

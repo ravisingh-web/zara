@@ -64,11 +64,19 @@ class ZaraController extends ChangeNotifier {
   // ── Init ──────────────────────────────────────────────────────────────────
   Future<void> initialize() async {
     await _loadNeuralMemory();
-    await _email.initialize();
+
+    // Wrap all service inits in try-catch — prevent single failure from crashing app
+    try { await _email.initialize(); } catch (e) {
+      if (kDebugMode) debugPrint('EmailService init error: $e');
+    }
 
     // TTS init — Zara hamesha bolegi
-    await _tts.initialize();
-    _tts.setEnabled(true);   // Always ON
+    try {
+      await _tts.initialize();
+      _tts.setEnabled(true);
+    } catch (e) {
+      if (kDebugMode) debugPrint('TTS init error: $e');
+    }
     if (kDebugMode) {
       debugPrint('=== ZARA STARTUP CHECK ===');
       debugPrint('Gemini key  : \${ApiKeys.geminiKey.isNotEmpty ? "✅ SET" : "❌ EMPTY — Settings mein daalo!"}');
@@ -85,12 +93,18 @@ class ZaraController extends ChangeNotifier {
       _state = _state.copyWith(isSpeaking: false);
       notifyListeners();
     };
-_tts.startIdleSystem();
+    _tts.startIdleSystem();
 
-    // Proactive notification alerts
-    _notif.onProactiveAlert = (alert) {
-      _handleProactiveNotification(alert);
-    };
+    // Proactive notification alerts — safe after engine ready
+    try {
+      await _notif.initialize();
+      await _notif.startForegroundService();
+      _notif.onProactiveAlert = (alert) {
+        _handleProactiveNotification(alert);
+      };
+    } catch (e) {
+      if (kDebugMode) debugPrint('NotificationService init error: \$e');
+    }
 
     _startNeuralVibration();
     if (kDebugMode) debugPrint('✅ Z.A.R.A. Neural Core initialized');
