@@ -106,7 +106,9 @@ class ZaraController extends ChangeNotifier {
       if (kDebugMode) debugPrint('NotificationService init error: \$e');
     }
 
-    _startNeuralVibration();
+    try { _startNeuralVibration(); } catch (e) {
+      if (kDebugMode) debugPrint('Vibration init error: \$e');
+    }
     if (kDebugMode) debugPrint('✅ Z.A.R.A. Neural Core initialized');
   }
 

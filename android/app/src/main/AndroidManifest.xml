@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -138,8 +140,7 @@
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true"
             android:label="Z.A.R.A. Guardian"
-            android:foregroundServiceType="camera|location"
-            android:process=":guardian">
+            android:foregroundServiceType="camera|location">
 
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -154,8 +155,7 @@
         <receiver
             android:name=".BootReceiver"
             android:exported="true"
-            android:enabled="true"
-            android:process=":guardian">
+            android:enabled="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
@@ -196,7 +196,6 @@
         <!-- Zara hamesha background mein active + Holographic Orb -->
         <service
             android:name=".ZaraForegroundService"
-            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <!-- ========== 🧠 FLUTTER EMBEDDING ========== -->

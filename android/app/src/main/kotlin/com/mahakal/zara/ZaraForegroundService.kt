@@ -47,9 +47,7 @@ class ZaraForegroundService : Service() {
         super.onDestroy()
         hideOrb()
         instance = null
-        // Auto-restart
-        val i = Intent(this, ZaraForegroundService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
+        Log.d(TAG, "ZaraForegroundService stopped")
     }
 
     fun showOrb(state: String = "idle") {
