@@ -247,7 +247,7 @@ class AccessibilityService {
 
   Future<bool> _callBool(String method, [Map<String, dynamic>? args]) async {
     try {
-      final r = await _channel.invokeMethod<bool>(method, args);
+      final r = await _ch.invokeMethod<bool>(method, args);
       return r ?? false;
     } catch (e) {
       if (kDebugMode) debugPrint('Accessibility._callBool $method: $e');
