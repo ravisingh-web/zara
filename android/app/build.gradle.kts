@@ -12,7 +12,7 @@ plugins {
 
 android {
     namespace = "com.mahakal.zara"
-    compileSdk = 34
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
