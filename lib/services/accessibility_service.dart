@@ -296,6 +296,76 @@ class AccessibilityService {
   // ── Agent Message Handler — native fires this when WA message arrives ─────
   void Function(String contact, String message)? _agentHandler;
 
+  // ── Wake Word Engine ──────────────────────────────────────────────────────
+  Future<bool> startWakeWord() async {
+    try { return await _ch.invokeMethod<bool>('startWakeWord') ?? false; }
+    catch (_) { return false; }
+  }
+
+  Future<bool> stopWakeWord() async {
+    try { return await _ch.invokeMethod<bool>('stopWakeWord') ?? false; }
+    catch (_) { return false; }
+  }
+
+  // Called from provider after Whisper transcribes wake PCM
+  Future<void> notifyWakeWordTranscript(String transcript) async {
+    try { await _ch.invokeMethod('onWakeWordTranscript', {'transcript': transcript}); }
+    catch (_) {}
+  }
+
+  // ── Universal Generic Control — ANY app ───────────────────────────────────
+  // action: CLICK_BY_TEXT | CLICK_BY_ID | CLICK_BY_DESC | TYPE_AND_SUBMIT
+  //         SCROLL_DOWN | SCROLL_UP | LONG_CLICK | WAIT_FOR_TEXT | OPEN_APP
+  //         TAP_AT | SWIPE_CUSTOM | PRESS_BACK | PRESS_HOME | SCREENSHOT
+  Future<bool> performGenericAction(String action, String target, {
+    String target2 = '',
+    int    steps   = 3,
+  }) async {
+    try {
+      return await _ch.invokeMethod<bool>('performGenericAction', {
+        'action':  action,
+        'target':  target,
+        'target2': target2,
+        'steps':   steps,
+      }) ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('performGenericAction $action: $e');
+      return false;
+    }
+  }
+
+  void Function(String transcript)? _wakeWordPcmHandler;
+  void Function(String transcript)? _wakeWordDetectedHandler;
+
+  void setWakeWordHandlers({
+    required void Function(String pcmBase64, int sampleRate) onPcmReady,
+    required void Function(String transcript) onDetected,
+  }) {
+    _ch.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'onWakeWordPcmReady':
+          final args       = Map<String, dynamic>.from(call.arguments as Map);
+          final pcmBase64  = args['pcm_base64']?.toString() ?? '';
+          final sampleRate = (args['sample_rate'] as int?) ?? 16000;
+          onPcmReady(pcmBase64, sampleRate);
+          break;
+        case 'wake_word_detected':
+          final args       = Map<String, dynamic>.from(call.arguments as Map);
+          final transcript = args['transcript']?.toString() ?? '';
+          onDetected(transcript);
+          break;
+        case 'onAgentMessageReceived':
+          final args    = Map<String, dynamic>.from(call.arguments as Map);
+          final contact = args['contact']?.toString() ?? '';
+          final message = args['message']?.toString() ?? '';
+          _agentHandler?.call(contact, message);
+          break;
+      }
+    });
+  }
+
+  void Function(String, String)? _agentHandler;
+
   void setAgentMessageHandler(void Function(String, String) handler) {
     _agentHandler = handler;
     // Listen for native onAgentMessageReceived events
@@ -342,4 +412,4 @@ class AccessibilityService {
       return false;
     }
   }
-}
+}}

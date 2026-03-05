@@ -76,4 +76,11 @@ dependencies {
     // Coroutines — required by ZaraAccessibilityService (replaces Thread.sleep)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // ── Vosk — Offline Wake Word Detection ("Hii Zara", "Sunna") ─────────────
+    // Fully FREE — no API key, no internet required for wake word detection
+    // Model: https://alphacephei.com/vosk/models → vosk-model-small-en-in-0.4
+    // Place unzipped as: android/app/src/main/assets/model/
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation("org.vosk:vosk-android:0.3.47")
 }

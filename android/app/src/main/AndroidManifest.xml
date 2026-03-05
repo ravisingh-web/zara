@@ -175,17 +175,18 @@
         <!--                                                                 -->
         <!-- SDK 34+ (Android 14+) REQUIRES foregroundServiceType to be     -->
         <!-- declared here AND the permission above. Without this = crash.   -->
-        <!-- specialUse covers: overlay drawing, background AI processing    -->
+        <!-- microphone: wake word always-on mic detection                   -->
+        <!-- specialUse: overlay drawing, background AI processing           -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <service
             android:name=".ZaraForegroundService"
             android:exported="false"
-            android:foregroundServiceType="specialUse"
+            android:foregroundServiceType="microphone|specialUse"
             android:stopWithTask="false">
             <!-- SDK 35: specialUse requires a property explaining the use case -->
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Z.A.R.A. AI assistant — maintains overlay orb and background processing" />
+                android:value="Z.A.R.A. AI assistant — wake word detection, overlay orb, background voice processing" />
         </service>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -254,6 +255,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Porcupine Wake Word — Get FREE key: console.picovoice.ai
+             After signup, paste AccessKey in Z.A.R.A. Settings screen
+             OR replace YOUR_PORCUPINE_KEY_HERE below directly         -->
+        <meta-data
+            android:name="ai.picovoice.porcupine.ACCESS_KEY"
+            android:value="YOUR_PORCUPINE_KEY_HERE" />
 
     </application>
 

@@ -84,6 +84,20 @@ class ZaraForegroundService : Service() {
         }
         // Auto-show orb when service starts
         handler.postDelayed({ showOrb("idle") }, 500)
+
+        // Auto-start wake word engine if AccessibilityService is connected
+        // 3s delay to let AccessibilityService fully initialize first
+        handler.postDelayed({
+            val accSvc = ZaraAccessibilityService.instance
+            if (accSvc != null && accSvc.isMonitoring) {
+                // Tell Flutter to start wake word
+                methodChannel?.invokeMethod("requestWakeWordStart", null)
+                Log.d(TAG, "🎙️ Wake word auto-start requested")
+            } else {
+                Log.d(TAG, "Wake word: AccessibilityService not ready yet — Flutter will start it")
+            }
+        }, 3000)
+
         Log.d(TAG, "ZaraForegroundService started ✅")
         return START_STICKY
     }

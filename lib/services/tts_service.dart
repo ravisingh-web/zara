@@ -54,6 +54,9 @@ class ZaraTtsService {
   VoidCallback? onSpeakDone;
   VoidCallback? onAutoListenTrigger;
 
+  /// Volume level 0.0→1.0 during playback — wire to orb animation
+  void Function(double)? onVolumeLevel;
+
   // ── Idle ───────────────────────────────────────────────────────────────────
   Timer?   _idleTimer;
   DateTime _lastActivity = DateTime.now();
@@ -239,6 +242,23 @@ class ZaraTtsService {
       await player.seek(Duration.zero);
       await player.play();
 
+      // ── Volume reactive — drives orb animation ──────────────────────────
+      StreamSubscription? volSub;
+      volSub = player.playbackEventStream.listen((_) {
+        // Estimate amplitude from player position progress (0.0 → 1.0)
+        try {
+          final dur = player.duration?.inMilliseconds ?? 0;
+          final pos = player.position.inMilliseconds;
+          if (dur > 0) {
+            // Sine-based fake amplitude for smooth orb pulse
+            final progress = pos / dur;
+            final vol = 0.4 + 0.6 * (0.5 + 0.5 *
+                ((progress * 3.14159 * 8).abs() % 3.14159).clamp(0, 1));
+            onVolumeLevel?.call(vol.clamp(0.0, 1.0));
+          }
+        } catch (_) {}
+      });
+
       // ✅ FIX: Wait for 'playing' state first, THEN wait for 'completed'
       // Problem was: 'idle' fires BEFORE play() starts, causing premature exit
       // Solution: skip idle, only stop on 'completed' or if _stopFlag set
@@ -249,6 +269,8 @@ class ZaraTtsService {
             const Duration(seconds: 90),
             onTimeout: () => PlayerState(false, ProcessingState.completed),
           );
+      volSub?.cancel();
+      onVolumeLevel?.call(0.0); // reset orb to still
     } catch (e) {
       if (kDebugMode) debugPrint('ZaraTTS _playBytes: $e');
     }

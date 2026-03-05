@@ -27,12 +27,18 @@ class NotificationService {
     if (kDebugMode) debugPrint('NotificationService ✅ initialized');
   }
 
+  // Callback for when ForegroundService requests wake word start
+  void Function()? onRequestWakeWordStart;
+
   Future<dynamic> _onNativeCall(MethodCall call) async {
     if (call.method == 'onProactiveNotification') {
       final args  = Map<String, dynamic>.from(call.arguments as Map);
       final alert = NotificationAlert.fromMap(args);
       if (kDebugMode) debugPrint('📱 Proactive: ${alert.zaraAlert}');
       onProactiveAlert?.call(alert);
+    } else if (call.method == 'requestWakeWordStart') {
+      // ForegroundService wants Flutter to start wake word engine
+      onRequestWakeWordStart?.call();
     }
   }
 

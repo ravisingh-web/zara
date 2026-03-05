@@ -9,6 +9,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -236,6 +237,48 @@ class WhisperSttService {
   Future<String> _tmpPath(String tag) async {
     final dir = await getTemporaryDirectory();
     return '${dir.path}/zara_${tag}_${DateTime.now().millisecondsSinceEpoch}.m4a';
+  }
+
+  // ── Transcribe raw PCM from native wake word engine ──────────────────────
+  // Native sends 16-bit PCM as base64, we convert to WAV and send to Whisper
+  Future<String?> transcribePcmBase64(String pcmBase64, int sampleRate) async {
+    final key = ApiKeys.openaiKey;
+    if (key.isEmpty) return null;
+    try {
+      final pcmBytes = base64Decode(pcmBase64);
+      // Build WAV header
+      final wavBytes = _pcmToWav(pcmBytes, sampleRate);
+      final dir      = await getTemporaryDirectory();
+      final path     = '${dir.path}/zara_ww_${DateTime.now().millisecondsSinceEpoch}.wav';
+      await File(path).writeAsBytes(wavBytes);
+      return await _transcribe(path);
+    } catch (e) {
+      if (kDebugMode) debugPrint('transcribePcmBase64: $e');
+      return null;
+    }
+  }
+
+  Uint8List _pcmToWav(Uint8List pcm, int sampleRate) {
+    final dataSize   = pcm.length;
+    final totalSize  = 44 + dataSize;
+    final buffer     = Uint8List(totalSize);
+    final data       = ByteData.view(buffer.buffer);
+    // RIFF header
+    buffer.setRange(0, 4, [82,73,70,70]); // 'RIFF'
+    data.setUint32(4, totalSize - 8, Endian.little);
+    buffer.setRange(8, 12, [87,65,86,69]); // 'WAVE'
+    buffer.setRange(12, 16, [102,109,116,32]); // 'fmt '
+    data.setUint32(16, 16, Endian.little); // chunk size
+    data.setUint16(20, 1, Endian.little);  // PCM format
+    data.setUint16(22, 1, Endian.little);  // mono
+    data.setUint32(24, sampleRate, Endian.little);
+    data.setUint32(28, sampleRate * 2, Endian.little); // byte rate
+    data.setUint16(32, 2, Endian.little);  // block align
+    data.setUint16(34, 16, Endian.little); // bits per sample
+    buffer.setRange(36, 40, [100,97,116,97]); // 'data'
+    data.setUint32(40, dataSize, Endian.little);
+    buffer.setRange(44, 44 + dataSize, pcm);
+    return buffer;
   }
 
   Future<void> dispose() async {

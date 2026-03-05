@@ -28,6 +28,7 @@ import 'package:zara/services/tts_service.dart';
 import 'package:zara/services/notification_service.dart';
 import 'package:zara/features/zara_engine/models/zara_state.dart';
 import 'package:zara/services/whisper_stt_service.dart';
+import 'package:zara/services/automation_service.dart';
 import 'package:zara/services/livekit_service.dart';
 
 // ── God Mode command types ─────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ class ZaraController extends ChangeNotifier {
   final _notif    = NotificationService();
   final _whisper  = WhisperSttService();
   final _livekit  = LiveKitService();
+  final _auto     = AutomationService(); // PipeDream + Sheets
 
   // ── State ──────────────────────────────────────────────────────────────────
   ZaraState _state = ZaraState.initial();
@@ -108,6 +110,12 @@ class ZaraController extends ChangeNotifier {
       notifyListeners();
     };
 
+    // ── TTS volume → drives orb animation in home screen ────────────────
+    _tts.onVolumeLevel = (v) {
+      if (_disposed) return;
+      onVolumeLevel?.call(v);
+    };
+
     _tts.onSpeakDone = () {
       if (_disposed) return;
       _isSpeaking = false;
@@ -133,11 +141,26 @@ class ZaraController extends ChangeNotifier {
       await _notif.initialize();
       await _notif.startForegroundService();
       _notif.onProactiveAlert = (alert) => _handleProactiveNotification(alert);
+
+    // ForegroundService → Flutter: wake word start request
+    _notif.onRequestWakeWordStart = () {
+      if (!_disposed && !_wakeWordListening) startWakeWordEngine();
+    };
     } catch (e) {
       if (kDebugMode) debugPrint('NotifService init: $e');
     }
 
-    // ── Always-On STT — background continuous listening ─────────────────────
+    // ── AutomationService — PipeDream + Sheets ────────────────────────────
+    _auto.onNewSheetRow = (rowText) {
+      if (_disposed) return;
+      // Zara reads new Sheets row aloud
+      final msg = 'Sir, Google Sheets mein naya row aaya: $rowText';
+      _processResponse(msg);
+    };
+    if (kDebugMode) debugPrint('AutomationService: pipedream=${ApiKeys.pipedreamReady}, sheets=${ApiKeys.sheetsReady}');
+    if (ApiKeys.pipedreamReady && ApiKeys.sheetsReady) {
+      _auto.startPolling();
+    }
     // Whisper 5s chunks → onTranscription → receiveCommand
     // Runs silently in background without mic button tap
     _whisper.onTranscription = (text) {
@@ -156,12 +179,43 @@ class ZaraController extends ChangeNotifier {
       });
     }
 
-    // ── Agent mode callback from native ────────────────────────────────────
-    // When ZaraAccessibilityService detects new WA message in agent mode,
-    // it calls onAgentMessageReceived → we generate Gemini reply → send back
+    // ── Wake Word + Agent mode callbacks ──────────────────────────────────
+    // Single setMethodCallHandler handles: PCM ready, wake word, agent msgs
+    _access.setWakeWordHandlers(
+      onPcmReady: (pcmBase64, sampleRate) async {
+        // PCM chunk from native → transcribe with Whisper
+        if (_disposed || _isSpeaking) return;
+        final text = await _whisper.transcribePcmBase64(pcmBase64, sampleRate);
+        if (text == null || text.trim().isEmpty) return;
+        // Check if it's a wake word
+        final lower = text.toLowerCase().trim();
+        final isWake = ['hii zara', 'hi zara', 'hey zara', 'sunna', 'suno', 'zara sunna']
+            .any((w) => lower.contains(w));
+        if (isWake) {
+          // Fire wake word → Zara responds + starts listening for command
+          _onWakeWordDetected(text);
+        } else if (realtimeActive) {
+          // Not a wake word but realtime is on — treat as command
+          receiveCommand(text);
+        }
+      },
+      onDetected: (transcript) {
+        if (!_disposed) _onWakeWordDetected(transcript);
+      },
+    );
+
     _access.setAgentMessageHandler((contact, message) {
       if (!_disposed) handleAgentMessage(contact, message);
     });
+
+    // ── Wake Word engine — auto start ──────────────────────────────────────
+    // Porcupine (preferred) OR VAD+Whisper fallback
+    // Both paths use startWakeWord() on native side
+    if (ApiKeys.porcupineKey.isNotEmpty || ApiKeys.openaiKey.isNotEmpty) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!_disposed) startWakeWordEngine();
+      });
+    }
 
     // ── Permission Force-Check — guide user if missing ────────────────────
     _checkAndGuidePermissions();
@@ -496,7 +550,10 @@ class ZaraController extends ChangeNotifier {
   // STT — manual mic button
   // ══════════════════════════════════════════════════════════════════════════
 
-  Future<void> startListening() async {
+  void Function(String)? _oneTimeTranscribeCallback;
+
+  Future<void> startListening({void Function(String text)? onTranscribed}) async {
+    _oneTimeTranscribeCallback = onTranscribed;
     // If realtime mode — delegate
     if (_realtimeActive) { await _startRealtimeListen(); return; }
 
@@ -512,6 +569,7 @@ class ZaraController extends ChangeNotifier {
     final started = await _whisper.startRecording();
     if (!started) {
       _isListening = false;
+      _oneTimeTranscribeCallback = null;
       _state = _state.copyWith(
           isListening: false, lastResponse: 'Mic start nahi hua. Permission check karo.');
       _notif.updateOrb('still');
@@ -534,8 +592,16 @@ class ZaraController extends ChangeNotifier {
 
     final text = await _whisper.stopAndTranscribe();
     if (text != null && text.isNotEmpty) {
-      await receiveCommand(text);
+      // If there's a one-time callback (e.g. reply approval), use it
+      final cb = _oneTimeTranscribeCallback;
+      _oneTimeTranscribeCallback = null;
+      if (cb != null) {
+        cb(text);
+      } else {
+        await receiveCommand(text);
+      }
     } else {
+      _oneTimeTranscribeCallback = null;
       _state = _state.copyWith(lastResponse: 'Kuch suna nahi Sir, dobara bolein?');
       _notif.updateOrb('still');
       notifyListeners();
@@ -588,9 +654,12 @@ class ZaraController extends ChangeNotifier {
   }
   bool _agentModeActive = false;
   bool get agentModeActive => _agentModeActive;
+  String _agentContactName = '';
+  String get agentContact => _agentContactName;
 
   Future<void> startAgentMode(String contact) async {
     _agentModeActive = true;
+    _agentContactName = contact;
     notifyListeners();
     final persona = 'Tu Ravi ka AI assistant hai. '
         'Iske WhatsApp pe $contact ke messages ka reply de as Ravi. '
@@ -602,6 +671,7 @@ class ZaraController extends ChangeNotifier {
 
   Future<void> stopAgentMode() async {
     _agentModeActive = false;
+    _agentContactName = '';
     notifyListeners();
     await _access.whatsappStopAgent();
     await _processResponse('Agent Mode OFF. Wapas aagaye Sir!');
@@ -626,6 +696,49 @@ class ZaraController extends ChangeNotifier {
   }
 
   // Called from home screen speaker icon — re-speaks last response
+  // ══════════════════════════════════════════════════════════════════════════
+  // WAKE WORD — "Hii Zara" / "Sunna" detection engine
+  // ══════════════════════════════════════════════════════════════════════════
+
+  bool _wakeWordListening = false;
+  bool get wakeWordListening => _wakeWordListening;
+
+  Future<void> startWakeWordEngine() async {
+    final ok = await _access.startWakeWord();
+    _wakeWordListening = ok;
+    notifyListeners();
+    if (kDebugMode) debugPrint('🎙️ Wake word engine: $ok');
+  }
+
+  Future<void> stopWakeWordEngine() async {
+    await _access.stopWakeWord();
+    _wakeWordListening = false;
+    notifyListeners();
+  }
+
+  Future<void> _onWakeWordDetected(String transcript) async {
+    if (_disposed || _isSpeaking) return;
+    if (kDebugMode) debugPrint('🔔 Wake word: "$transcript"');
+    _notif.updateOrb('listening');
+    // Quick Anjura acknowledgment
+    final acks = ['Ji Ravi ji?', 'Hmm?', 'Haan boliye?', 'Ji?', 'Haan Sir?'];
+    final ack  = acks[DateTime.now().millisecond % acks.length];
+    unawaited(_tts.speak(ack, mood: _state.mood));
+    // Start listening for full command
+    if (!_realtimeActive && !_isListening) {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (!_disposed) await _startRealtimeListen();
+    }
+  }
+
+  // ── Universal Generic Control ─────────────────────────────────────────────
+  Future<bool> performGenericAction(String action, String target, {
+    String target2 = '', int steps = 3,
+  }) => _access.performGenericAction(action, target, target2: target2, steps: steps);
+
+  // Volume level callback — orb animation
+  void Function(double)? onVolumeLevel;
+
   Future<String?> speakLastResponse() async {
     if (_isSpeaking) return null;
     final text = _state.lastResponse
@@ -673,10 +786,31 @@ class ZaraController extends ChangeNotifier {
     if (_state.ttsEnabled) {
       unawaited(_tts.speak(aiMessage, mood: _state.mood));
     }
+
+    // Log to PipeDream/Sheets — non-blocking
+    if (ApiKeys.pipedreamReady) {
+      unawaited(_auto.logConversation(_state.lastCommand, aiMessage));
+    }
   }
+
+  // ── Pending reply state — shown in overlay for user approval ────────────
+  PendingReply? _pendingReply;
+  PendingReply? get pendingReply => _pendingReply;
 
   void _handleProactiveNotification(NotificationAlert alert) {
     if (alert.zaraAlert.isEmpty) return;
+
+    // Store pending reply context so overlay can show approve/dismiss btns
+    if (alert.pkg.contains('whatsapp') || alert.pkg.contains('telegram') ||
+        alert.pkg.contains('instagram') || alert.pkg.contains('messaging')) {
+      _pendingReply = PendingReply(
+        app:     alert.appName,
+        pkg:     alert.pkg,
+        contact: alert.title,
+        message: alert.text,
+      );
+    }
+
     final zaraMsg = ChatMessage.fromZara(alert.zaraAlert);
     final msgs    = List<ChatMessage>.from(_state.messages)..add(zaraMsg);
     _state = _state.copyWith(
@@ -685,6 +819,37 @@ class ZaraController extends ChangeNotifier {
     );
     notifyListeners();
     if (_state.ttsEnabled) unawaited(_tts.speak(alert.zaraAlert));
+  }
+
+  // User says "Haan bol do" / approves a reply suggestion
+  Future<void> approvePendingReply(String replyText) async {
+    final pending = _pendingReply;
+    if (pending == null) return;
+    _pendingReply = null;
+    notifyListeners();
+
+    // Generate reply if not provided
+    String reply = replyText.trim();
+    if (reply.isEmpty) {
+      reply = await _ai.emotionalChat(
+        'User ne approve kiya reply "${pending.message}" ko "${pending.contact}" ke liye. '
+        'Ek short natural Hinglish reply generate karo.',
+        _state.affectionLevel) ?? '';
+    }
+    if (reply.isEmpty) return;
+
+    // Send via accessibility
+    if (pending.pkg.contains('whatsapp')) {
+      await _access.whatsappSendMessage(pending.contact, reply);
+      await _processResponse('Done Sir! "${pending.contact}" ko reply bhej diya: "$reply"');
+    } else {
+      await _processResponse('Reply: "$reply" — Sir manually paste kar do, ${{pending.app}} ka direct send abhi set up ho raha hai.');
+    }
+  }
+
+  void dismissPendingReply() {
+    _pendingReply = null;
+    notifyListeners();
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -914,8 +1079,24 @@ class ZaraController extends ChangeNotifier {
     _silenceTimer?.cancel();
     _handsFreeListenTimer?.cancel();
     _tts.onAutoListenTrigger = null;
+    _auto.stopPolling();
+    _auto.dispose();
     await _whisper.stopAlwaysOn();
     await _tts.dispose();
     super.dispose();
   }
+}
+
+// ── Pending Reply — shown in overlay for user to approve/modify ─────────────
+class PendingReply {
+  final String app;
+  final String pkg;
+  final String contact;
+  final String message;
+  const PendingReply({
+    required this.app,
+    required this.pkg,
+    required this.contact,
+    required this.message,
+  });
 }

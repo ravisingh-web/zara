@@ -28,18 +28,22 @@ class _SettingsScreenState extends State<SettingsScreen>
   Map<Permission, PermissionStatus> _perms = {};
 
   // Controllers
-  final _gemCtrl    = TextEditingController();
-  final _mem0Ctrl   = TextEditingController();
-  final _lkUrlCtrl  = TextEditingController();
-  final _lkTokCtrl  = TextEditingController();
-  final _oaiCtrl    = TextEditingController();
-  final _elCtrl     = TextEditingController();
-  final _ownerCtrl  = TextEditingController();
-  final _userIdCtrl = TextEditingController();
+  final _gemCtrl      = TextEditingController();
+  final _mem0Ctrl     = TextEditingController();
+  final _lkUrlCtrl    = TextEditingController();
+  final _lkTokCtrl    = TextEditingController();
+  final _oaiCtrl      = TextEditingController();
+  final _elCtrl       = TextEditingController();
+  final _ownerCtrl    = TextEditingController();
+  final _userIdCtrl   = TextEditingController();
+  final _pdUrlCtrl    = TextEditingController(); // n8n Webhook URL
+  final _pdKeyCtrl    = TextEditingController(); // n8n Auth Token (optional)
+  final _shIdCtrl     = TextEditingController(); // Sheets ID
+  final _shJsonCtrl   = TextEditingController(); // Sheets JSON
 
   // Visibility
   bool _hideGem = true, _hideMem0 = true, _hideLkTok = true,
-       _hideOai = true, _hideEl   = true;
+       _hideOai = true, _hideEl   = true, _hideN8nTok = true;
 
   String _model = 'gemini-2.5-flash';
   String _lang  = 'hi-IN';
@@ -62,7 +66,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   void dispose() {
     _tabs.dispose();
     for (final c in [_gemCtrl, _mem0Ctrl, _lkUrlCtrl, _lkTokCtrl,
-        _oaiCtrl, _elCtrl, _ownerCtrl, _userIdCtrl]) { c.dispose(); }
+        _oaiCtrl, _elCtrl, _ownerCtrl, _userIdCtrl,
+        _pdUrlCtrl, _pdKeyCtrl, _shIdCtrl, _shJsonCtrl]) { c.dispose(); }
     super.dispose();
   }
 
@@ -76,6 +81,10 @@ class _SettingsScreenState extends State<SettingsScreen>
     _elCtrl.text     = ApiKeys.elevenKey;
     _ownerCtrl.text  = ApiKeys.ownerName;
     _userIdCtrl.text = ApiKeys.mem0UserId;
+    _pdUrlCtrl.text  = ApiKeys.n8nWebhookUrl;
+    _pdKeyCtrl.text  = ApiKeys.n8nAuthToken;
+    _shIdCtrl.text   = ApiKeys.sheetsId;
+    _shJsonCtrl.text = ApiKeys.sheetsJson;
     _aff             = ApiKeys.affection;
 
     final ids = ApiKeys.geminiModels.map((m) => m['id']!).toList();
@@ -145,17 +154,21 @@ class _SettingsScreenState extends State<SettingsScreen>
     setState(() => _saving = true);
     try {
       final ok = await ApiKeys.save(
-        geminiKey:    _gemCtrl.text,
-        mem0Key:      _mem0Ctrl.text,
-        livekitUrl:   _lkUrlCtrl.text,
-        livekitToken: _lkTokCtrl.text,
-        openaiKey:    _oaiCtrl.text,
-        elevenKey:    _elCtrl.text,
-        geminiModel:  _model,
-        lang:         _lang,
-        ownerName:    _ownerCtrl.text,
-        mem0UserId:   _userIdCtrl.text,
-        affection:    _aff,
+        geminiKey:      _gemCtrl.text,
+        mem0Key:        _mem0Ctrl.text,
+        livekitUrl:     _lkUrlCtrl.text,
+        livekitToken:   _lkTokCtrl.text,
+        openaiKey:      _oaiCtrl.text,
+        elevenKey:      _elCtrl.text,
+        n8nWebhookUrl:  _pdUrlCtrl.text,
+        n8nAuthToken:   _pdKeyCtrl.text,
+        sheetsId:       _shIdCtrl.text,
+        sheetsJson:     _shJsonCtrl.text,
+        geminiModel:    _model,
+        lang:           _lang,
+        ownerName:      _ownerCtrl.text,
+        mem0UserId:     _userIdCtrl.text,
+        affection:      _aff,
       );
       if (!mounted) return;
       if (ok) {
@@ -306,10 +319,119 @@ class _SettingsScreenState extends State<SettingsScreen>
           child: const Row(children: [
             Icon(Icons.lock_rounded, size: 11, color: Color(0xFF7B2FFF)),
             SizedBox(width: 6),
-            Text('Voice ID: Simran · Model: eleven_v3',
+            Text('Voice ID: Anjura · rdz6GofVsYlLgQl2dBEE',
                 style: TextStyle(color: Colors.white54, fontSize: 10)),
           ]),
         ),
+      ]),
+    ),
+    const SizedBox(height: 12),
+
+    // 6. n8n — Automation Webhook (FREE, replaces Pipedream)
+    _apiCard(
+      color:    const Color(0xFF00BFA5),
+      icon:     Icons.webhook_rounded,
+      title:    '6 · n8n AUTOMATION',
+      subtitle: 'Webhook — neural logs + Sheets automation (FREE)',
+      link:     'Setup n8n →',
+      linkUrl:  'https://cloud.n8n.io',
+      child: Column(children: [
+        _plainField(
+          _pdUrlCtrl,
+          'Webhook URL (https://your-n8n.app.n8n.cloud/webhook/zara)',
+          (v) {},
+        ),
+        const SizedBox(height: 8),
+        _keyField(
+          _pdKeyCtrl,
+          'Auth Token (optional — n8n Header Auth)',
+          _hideN8nTok,
+          () => setState(() => _hideN8nTok = !_hideN8nTok),
+          (v) {},
+          false,
+          '',
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00BFA5).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF00BFA5).withOpacity(0.3)),
+          ),
+          child: const Row(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Icon(Icons.info_outline, size: 12, color: Color(0xFF00BFA5)),
+            SizedBox(width: 6),
+            Expanded(child: Text(
+              'Free: cloud.n8n.io  •  Self-host: docs.n8n.io\n'
+              'Workflow: Webhook → Google Sheets (Append Row)',
+              style: TextStyle(color: Colors.white54, fontSize: 9,
+                  height: 1.5),
+            )),
+          ]),
+        ),
+      ]),
+    ),
+    const SizedBox(height: 12),
+
+    // 7. Google Sheets
+    _apiCard(
+      color:    const Color(0xFF43A047),
+      icon:     Icons.table_chart_rounded,
+      title:    '7 · GOOGLE SHEETS',
+      subtitle: 'Neural log sheet — Zara reads new rows aloud',
+      link:     'Sheets →',
+      linkUrl:  'https://sheets.google.com',
+      child: Column(children: [
+        _plainField(_shIdCtrl,
+            'Spreadsheet ID (from URL: /d/XXXX/edit)',
+            (v) {}),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _shJsonCtrl,
+          maxLines: 4,
+          style: const TextStyle(color: Colors.white, fontSize: 9,
+              fontFamily: 'monospace'),
+          decoration: InputDecoration(
+            isDense: true, filled: true, fillColor: Colors.black38,
+            hintText: 'Service Account JSON (paste full JSON here)',
+            hintStyle: const TextStyle(color: Colors.white24, fontSize: 9),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none),
+          ),
+        ),
+      ]),
+    ),
+    const SizedBox(height: 12),
+
+    // Note: Wake Word = Vosk (offline, no key needed)
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2730),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(children: [
+        const Icon(Icons.mic_rounded, color: Color(0xFF00FF88), size: 16),
+        const SizedBox(width: 10),
+        const Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Wake Word: Vosk (Offline)',
+              style: TextStyle(color: Color(0xFF00FF88), fontSize: 11,
+                  fontWeight: FontWeight.bold)),
+            SizedBox(height: 2),
+            Text(
+              '"Hii Zara" / "Sunna" — no API key needed\n'
+              'Model: android/app/src/main/assets/model/\n'
+              'Download: alphacephei.com/vosk/models → vosk-model-small-en-in-0.4',
+              style: TextStyle(color: Colors.white38, fontSize: 9, height: 1.5),
+            ),
+          ],
+        )),
       ]),
     ),
     const SizedBox(height: 20),
@@ -417,10 +539,12 @@ class _SettingsScreenState extends State<SettingsScreen>
     final m = ApiKeys.mem0Key.isNotEmpty;
     final o = ApiKeys.openaiKey.isNotEmpty;
     final l = ApiKeys.livekitUrl.isNotEmpty;
+    final n = ApiKeys.n8nReady;
+    final s = ApiKeys.sheetsId.isNotEmpty;
 
-    final count = [g, e, m, o, l].where((x) => x).length;
-    final c = count == 5 ? AppColors.successGreen
-        : count >= 2 ? AppColors.warningOrange : AppColors.errorRed;
+    final count = [g, e, m, o, l, n, s].where((x) => x).length;
+    final c = count == 7 ? AppColors.successGreen
+        : count >= 3 ? AppColors.warningOrange : AppColors.errorRed;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -428,18 +552,20 @@ class _SettingsScreenState extends State<SettingsScreen>
           borderRadius: BorderRadius.circular(12), border: Border.all(color: c)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(count == 5 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+          Icon(count == 7 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
               color: c, size: 18),
           const SizedBox(width: 8),
-          Text('$count/5 APIs configured', style: TextStyle(
+          Text('$count/7 APIs configured', style: TextStyle(
               color: c, fontWeight: FontWeight.bold, fontSize: 12)),
         ]),
         const SizedBox(height: 8),
-        _apiStatus('Gemini',    g),
-        _apiStatus('Mem0',      m),
-        _apiStatus('LiveKit',   l),
-        _apiStatus('OpenAI',    o),
+        _apiStatus('Gemini',     g),
         _apiStatus('ElevenLabs', e),
+        _apiStatus('OpenAI',     o),
+        _apiStatus('Mem0',       m),
+        _apiStatus('LiveKit',    l),
+        _apiStatus('n8n',        n),
+        _apiStatus('Sheets',     s),
       ]),
     );
   }
@@ -519,6 +645,26 @@ class _SettingsScreenState extends State<SettingsScreen>
             color: valid ? AppColors.successGreen : (msg.contains('Optional') ? Colors.white38 : AppColors.errorRed)))),
       ]),
     ]);
+
+  Widget _plainField(TextEditingController ctrl, String hint,
+      ValueChanged<String> onChanged) =>
+    TextField(
+      controller: ctrl,
+      style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace'),
+      decoration: InputDecoration(
+        isDense: true, filled: true, fillColor: Colors.black38,
+        hintText: hint, hintStyle: const TextStyle(color: Colors.white24, fontSize: 10),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.content_paste, size: 14, color: Colors.white38),
+          onPressed: () async {
+            final c = await Clipboard.getData('text/plain');
+            if (c?.text != null) { ctrl.text = c!.text!; onChanged(c.text!); }
+          }),
+      ),
+      onChanged: onChanged,
+    );
 
   Widget _modelDropdown() {
     final list = ApiKeys.geminiModels;
