@@ -137,12 +137,34 @@ class ZaraController extends ChangeNotifier {
       if (kDebugMode) debugPrint('NotifService init: $e');
     }
 
-    // Permission check — non-blocking
-    _access.checkAllPermissions().then((perms) {
+    // ── Always-On STT — background continuous listening ─────────────────────
+    // Whisper 5s chunks → onTranscription → receiveCommand
+    // Runs silently in background without mic button tap
+    _whisper.onTranscription = (text) {
+      if (_disposed || _isSpeaking || _isListening) return;
+      if (kDebugMode) debugPrint('🎙️ AlwaysOn heard: "$text"');
+      receiveCommand(text);
+    };
+    _whisper.onAlwaysOnChange = (active) {
       if (_disposed) return;
-      _permissions = perms;
       notifyListeners();
-    }).catchError((_) {});
+    };
+    // Start always-on only if OpenAI key is set
+    if (ApiKeys.openaiKey.isNotEmpty) {
+      _whisper.startAlwaysOn().then((ok) {
+        if (kDebugMode) debugPrint('AlwaysOn started: $ok');
+      });
+    }
+
+    // ── Agent mode callback from native ────────────────────────────────────
+    // When ZaraAccessibilityService detects new WA message in agent mode,
+    // it calls onAgentMessageReceived → we generate Gemini reply → send back
+    _access.setAgentMessageHandler((contact, message) {
+      if (!_disposed) handleAgentMessage(contact, message);
+    });
+
+    // ── Permission Force-Check — guide user if missing ────────────────────
+    _checkAndGuidePermissions();
 
     if (kDebugMode) {
       debugPrint('=== ZARA v9.0 ===');
@@ -524,8 +546,89 @@ class ZaraController extends ChangeNotifier {
     }
   }
 
-  // Volume level callback — home screen orb ke liye
-  void Function(double)? onVolumeLevel;
+  // ══════════════════════════════════════════════════════════════════════════
+  // PERMISSION FORCE-CHECK — guides user if any permission missing
+  // Called on startup. Zara speaks what to fix, not just silent fail.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _checkAndGuidePermissions() async {
+    try {
+      final perms = await _access.getPermissionStatus();
+      _permissions = {
+        'accessibility': perms['accessibility'] ?? false,
+        'microphone':    perms['microphone']    ?? false,
+        'storage':       perms['storage']       ?? false,
+        'overlay':       perms['overlay']       ?? false,
+      };
+      notifyListeners();
+
+      // Build list of what's missing
+      final missing = <String>[];
+      if (_permissions['accessibility'] != true)
+        missing.add('Accessibility Service');
+      if (_permissions['microphone'] != true)
+        missing.add('Microphone');
+      if (_permissions['storage'] != true)
+        missing.add('Storage / Files Access');
+      if (_permissions['overlay'] != true)
+        missing.add('Overlay / Draw over apps');
+
+      if (missing.isEmpty) {
+        if (kDebugMode) debugPrint('✅ All permissions granted');
+        return;
+      }
+
+      // Zara speaks what's missing — guides user
+      final list = missing.join(', ');
+      await _processResponse(
+        'Sir, kuch permissions missing hain: $list. '
+        'Settings → Z.A.R.A. → Permissions mein jaake enable kar do. '
+        'Bina iske God Mode aur voice kaam nahi karega.'
+      );
+
+      if (kDebugMode) debugPrint('⚠️ Missing permissions: $missing');
+    } catch (e) {
+      if (kDebugMode) debugPrint('_checkAndGuidePermissions: $e');
+    }
+  }
+  bool _agentModeActive = false;
+  bool get agentModeActive => _agentModeActive;
+
+  Future<void> startAgentMode(String contact) async {
+    _agentModeActive = true;
+    notifyListeners();
+    final persona = 'Tu Ravi ka AI assistant hai. '
+        'Iske WhatsApp pe $contact ke messages ka reply de as Ravi. '
+        'Natural, friendly Hinglish mein reply karo. Short rakho.';
+    await _access.whatsappStartAgent(contact, persona);
+    await _processResponse('Agent Mode ON! Ab main $contact ke '
+        'WhatsApp messages ka reply karungi Sir.');
+  }
+
+  Future<void> stopAgentMode() async {
+    _agentModeActive = false;
+    notifyListeners();
+    await _access.whatsappStopAgent();
+    await _processResponse('Agent Mode OFF. Wapas aagaye Sir!');
+  }
+
+  // Called from native when agent mode receives a new message
+  Future<void> handleAgentMessage(String contact, String message) async {
+    if (!_agentModeActive) return;
+    final reply = await _ai.emotionalChat(
+        'WhatsApp pe $contact ne bheja: "$message"\n'
+        'Reply karo as Ravi ka proxy — short, natural Hinglish mein.',
+        _state.affectionLevel);
+    final clean = reply.replaceAll(RegExp(r'\[COMMAND:[^\]]+\]'), '').trim();
+    if (clean.isNotEmpty) {
+      await _access.whatsappSendMessage(contact, clean);
+    }
+  }
+
+  // ── Command Chain executor ─────────────────────────────────────────────────
+  Future<void> executeCommandChain(List<Map<String, dynamic>> commands) async {
+    await _access.executeChain(commands);
+  }
 
   // Called from home screen speaker icon — re-speaks last response
   Future<String?> speakLastResponse() async {
@@ -748,6 +851,22 @@ class ZaraController extends ChangeNotifier {
            l.contains('page pe');
   }
 
+  // WhatsApp read commands
+  bool _isWhatsAppReadCommand(String cmd) {
+    final l = cmd.toLowerCase();
+    return (l.contains('whatsapp') || l.contains('wa') || l.contains('message')) &&
+           (l.contains('padh') || l.contains('read') || l.contains('dekh') ||
+            l.contains('kya aaya') || l.contains('check'));
+  }
+
+  // Agent mode commands
+  bool _isAgentModeCommand(String cmd) {
+    final l = cmd.toLowerCase();
+    return l.contains('agent') ||
+           (l.contains('proxy') && l.contains('whatsapp')) ||
+           (l.contains('reply') && l.contains('mere liye'));
+  }
+
   void _determineMood(String cmd) {
     final l = cmd.toLowerCase();
     if (l.contains('pyar') || l.contains('love') || l.contains('thank') || l.contains('miss')) {
@@ -800,6 +919,7 @@ class ZaraController extends ChangeNotifier {
     _silenceTimer?.cancel();
     _handsFreeListenTimer?.cancel();
     _tts.onAutoListenTrigger = null;
+    await _whisper.stopAlwaysOn();
     await _tts.dispose();
     super.dispose();
   }

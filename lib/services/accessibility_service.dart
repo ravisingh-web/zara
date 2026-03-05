@@ -257,8 +257,74 @@ class AccessibilityService {
       _callBool('whatsappSendMessage', {'contact': contact, 'message': message});
 
   // ── YouTube ────────────────────────────────────────────────────────────────
-  Future<bool> youtubeSearch(String q) => _callBool('youtubeSearch', {'query': q});
-  Future<bool> youtubePlayFirst()      => _callBool('youtubePlayFirst');
+  // ── WhatsApp Reader ────────────────────────────────────────────────────────
+  Future<String> whatsappReadMessages(String contact) async {
+    try {
+      final r = await _ch.invokeMethod<String>('whatsappReadMessages', {'contact': contact});
+      return r ?? 'Kuch nahi mila Sir';
+    } catch (e) { return 'Error: $e'; }
+  }
+
+  // ── WhatsApp Agent Mode ────────────────────────────────────────────────────
+  Future<bool> whatsappStartAgent(String contact, String persona) async {
+    try {
+      return await _ch.invokeMethod<bool>('whatsappStartAgent',
+          {'contact': contact, 'persona': persona}) ?? false;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> whatsappStopAgent() async {
+    try { return await _ch.invokeMethod<bool>('whatsappStopAgent') ?? false; }
+    catch (_) { return false; }
+  }
+
+  // ── Command Chain ──────────────────────────────────────────────────────────
+  // commands: [ {'method': 'youtubeSearch', 'args': {'query': 'arijit'}, 'required': true} ]
+  Future<bool> executeChain(List<Map<String, dynamic>> commands) async {
+    try {
+      return await _ch.invokeMethod<bool>('executeChain', {'commands': commands}) ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('executeChain: $e');
+      return false;
+    }
+  }
+
+  // ── Agent Message Handler — native fires this when WA message arrives ─────
+  void Function(String contact, String message)? _agentHandler;
+
+  void setAgentMessageHandler(void Function(String, String) handler) {
+    _agentHandler = handler;
+    // Listen for native onAgentMessageReceived events
+    _ch.setMethodCallHandler((call) async {
+      if (call.method == 'onAgentMessageReceived') {
+        final args    = Map<String, dynamic>.from(call.arguments as Map);
+        final contact = args['contact']?.toString() ?? '';
+        final message = args['message']?.toString() ?? '';
+        if (contact.isNotEmpty && message.isNotEmpty) {
+          _agentHandler?.call(contact, message);
+        }
+      }
+    });
+  }
+
+  // ── Permission Status (from native) ───────────────────────────────────────
+  Future<Map<String, bool>> getPermissionStatus() async {
+    try {
+      final raw = await _ch.invokeMethod<Map>('getPermissionStatus');
+      if (raw == null) return _defaultPerms();
+      return {
+        'accessibility': raw['accessibility'] == true,
+        'microphone':    raw['microphone']    == true,
+        'storage':       raw['storage']       == true,
+        'overlay':       raw['overlay']       == true,
+      };
+    } catch (_) { return _defaultPerms(); }
+  }
+
+  Map<String, bool> _defaultPerms() => {
+    'accessibility': false, 'microphone': false,
+    'storage': false,       'overlay': false,
+  };
 
   // ══════════════════════════════════════════════════════════════════════════
   // STATUS MAP

@@ -1,15 +1,18 @@
 package com.mahakal.zara
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ZaraAccessibilityService.kt — God Mode v5.0
-// ✅ YouTube  — search box focus + type + submit (FIXED)
-// ✅ Instagram — open reels, scroll, like, comment, search user
-// ✅ WhatsApp  — find contact, type message, send
-// ✅ Flipkart  — search, size select, add to cart, payment
-// ✅ Thread.sleep() → coroutine delay() (no ANR)
-// ✅ Node recycle() everywhere (no memory leak)
-// ✅ getScreenContext() — live screen text for Gemini
-// ✅ Race condition fix — pendingEngine
+// ZaraAccessibilityService.kt — Supreme God Mode v6.0
+//
+// ✅ CRASH FIX: startForeground() REMOVED — was causing "malfunctioning"
+// ✅ NULL SAFETY: Every node access wrapped in safe-call + recycle
+// ✅ COMMAND CHAINING: Sequential multi-command executor
+// ✅ WhatsApp READER: Read + summarize incoming messages
+// ✅ AGENT MODE: Zara replies on WhatsApp as human proxy
+// ✅ YouTube: open → find search → type → submit → play first result
+// ✅ Instagram: reels, scroll, like, comment, search
+// ✅ Flipkart: search, size, cart, payment
+// ✅ Screen Context: full node-tree text for Gemini Vision
+// ✅ Permission Guard: checks mic, storage, accessibility status
 // ══════════════════════════════════════════════════════════════════════════════
 
 import android.accessibilityservice.AccessibilityService
@@ -44,26 +47,27 @@ class ZaraAccessibilityService : AccessibilityService() {
         private val LOCK_PACKAGES  = setOf("com.android.systemui", "com.android.keyguard")
         private val PASSWORD_WORDS = setOf("wrong", "incorrect", "invalid", "error")
 
-        var instance: ZaraAccessibilityService? = null
-            private set
-
-        // Race condition fix
-        var pendingEngine: FlutterEngine? = null
+        var instance      : ZaraAccessibilityService? = null; private set
+        var pendingEngine : FlutterEngine?            = null
     }
 
-    private var methodChannel: MethodChannel? = null
-    private var prefs: SharedPreferences?     = null
-    private var isMonitoring                  = false
-    private val handler                       = Handler(Looper.getMainLooper())
-    private var currentPackage                = ""
+    private var methodChannel    : MethodChannel?      = null
+    private var prefs            : SharedPreferences?  = null
+    var         isMonitoring     : Boolean             = false
+    private val handler                                = Handler(Looper.getMainLooper())
+    var         currentPackage   : String              = ""
 
-    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val serviceScope     = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var windowChangedJob : Job?                = null
+    private var lastWindowPkg    : String              = ""
 
-    private var lastWindowChangedPkg = ""
-    private var windowChangedJob: Job? = null
+    // Agent Mode state
+    private var agentModeActive  : Boolean             = false
+    private var agentContact     : String              = ""
+    private var agentPersona     : String              = ""
 
     // ══════════════════════════════════════════════════════════════════════════
-    // LIFECYCLE
+    // LIFECYCLE — NO startForeground() here, ever
     // ══════════════════════════════════════════════════════════════════════════
 
     override fun onServiceConnected() {
@@ -84,23 +88,25 @@ class ZaraAccessibilityService : AccessibilityService() {
                 AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
                 AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS             or
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-            notificationTimeout = 100
+            notificationTimeout = 150
             packageNames        = null
         }
 
-        // ❌ DO NOT call startForeground() here — AccessibilityService manages
-        //    its own lifecycle. Calling startForeground() causes "malfunctioning"
-        //    crash on Android 12+. Foreground notification is handled by
-        //    ZaraForegroundService separately.
-
         isMonitoring = true
         pendingEngine?.let { attachToEngine(it) }
-        Log.d(TAG, "God Mode ACTIVE ✅")
+        Log.d(TAG, "✅ God Mode ACTIVE — SDK ${Build.VERSION.SDK_INT}")
         sendEvent("onServiceStatusChanged", mapOf("enabled" to true))
     }
 
-    override fun onInterrupt() { isMonitoring = false }
-    override fun onDestroy()   { super.onDestroy(); isMonitoring = false; instance = null }
+    override fun onInterrupt() { isMonitoring = false; Log.d(TAG, "Interrupted") }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+        isMonitoring = false
+        instance     = null
+        Log.d(TAG, "Destroyed")
+    }
 
     // ══════════════════════════════════════════════════════════════════════════
     // ENGINE ATTACH
@@ -112,21 +118,20 @@ class ZaraAccessibilityService : AccessibilityService() {
             @Suppress("UNCHECKED_CAST")
             val args = (call.arguments as? Map<String, Any>) ?: emptyMap()
             serviceScope.launch(Dispatchers.IO) {
-                val res = processCommand(call.method, args)
+                val res = try { processCommand(call.method, args) }
+                          catch (e: Exception) { Log.e(TAG, "cmd ${call.method}: $e"); false }
                 withContext(Dispatchers.Main) { result.success(res) }
             }
         }
         Log.d(TAG, "Engine attached ✅")
     }
 
-    fun handleMethodCall(
-        call: io.flutter.plugin.common.MethodCall,
-        result: MethodChannel.Result
-    ) {
+    fun handleMethodCall(call: io.flutter.plugin.common.MethodCall, result: MethodChannel.Result) {
         @Suppress("UNCHECKED_CAST")
         val args = (call.arguments as? Map<String, Any>) ?: emptyMap()
         serviceScope.launch(Dispatchers.IO) {
-            val res = processCommand(call.method, args)
+            val res = try { processCommand(call.method, args) }
+                      catch (e: Exception) { Log.e(TAG, "fallback ${call.method}: $e"); false }
             withContext(Dispatchers.Main) { result.success(res) }
         }
     }
@@ -137,15 +142,25 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private suspend fun processCommand(method: String, args: Map<String, Any>): Any {
         return when (method) {
-            "isEnabled"        -> isMonitoring
-            "getForegroundApp" -> currentPackage
-            "findTextOnScreen" -> findNodeWithText(str(args, "text")) != null
-            "getScreenContext" -> getScreenContext()
 
+            // ── Status & Info ──────────────────────────────────────────────────
+            "isEnabled"         -> isMonitoring
+            "getForegroundApp"  -> currentPackage
+            "findTextOnScreen"  -> safeFind { findNodeWithText(str(args, "text")) } != null
+            "getScreenContext"  -> getScreenContext()
+            "getPermissionStatus" -> getPermissionStatus()
+
+            // ── COMMAND CHAIN — execute multiple commands sequentially ──────────
+            // args: { "commands": [ {"method": "youtubeSearch", "args": {"query": "arijit"}} ] }
+            "executeChain"      -> executeCommandChain(args)
+
+            // ── Basic UI ───────────────────────────────────────────────────────
             "openApp"           -> openApp(str(args, "package"))
-            "clickText"         -> clickNodeWithText(str(args, "text"))
-            "clickById"         -> clickNodeById(str(args, "id"))
-            "typeText"          -> typeTextInFocused(str(args, "text"))
+            "clickText"         -> clickByText(str(args, "text"))
+            "clickById"         -> clickById(str(args, "id"))
+            "clickByDesc"       -> clickByDesc(str(args, "desc"))
+            "typeText"          -> typeInFocused(str(args, "text"))
+            "clearText"         -> clearFocused()
             "scrollDown"        -> { scrollDown(int(args, "steps", 3)); true }
             "scrollUp"          -> { scrollUp(int(args, "steps", 3)); true }
             "pressBack"         -> { performGlobalAction(GLOBAL_ACTION_BACK); true }
@@ -154,164 +169,348 @@ class ZaraAccessibilityService : AccessibilityService() {
             "takeScreenshot"    -> { performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT); true }
             "openNotifications" -> { performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS); true }
             "openQuickSettings" -> { performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS); true }
-            "tapAt" -> {
-                tapAt(int(args, "x", 540).toFloat(), int(args, "y", 960).toFloat()); true
-            }
-            "swipe" -> {
-                performSwipe(
-                    int(args, "x1", 540).toFloat(), int(args, "y1", 1400).toFloat(),
-                    int(args, "x2", 540).toFloat(), int(args, "y2", 400).toFloat(),
-                    int(args, "durationMs", 350).toLong()
-                ); true
+            "tapAt"             -> { tapAt(flt(args,"x",540f), flt(args,"y",960f)); true }
+            "swipe"             -> {
+                performSwipe(flt(args,"x1",540f), flt(args,"y1",1400f),
+                             flt(args,"x2",540f), flt(args,"y2",400f),
+                             int(args,"durationMs",350).toLong())
+                true
             }
 
-            // ── Instagram ──────────────────────────────────────────────────
-            "instagramOpenReels"    -> instagramOpenReels()
-            "instagramScrollReels"  -> { instagramScrollReels(int(args, "count", 1)); true }
-            "instagramLikeReel"     -> instagramLikeCurrentReel()
-            "instagramPostComment"  -> instagramPostComment(str(args, "text"))
-            "instagramSearchUser"   -> instagramSearchUser(str(args, "username"))
+            // ── YouTube ────────────────────────────────────────────────────────
+            "youtubeSearch"     -> youtubeSearch(str(args, "query"))
+            "youtubePlayFirst"  -> youtubePlayFirstResult()
 
-            // ── YouTube ────────────────────────────────────────────────────
-            "youtubeSearch"  -> youtubeSearch(str(args, "query"))
-            "youtubePlayFirst" -> youtubePlayFirstResult()
+            // ── Instagram ──────────────────────────────────────────────────────
+            "instagramOpenReels"   -> instagramOpenReels()
+            "instagramScrollReels" -> { instagramScrollReels(int(args, "count", 1)); true }
+            "instagramLikeReel"    -> instagramLikeCurrentReel()
+            "instagramPostComment" -> instagramPostComment(str(args, "text"))
+            "instagramSearchUser"  -> instagramSearchUser(str(args, "username"))
 
-            // ── Flipkart ───────────────────────────────────────────────────
+            // ── WhatsApp ───────────────────────────────────────────────────────
+            "whatsappSendMessage"  -> whatsappSendMessage(str(args,"contact"), str(args,"message"))
+            "whatsappReadMessages" -> whatsappReadMessages(str(args, "contact"))
+            "whatsappStartAgent"   -> whatsappStartAgent(
+                str(args,"contact"), str(args,"persona"))
+            "whatsappStopAgent"    -> whatsappStopAgent()
+
+            // ── Flipkart ───────────────────────────────────────────────────────
             "flipkartSearchProduct" -> flipkartSearchProduct(str(args, "query"))
             "flipkartSelectSize"    -> flipkartSelectSize(str(args, "size"))
             "flipkartAddToCart"     -> flipkartAddToCart()
             "flipkartGoToPayment"   -> flipkartGoToPayment()
 
-            // ── WhatsApp ───────────────────────────────────────────────────
-            "whatsappSendMessage" -> whatsappSendMessage(
-                str(args, "contact"), str(args, "message"))
-
-            else -> { Log.w(TAG, "Unknown: $method"); false }
+            else -> { Log.w(TAG, "Unknown command: $method"); false }
         }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // SCREEN CONTEXT
+    // COMMAND CHAINING — execute list of commands sequentially
+    // Flutter sends: { "commands": [ {method, args}, {method, args}, ... ] }
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @Suppress("UNCHECKED_CAST")
+    private suspend fun executeCommandChain(args: Map<String, Any>): Any {
+        val commands = args["commands"] as? List<Map<String, Any>> ?: return false
+        val results  = mutableListOf<Any>()
+
+        Log.d(TAG, "Chain: executing ${commands.size} commands")
+
+        for ((i, cmd) in commands.withIndex()) {
+            val method  = cmd["method"]?.toString() ?: continue
+            val cmdArgs = (cmd["args"] as? Map<String, Any>) ?: emptyMap()
+
+            Log.d(TAG, "Chain[$i]: $method")
+            val result = try {
+                processCommand(method, cmdArgs)
+            } catch (e: Exception) {
+                Log.e(TAG, "Chain[$i] $method failed: $e")
+                false
+            }
+            results.add(result)
+
+            // Small gap between chained commands
+            delay(300)
+
+            // Stop chain if critical command failed
+            if (result == false && cmd["required"] == true) {
+                Log.w(TAG, "Chain stopped at $method (required=true, result=false)")
+                break
+            }
+        }
+
+        sendEvent("onChainComplete", mapOf(
+            "total"    to commands.size,
+            "executed" to results.size,
+            "results"  to results.map { it.toString() }
+        ))
+        return results.lastOrNull() ?: false
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PERMISSION STATUS — for Flutter Permission Guard
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun getPermissionStatus(): Map<String, Boolean> {
+        val mic = try {
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        } catch (_: Exception) { false }
+
+        val storage = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.os.Environment.isExternalStorageManager()
+            } else {
+                checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+            }
+        } catch (_: Exception) { false }
+
+        val overlay = try {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                android.provider.Settings.canDrawOverlays(this)
+        } catch (_: Exception) { false }
+
+        return mapOf(
+            "accessibility" to isMonitoring,
+            "microphone"    to mic,
+            "storage"       to storage,
+            "overlay"       to overlay,
+        )
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SCREEN CONTEXT — null-safe node tree traversal
     // ══════════════════════════════════════════════════════════════════════════
 
     fun getScreenContextPublic(): String = getScreenContext()
 
     private fun getScreenContext(): String {
         val root = rootInActiveWindow ?: return ""
-        val sb   = StringBuilder()
-        collectText(root, sb, 0, 12)
-        val r = sb.toString().trim()
-        return if (r.length > 2000) r.substring(0, 2000) else r
+        return try {
+            val sb = StringBuilder()
+            collectTextSafe(root, sb, 0, 10)
+            val result = sb.toString().trim()
+            if (result.length > 2000) result.substring(0, 2000) else result
+        } catch (e: Exception) {
+            Log.e(TAG, "getScreenContext: $e"); ""
+        }
     }
 
-    private fun collectText(node: AccessibilityNodeInfo, sb: StringBuilder, depth: Int, max: Int) {
-        if (depth > max) return
-        val text = node.text?.toString()?.trim()
-        val desc = node.contentDescription?.toString()?.trim()
-        if (!text.isNullOrEmpty()) sb.append(text).append(" | ")
-        else if (!desc.isNullOrEmpty()) sb.append(desc).append(" | ")
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            collectText(child, sb, depth + 1, max)
-            child.recycle()
+    private fun collectTextSafe(
+        node: AccessibilityNodeInfo?,
+        sb: StringBuilder,
+        depth: Int,
+        maxDepth: Int
+    ) {
+        if (node == null || depth > maxDepth) return
+        try {
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            when {
+                !text.isNullOrEmpty() -> sb.append(text).append(" | ")
+                !desc.isNullOrEmpty() -> sb.append(desc).append(" | ")
+            }
+            val count = node.childCount
+            for (i in 0 until count) {
+                val child = try { node.getChild(i) } catch (_: Exception) { null }
+                collectTextSafe(child, sb, depth + 1, maxDepth)
+                try { child?.recycle() } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            Log.v(TAG, "collectText depth=$depth: $e")
         }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // YOUTUBE — FIXED: proper search box detection + submit
+    // YOUTUBE — full flow: open → search box → type → submit → play
     // ══════════════════════════════════════════════════════════════════════════
 
     private suspend fun youtubeSearch(query: String): Boolean {
-        if (query.trim().isEmpty()) return false
-        Log.d(TAG, "YouTube search: '$query'")
+        if (query.isBlank()) return false
+        Log.d(TAG, "YT search: '$query'")
 
-        // 1. Open YouTube
         if (!openApp("com.google.android.youtube")) return false
-        delay(2500) // wait for app to fully load
+        delay(2500)
 
-        // 2. Click search icon — try multiple ways
-        val searchClicked =
-            clickNodeById("com.google.android.youtube:id/menu_item_1") ||
-            clickNodeWithContentDesc("Search") ||
-            clickNodeWithText("Search")
-
-        if (!searchClicked) {
-            // Last resort: tap top-right area where search icon usually is
+        // Click search icon
+        val searchOpened =
+            clickById("com.google.android.youtube:id/menu_item_1") ||
+            clickByDesc("Search") ||
+            clickByText("Search")
+        if (!searchOpened) {
             val w = resources.displayMetrics.widthPixels.toFloat()
-            tapAt(w - 120f, 120f)
+            tapAt(w - 130f, 110f)
         }
         delay(1000)
 
-        // 3. Find and focus the search input field
+        // Find search input — 3 attempts with increasing delay
         var typed = false
         repeat(3) { attempt ->
             if (typed) return@repeat
             val root = rootInActiveWindow ?: return@repeat
 
-            // Try by resource ID first
-            val searchField =
+            val field = safeFind {
                 root.findAccessibilityNodeInfosByViewId(
-                    "com.google.android.youtube:id/search_edit_text")
-                    ?.firstOrNull()
-                ?: root.findAccessibilityNodeInfosByViewId(
-                    "com.google.android.youtube:id/search_box")
-                    ?.firstOrNull()
-                ?: findEditableNode(root)
+                    "com.google.android.youtube:id/search_edit_text")?.firstOrNull()
+            } ?: safeFind {
+                root.findAccessibilityNodeInfosByViewId(
+                    "com.google.android.youtube:id/search_box")?.firstOrNull()
+            } ?: safeFind { findEditableNode(root) }
 
-            if (searchField != null) {
-                // Focus it
-                searchField.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                delay(400)
-                searchField.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
-                delay(300)
-
-                // Type text
-                val args = Bundle()
-                args.putCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, query)
-                typed = searchField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-                searchField.recycle()
-                Log.d(TAG, "YT typed '$query' on attempt ${attempt+1}: $typed")
+            if (field != null) {
+                try {
+                    field.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    delay(300)
+                    val bundle = Bundle()
+                    bundle.putCharSequence(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, query)
+                    typed = field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+                } finally {
+                    try { field.recycle() } catch (_: Exception) {}
+                }
             }
-
-            if (!typed) delay(800)
+            if (!typed) delay(800 + (attempt * 400L))
         }
 
-        if (!typed) {
-            Log.w(TAG, "YT: could not type in search box")
-            return false
-        }
-        delay(600)
+        if (!typed) { Log.w(TAG, "YT: failed to type"); return false }
+        delay(500)
 
-        // 4. Submit search — try search button, then IME action, then Enter key
+        // Submit — try multiple ways
         val submitted =
-            clickNodeWithContentDesc("Search") ||
-            clickNodeWithContentDesc("Submit query") ||
-            clickNodeById("com.google.android.youtube:id/search_go_btn")
+            clickByDesc("Search")           ||
+            clickByDesc("Submit query")     ||
+            clickById("com.google.android.youtube:id/search_go_btn")
 
         if (!submitted) {
-            // IME search action
-            val root = rootInActiveWindow
-            val edit = root?.let { findEditableNode(it) }
-            val imeOk = edit?.performAction(
+            // Simulate Enter key via IME action
+            val root  = rootInActiveWindow
+            val edit  = root?.let { safeFind { findEditableNode(it) } }
+            val ok    = edit?.performAction(
                 AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY) ?: false
-            edit?.recycle()
-            if (!imeOk) performGlobalAction(66) // KEYCODE_ENTER last resort
+            try { edit?.recycle() } catch (_: Exception) {}
+            if (!ok) performGlobalAction(66) // KEYCODE_ENTER last resort
         }
 
         delay(2500)
-        Log.d(TAG, "YouTube search done: '$query'")
+        Log.d(TAG, "YT search done: '$query'")
         return true
     }
 
     private suspend fun youtubePlayFirstResult(): Boolean {
         delay(600)
         val root       = rootInActiveWindow ?: return false
-        val clickables = findAllClickableNodes(root)
+        val clickables = findAllClickableNodesSafe(root)
         val target     = clickables.getOrNull(2) ?: clickables.firstOrNull() ?: return false
-        target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        Log.d(TAG, "YouTube: playing first result")
+        return try { target.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+               catch (_: Exception) { false }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // WHATSAPP READER — read messages from a contact
+    // Returns JSON-like string: "Contact: X\nMessages:\n- msg1\n- msg2"
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private suspend fun whatsappReadMessages(contact: String): String {
+        Log.d(TAG, "WA read: '$contact'")
+
+        if (!openApp("com.whatsapp")) return "WhatsApp open nahi hua"
+        delay(1800)
+
+        // Open search
+        val searchOpened =
+            clickById("com.whatsapp:id/menuitem_search") ||
+            clickByDesc("Search")
+        if (!searchOpened) return "Search nahi mila"
+        delay(700)
+
+        typeInFocused(contact)
+        delay(1200)
+
+        // Click contact
+        if (!clickByText(contact)) {
+            val root  = rootInActiveWindow ?: return "Contact nahi mila"
+            val nodes = findAllClickableNodesSafe(root)
+            nodes.getOrNull(1)?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                ?: return "Contact nahi mila"
+        }
+        delay(1500)
+
+        // Read message list from screen
+        val root = rootInActiveWindow ?: return "Screen read nahi hua"
+        val sb   = StringBuilder()
+        sb.append("Contact: $contact\nMessages:\n")
+        collectMessageNodes(root, sb)
+
+        val result = sb.toString().trim()
+        Log.d(TAG, "WA read result: ${result.length} chars")
+
+        // Go back
+        delay(300)
+        performGlobalAction(GLOBAL_ACTION_BACK)
+
+        return result
+    }
+
+    private fun collectMessageNodes(node: AccessibilityNodeInfo?, sb: StringBuilder) {
+        if (node == null) return
+        try {
+            // WhatsApp message bubbles have specific class names
+            val cls  = node.className?.toString() ?: ""
+            val text = node.text?.toString()?.trim()
+
+            if (!text.isNullOrEmpty() && text.length > 1 &&
+                !text.matches(Regex("\\d{1,2}:\\d{2}.*")) && // skip timestamps
+                !text.equals("Type a message", ignoreCase = true)) {
+                sb.append("- $text\n")
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = try { node.getChild(i) } catch (_: Exception) { null }
+                collectMessageNodes(child, sb)
+                try { child?.recycle() } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // WHATSAPP AGENT MODE — Zara replies as human proxy
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun whatsappStartAgent(contact: String, persona: String): Boolean {
+        agentModeActive = true
+        agentContact    = contact
+        agentPersona    = persona
+        Log.d(TAG, "Agent mode ON: contact=$contact")
+        sendEvent("onAgentModeChanged", mapOf(
+            "active"  to true,
+            "contact" to contact,
+            "persona" to persona
+        ))
         return true
+    }
+
+    private fun whatsappStopAgent(): Boolean {
+        agentModeActive = false
+        agentContact    = ""
+        agentPersona    = ""
+        Log.d(TAG, "Agent mode OFF")
+        sendEvent("onAgentModeChanged", mapOf("active" to false))
+        return true
+    }
+
+    // Called from onAccessibilityEvent when new WhatsApp message arrives in agent mode
+    private suspend fun handleAgentModeMessage(incomingText: String) {
+        if (!agentModeActive || agentContact.isEmpty()) return
+        Log.d(TAG, "Agent handling: '$incomingText'")
+        // Tell Flutter to generate reply via Gemini and send it back
+        sendEvent("onAgentMessageReceived", mapOf(
+            "contact"  to agentContact,
+            "message"  to incomingText,
+            "persona"  to agentPersona
+        ))
+        // Flutter will call whatsappSendMessage with Gemini's reply
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -321,7 +520,7 @@ class ZaraAccessibilityService : AccessibilityService() {
     private suspend fun instagramOpenReels(): Boolean {
         if (!openApp("com.instagram.android")) return false
         delay(1800)
-        if (clickNodeWithContentDesc("Reels")) return true
+        if (clickByDesc("Reels")) return true
         val w = resources.displayMetrics.widthPixels.toFloat()
         val h = resources.displayMetrics.heightPixels.toFloat()
         tapAt(w * 0.5f, h * 0.965f)
@@ -332,15 +531,12 @@ class ZaraAccessibilityService : AccessibilityService() {
     private suspend fun instagramScrollReels(count: Int) {
         val w = resources.displayMetrics.widthPixels / 2f
         val h = resources.displayMetrics.heightPixels.toFloat()
-        repeat(count) {
-            performSwipe(w, h * 0.78f, w, h * 0.22f, 350)
-            delay(700)
-        }
+        repeat(count) { performSwipe(w, h * 0.78f, w, h * 0.22f, 350); delay(700) }
     }
 
     private suspend fun instagramLikeCurrentReel(): Boolean {
-        if (clickNodeById("com.instagram.android:id/like_button")) return true
-        if (clickNodeWithContentDesc("Like")) return true
+        if (clickById("com.instagram.android:id/like_button")) return true
+        if (clickByDesc("Like")) return true
         val w = resources.displayMetrics.widthPixels / 2f
         val h = resources.displayMetrics.heightPixels / 2f
         tapAt(w, h); delay(130); tapAt(w, h)
@@ -349,26 +545,26 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private suspend fun instagramPostComment(text: String): Boolean {
         delay(500)
-        if (!clickNodeById("com.instagram.android:id/row_feed_comment_tv") &&
-            !clickNodeWithContentDesc("Comment")) return false
+        if (!clickById("com.instagram.android:id/row_feed_comment_tv") &&
+            !clickByDesc("Comment")) return false
         delay(900)
-        typeTextInFocused(text)
+        typeInFocused(text)
         delay(400)
-        clickNodeWithText("Post")
+        clickByText("Post")
         return true
     }
 
     private suspend fun instagramSearchUser(username: String): Boolean {
         if (!openApp("com.instagram.android")) return false
         delay(1800)
-        clickNodeWithContentDesc("Search and Explore")
+        clickByDesc("Search and Explore")
         delay(900)
-        if (!clickNodeById("com.instagram.android:id/action_bar_search_edit_text"))
-            clickNodeWithText("Search")
+        if (!clickById("com.instagram.android:id/action_bar_search_edit_text"))
+            clickByText("Search")
         delay(700)
-        typeTextInFocused(username)
+        typeInFocused(username)
         delay(1300)
-        clickNodeWithText(username)
+        clickByText(username)
         return true
     }
 
@@ -379,73 +575,71 @@ class ZaraAccessibilityService : AccessibilityService() {
     private suspend fun flipkartSearchProduct(query: String): Boolean {
         if (!openApp("com.flipkart.android")) return false
         delay(2200)
-        if (!clickNodeById("com.flipkart.android:id/search_widget_textbox") &&
-            !clickNodeWithText("Search for Products, Brands and More"))
+        if (!clickById("com.flipkart.android:id/search_widget_textbox") &&
+            !clickByText("Search for Products, Brands and More"))
             tapAt(resources.displayMetrics.widthPixels / 2f, 160f)
         delay(700)
-        typeTextInFocused(query)
+        typeInFocused(query)
         delay(500)
         performGlobalAction(66)
         delay(2500)
         val root       = rootInActiveWindow ?: return false
-        val clickables = findAllClickableNodes(root)
+        val clickables = findAllClickableNodesSafe(root)
         val product    = clickables.getOrNull(3) ?: clickables.firstOrNull() ?: return false
-        product.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        delay(2500)
-        return true
+        return try { product.performAction(AccessibilityNodeInfo.ACTION_CLICK).also { delay(2500) } }
+               catch (_: Exception) { false }
     }
 
     private suspend fun flipkartSelectSize(size: String): Boolean {
         delay(500)
-        return clickNodeWithText(size) ||
-               clickNodeWithText(size.uppercase()) ||
-               clickNodeWithText(size.lowercase())
+        return clickByText(size) || clickByText(size.uppercase()) || clickByText(size.lowercase())
     }
 
     private suspend fun flipkartAddToCart(): Boolean {
         delay(300)
-        val ok = clickNodeWithText("ADD TO CART") || clickNodeWithText("Add to Cart")
+        val ok = clickByText("ADD TO CART") || clickByText("Add to Cart")
         if (ok) delay(1200)
         return ok
     }
 
     private suspend fun flipkartGoToPayment(): Boolean {
         delay(500)
-        if (!clickNodeWithContentDesc("Cart") && !clickNodeWithText("Cart"))
-            clickNodeById("com.flipkart.android:id/cart_icon")
+        if (!clickByDesc("Cart") && !clickByText("Cart"))
+            clickById("com.flipkart.android:id/cart_icon")
         delay(1800)
-        val ok = clickNodeWithText("PLACE ORDER") || clickNodeWithText("Place Order")
+        val ok = clickByText("PLACE ORDER") || clickByText("Place Order")
         if (ok) delay(1500)
         return ok
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // WHATSAPP
+    // WHATSAPP SEND
     // ══════════════════════════════════════════════════════════════════════════
 
     private suspend fun whatsappSendMessage(contact: String, message: String): Boolean {
         if (!openApp("com.whatsapp")) return false
         delay(1800)
-        if (!clickNodeById("com.whatsapp:id/menuitem_search"))
-            clickNodeWithContentDesc("Search")
+        if (!clickById("com.whatsapp:id/menuitem_search"))
+            clickByDesc("Search")
         delay(700)
-        typeTextInFocused(contact)
+        typeInFocused(contact)
         delay(1300)
-        if (!clickNodeWithText(contact)) {
+        if (!clickByText(contact)) {
             val root  = rootInActiveWindow ?: return false
-            val nodes = findAllClickableNodes(root)
+            val nodes = findAllClickableNodesSafe(root)
             nodes.getOrNull(1)?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         }
         delay(1200)
-        typeTextInFocused(message)
+        typeInFocused(message)
         delay(400)
-        if (!clickNodeById("com.whatsapp:id/send"))
-            clickNodeWithContentDesc("Send")
+        if (!clickById("com.whatsapp:id/send"))
+            clickByDesc("Send")
+        Log.d(TAG, "WA sent to $contact")
         return true
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // PRIMITIVES
+    // PRIMITIVE ACTIONS — all null-safe
     // ══════════════════════════════════════════════════════════════════════════
 
     private fun openApp(pkg: String): Boolean {
@@ -453,45 +647,72 @@ class ZaraAccessibilityService : AccessibilityService() {
             val i = packageManager.getLaunchIntentForPackage(pkg) ?: return false
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(i); true
-        } catch (e: Exception) { Log.e(TAG, "openApp: ${e.message}"); false }
+        } catch (e: Exception) { Log.e(TAG, "openApp $pkg: $e"); false }
     }
 
-    private fun clickNodeWithText(text: String): Boolean {
-        val node   = findNodeWithText(text) ?: return false
-        val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        if (!result) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        node.recycle()
-        return result
+    private fun clickByText(text: String): Boolean {
+        if (text.isBlank()) return false
+        val node = safeFind { findNodeWithText(text) } ?: return false
+        return try {
+            val ok = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (!ok) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
+            else true
+        } catch (_: Exception) { false }
+        finally { try { node.recycle() } catch (_: Exception) {} }
     }
 
-    private fun clickNodeWithContentDesc(desc: String): Boolean {
+    private fun clickByDesc(desc: String): Boolean {
+        if (desc.isBlank()) return false
         val root = rootInActiveWindow ?: return false
-        val node = findNodeByDesc(root, desc.lowercase()) ?: return false
-        val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        if (!result) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        node.recycle()
-        return result
+        val node = safeFind { findNodeByDesc(root, desc.lowercase()) } ?: return false
+        return try {
+            val ok = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (!ok) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
+            else true
+        } catch (_: Exception) { false }
+        finally { try { node.recycle() } catch (_: Exception) {} }
     }
 
-    private fun clickNodeById(id: String): Boolean {
+    private fun clickById(id: String): Boolean {
+        if (id.isBlank()) return false
         val root  = rootInActiveWindow ?: return false
-        val nodes = root.findAccessibilityNodeInfosByViewId(id)
+        val nodes = try { root.findAccessibilityNodeInfosByViewId(id) } catch (_: Exception) { null }
         if (nodes.isNullOrEmpty()) return false
-        val result = nodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        nodes.forEach { it.recycle() }
-        return result
+        return try {
+            nodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        } catch (_: Exception) { false }
+        finally { nodes.forEach { try { it.recycle() } catch (_: Exception) {} } }
     }
 
-    private fun typeTextInFocused(text: String): Boolean {
+    private fun typeInFocused(text: String): Boolean {
+        if (text.isBlank()) return false
         val root    = rootInActiveWindow ?: return false
-        val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            ?: findEditableNode(root) ?: return false
-        val args = Bundle()
-        args.putCharSequence(
-            AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-        val result = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        focused.recycle()
-        return result
+        val focused = try { root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }
+                      catch (_: Exception) { null }
+                      ?: safeFind { findEditableNode(root) }
+                      ?: return false
+        return try {
+            val bundle = Bundle()
+            bundle.putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+        } catch (_: Exception) { false }
+        finally { try { focused.recycle() } catch (_: Exception) {} }
+    }
+
+    private fun clearFocused(): Boolean {
+        val root    = rootInActiveWindow ?: return false
+        val focused = try { root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }
+                      catch (_: Exception) { null }
+                      ?: safeFind { findEditableNode(root) }
+                      ?: return false
+        return try {
+            val bundle = Bundle()
+            bundle.putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+            focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+        } catch (_: Exception) { false }
+        finally { try { focused.recycle() } catch (_: Exception) {} }
     }
 
     private suspend fun scrollDown(steps: Int) {
@@ -508,85 +729,137 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, ms: Long) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
-        val path    = Path().apply { moveTo(x1, y1); lineTo(x2, y2) }
-        val stroke  = GestureDescription.StrokeDescription(path, 0, ms)
-        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        try {
+            val path   = Path().apply { moveTo(x1, y1); lineTo(x2, y2) }
+            val stroke = GestureDescription.StrokeDescription(path, 0, ms.coerceAtLeast(50))
+            dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        } catch (e: Exception) { Log.e(TAG, "swipe: $e") }
     }
 
     private fun tapAt(x: Float, y: Float) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
-        val path    = Path().apply { moveTo(x, y); lineTo(x + 1f, y + 1f) }
-        val stroke  = GestureDescription.StrokeDescription(path, 0, 50)
-        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        try {
+            val path   = Path().apply { moveTo(x, y); lineTo(x + 1f, y + 1f) }
+            val stroke = GestureDescription.StrokeDescription(path, 0, 50)
+            dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        } catch (e: Exception) { Log.e(TAG, "tap: $e") }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // NODE FINDERS
+    // NULL-SAFE NODE FINDERS
     // ══════════════════════════════════════════════════════════════════════════
+
+    // Wraps any finder in try-catch — no crash on null/stale nodes
+    private fun <T> safeFind(block: () -> T?): T? {
+        return try { block() } catch (e: Exception) { Log.v(TAG, "safeFind: $e"); null }
+    }
 
     private fun findNodeWithText(text: String): AccessibilityNodeInfo? {
         val root  = rootInActiveWindow ?: return null
-        val exact = root.findAccessibilityNodeInfosByText(text)
-        if (!exact.isNullOrEmpty()) { exact.drop(1).forEach { it.recycle() }; return exact[0] }
-        return traverseFind(root) { n ->
-            val t = n.text?.toString()?.lowercase() ?: ""
-            val d = n.contentDescription?.toString()?.lowercase() ?: ""
-            t.contains(text.lowercase()) || d.contains(text.lowercase())
+        val lower = text.lowercase()
+        val exact = try { root.findAccessibilityNodeInfosByText(text) }
+                    catch (_: Exception) { null }
+        if (!exact.isNullOrEmpty()) {
+            exact.drop(1).forEach { try { it.recycle() } catch (_: Exception) {} }
+            return exact[0]
+        }
+        return traverseFindSafe(root) { n ->
+            try {
+                val t = n.text?.toString()?.lowercase() ?: ""
+                val d = n.contentDescription?.toString()?.lowercase() ?: ""
+                t.contains(lower) || d.contains(lower)
+            } catch (_: Exception) { false }
         }
     }
 
     private fun findNodeByDesc(node: AccessibilityNodeInfo, desc: String) =
-        traverseFind(node) {
-            it.contentDescription?.toString()?.lowercase()?.contains(desc) == true
+        traverseFindSafe(node) {
+            try { it.contentDescription?.toString()?.lowercase()?.contains(desc) == true }
+            catch (_: Exception) { false }
         }
 
     private fun findEditableNode(node: AccessibilityNodeInfo) =
-        traverseFind(node) { it.isEditable }
-
-    private fun findAllClickableNodes(node: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
-        val out = mutableListOf<AccessibilityNodeInfo>()
-        fun walk(n: AccessibilityNodeInfo) {
-            if (n.isClickable) out.add(n)
-            for (i in 0 until n.childCount) { val c = n.getChild(i) ?: continue; walk(c) }
+        traverseFindSafe(node) {
+            try { it.isEditable } catch (_: Exception) { false }
         }
-        walk(node); return out
+
+    private fun findAllClickableNodesSafe(node: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
+        val out = mutableListOf<AccessibilityNodeInfo>()
+        fun walk(n: AccessibilityNodeInfo?) {
+            if (n == null) return
+            try {
+                if (n.isClickable) out.add(n)
+                val count = n.childCount
+                for (i in 0 until count) {
+                    try { walk(n.getChild(i)) } catch (_: Exception) {}
+                }
+            } catch (_: Exception) {}
+        }
+        walk(node)
+        return out
     }
 
-    private fun traverseFind(
-        node: AccessibilityNodeInfo,
+    // Safe tree traversal — catches all exceptions, recycles properly
+    private fun traverseFindSafe(
+        node: AccessibilityNodeInfo?,
         predicate: (AccessibilityNodeInfo) -> Boolean
     ): AccessibilityNodeInfo? {
-        if (predicate(node)) return node
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val found = traverseFind(child, predicate)
-            if (found != null) { if (found !== child) child.recycle(); return found }
-            child.recycle()
+        if (node == null) return null
+        return try {
+            if (predicate(node)) return node
+            val count = try { node.childCount } catch (_: Exception) { 0 }
+            for (i in 0 until count) {
+                val child = try { node.getChild(i) } catch (_: Exception) { null } ?: continue
+                val found = traverseFindSafe(child, predicate)
+                if (found != null) {
+                    if (found !== child) try { child.recycle() } catch (_: Exception) {}
+                    return found
+                }
+                try { child.recycle() } catch (_: Exception) {}
+            }
+            null
+        } catch (e: Exception) {
+            Log.v(TAG, "traverseFind: $e"); null
         }
-        return null
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ACCESSIBILITY EVENT — debounced
+    // ACCESSIBILITY EVENT
     // ══════════════════════════════════════════════════════════════════════════
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || !isMonitoring) return
-        val pkg = event.packageName?.toString() ?: return
+        val pkg = try { event.packageName?.toString() } catch (_: Exception) { null } ?: return
 
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && pkg != lastWindowChangedPkg) {
-            currentPackage       = pkg
-            lastWindowChangedPkg = pkg
+        // Window change — debounced
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            pkg != lastWindowPkg) {
+            currentPackage = pkg
+            lastWindowPkg  = pkg
             windowChangedJob?.cancel()
             windowChangedJob = serviceScope.launch {
-                delay(150)
+                delay(200)
                 sendEvent("onWindowChanged", mapOf("package" to pkg))
             }
         }
 
+        // Guardian: wrong password detection
         if (LOCK_PACKAGES.contains(pkg)) {
-            val text = event.text?.joinToString(" ").orEmpty().lowercase()
-            if (PASSWORD_WORDS.any { text.contains(it) }) handleWrongPassword()
+            try {
+                val text = event.text?.joinToString(" ").orEmpty().lowercase()
+                if (PASSWORD_WORDS.any { text.contains(it) }) handleWrongPassword()
+            } catch (_: Exception) {}
+        }
+
+        // Agent mode: detect new WhatsApp messages
+        if (agentModeActive && pkg == "com.whatsapp" &&
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            try {
+                val text = event.text?.joinToString(" ")?.trim()
+                if (!text.isNullOrEmpty()) {
+                    serviceScope.launch { handleAgentModeMessage(text) }
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -608,7 +881,7 @@ class ZaraAccessibilityService : AccessibilityService() {
     private fun sendEvent(method: String, data: Map<String, Any>) {
         handler.post {
             try { methodChannel?.invokeMethod(method, data) }
-            catch (e: Exception) { Log.e(TAG, "sendEvent $method: ${e.message}") }
+            catch (e: Exception) { Log.e(TAG, "sendEvent $method: $e") }
         }
     }
 
@@ -617,4 +890,7 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private fun int(args: Map<String, Any>, key: String, default: Int = 0) =
         (args[key] as? Int) ?: args[key]?.toString()?.toIntOrNull() ?: default
+
+    private fun flt(args: Map<String, Any>, key: String, default: Float = 0f) =
+        (args[key] as? Number)?.toFloat() ?: args[key]?.toString()?.toFloatOrNull() ?: default
 }
