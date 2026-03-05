@@ -553,40 +553,35 @@ class ZaraController extends ChangeNotifier {
 
   Future<void> _checkAndGuidePermissions() async {
     try {
-      final perms = await _access.getPermissionStatus();
+      final perms = await _access.checkAllPermissions();
       _permissions = {
-        'accessibility': perms['accessibility'] ?? false,
-        'microphone':    perms['microphone']    ?? false,
-        'storage':       perms['storage']       ?? false,
-        'overlay':       perms['overlay']       ?? false,
+        'accessibility':        perms['accessibility']        ?? false,
+        'overlay':              perms['overlay']              ?? false,
+        'notificationListener': perms['notificationListener'] ?? false,
+        'foregroundService':    perms['foregroundService']    ?? false,
       };
       notifyListeners();
 
-      // Build list of what's missing
       final missing = <String>[];
       if (_permissions['accessibility'] != true)
         missing.add('Accessibility Service');
-      if (_permissions['microphone'] != true)
-        missing.add('Microphone');
-      if (_permissions['storage'] != true)
-        missing.add('Storage / Files Access');
       if (_permissions['overlay'] != true)
-        missing.add('Overlay / Draw over apps');
+        missing.add('Overlay (Draw over apps)');
+      if (_permissions['notificationListener'] != true)
+        missing.add('Notification Listener');
 
       if (missing.isEmpty) {
         if (kDebugMode) debugPrint('✅ All permissions granted');
         return;
       }
 
-      // Zara speaks what's missing — guides user
       final list = missing.join(', ');
       await _processResponse(
         'Sir, kuch permissions missing hain: $list. '
         'Settings → Z.A.R.A. → Permissions mein jaake enable kar do. '
         'Bina iske God Mode aur voice kaam nahi karega.'
       );
-
-      if (kDebugMode) debugPrint('⚠️ Missing permissions: $missing');
+      if (kDebugMode) debugPrint('⚠️ Missing: $missing');
     } catch (e) {
       if (kDebugMode) debugPrint('_checkAndGuidePermissions: $e');
     }
