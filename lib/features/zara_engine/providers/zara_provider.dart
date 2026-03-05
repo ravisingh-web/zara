@@ -524,6 +524,19 @@ class ZaraController extends ChangeNotifier {
     }
   }
 
+  // Volume level callback — home screen orb ke liye
+  void Function(double)? onVolumeLevel;
+
+  // Called from home screen speaker icon — re-speaks last response
+  Future<String?> speakLastResponse() async {
+    if (_isSpeaking) return null;
+    final text = _state.lastResponse
+        .replaceAll(RegExp(r'[*\[\]#>]'), '').trim();
+    if (text.isEmpty) return null;
+    unawaited(_tts.speak(text, mood: _state.mood));
+    return text;
+  }
+
   Future<void> processAudio(String audioPath) async {
     _isListening = false;
     _state = _state.copyWith(lastResponse: 'Sun rahi hoon...');
