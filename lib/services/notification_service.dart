@@ -57,6 +57,15 @@ class NotificationService {
     try { await _mainCh.invokeMethod('updateOrb', {'state': state}); } catch (_) {}
   }
 
+  // Audio amplitude → overlay orb reacts in real-time
+  // amplitude: 0.0 (silent) → 1.0 (loudest)
+  // Call this from ZaraTtsService during playback
+  Future<void> updateOrbAmplitude(double amplitude) async {
+    try {
+      await _mainCh.invokeMethod('updateOrbAmplitude', {'amplitude': amplitude});
+    } catch (_) {}
+  }
+
   // Overlay permission
   Future<bool> hasOverlayPermission() async {
     try { return await _mainCh.invokeMethod<bool>('checkOverlayPermission') ?? false; }
