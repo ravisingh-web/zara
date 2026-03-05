@@ -373,19 +373,29 @@ class ZaraOrbView(
     fun setState(s: String) {
         if (state == s) return
         state = s
-        // Start/stop animators based on state
         when (s) {
             "listening" -> {
                 if (!ringAnimator.isRunning) ringAnimator.start()
                 arcAnimator.cancel()
+                breathAnimator.start()
             }
             "thinking"  -> {
                 if (!arcAnimator.isRunning) arcAnimator.start()
                 ringAnimator.cancel()
+                breathAnimator.cancel()
             }
             "speaking"  -> {
                 if (!ringAnimator.isRunning) ringAnimator.start()
                 arcAnimator.cancel()
+                breathAnimator.start()
+            }
+            // ✅ "still" — orb bilkul calm, koi animation nahi
+            "still", "idle" -> {
+                ringAnimator.cancel()
+                arcAnimator.cancel()
+                breathAnimator.cancel()
+                ringScale = 1f
+                pulse     = 0.15f   // faint glow only
             }
             else -> {
                 ringAnimator.cancel()
