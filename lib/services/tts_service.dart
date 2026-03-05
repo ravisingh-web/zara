@@ -249,7 +249,7 @@ class ZaraTtsService {
           .first
           .timeout(
             const Duration(seconds: 90),
-            onTimeout: () => const PlayerState(false, ProcessingState.idle),
+            onTimeout: () => PlayerState(false, ProcessingState.idle),
           );
     } catch (e) {
       if (kDebugMode) debugPrint('ZaraTTS _playBytes: $e');
