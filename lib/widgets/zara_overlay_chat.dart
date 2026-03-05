@@ -457,7 +457,7 @@ class _ZaraOverlayChatPanelState extends State<ZaraOverlayChatPanel>
         itemCount: messages.length,
         itemBuilder: (_, i) {
           final m      = messages[i];
-          final isUser = m.isUser;
+          final isUser = m.role == MessageRole.user;
           return Align(
             alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(

@@ -801,11 +801,11 @@ class ZaraController extends ChangeNotifier {
     if (alert.zaraAlert.isEmpty) return;
 
     // Store pending reply context so overlay can show approve/dismiss btns
-    if (alert.pkg.contains('whatsapp') || alert.pkg.contains('telegram') ||
-        alert.pkg.contains('instagram') || alert.pkg.contains('messaging')) {
+    if (alert.package_.contains('whatsapp') || alert.package_.contains('telegram') ||
+        alert.package_.contains('instagram') || alert.package_.contains('messaging')) {
       _pendingReply = PendingReply(
-        app:     alert.appName,
-        pkg:     alert.pkg,
+        app:     alert.app,
+        pkg:     alert.package_,
         contact: alert.title,
         message: alert.text,
       );

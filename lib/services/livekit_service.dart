@@ -50,7 +50,6 @@ class LiveKitService {
           dynacast: true,
           defaultAudioPublishOptions: AudioPublishOptions(
             name: 'zara_mic',
-            audioBitrate: 32000,
           ),
         ),
       );
@@ -158,5 +157,3 @@ class LiveKitService {
 
   Future<void> dispose() async => await disconnect();
 }
-	
-

@@ -223,7 +223,7 @@ class _TopBar extends StatelessWidget {
                   ctrl.wakeWordListening   ? '● Wake Word Active' :
                   '● Ready',
                   style: TextStyle(
-                    color: ctrl.state.isSpeaking    ? AppColors.purplePrimary :
+                    color: ctrl.state.isSpeaking    ? const Color(0xFFBB00FF) :
                            ctrl.isListening         ? AppColors.successGreen  :
                            ctrl.state.isProcessing  ? AppColors.warningOrange :
                            ctrl.realtimeActive      ? AppColors.cyanPrimary.withOpacity(hfGlow.value) :
@@ -584,16 +584,16 @@ class _AgentModeBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-      color: AppColors.purplePrimary.withOpacity(0.12),
+      color: const Color(0xFFBB00FF).withOpacity(0.12),
       child: Row(
         children: [
-          const Icon(Icons.android, color: AppColors.purplePrimary, size: 14),
+          const Icon(Icons.android, color: const Color(0xFFBB00FF), size: 14),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Agent Mode: Zara replies as you on ${ctrl.agentContact}',
               style: const TextStyle(
-                color: AppColors.purplePrimary, fontSize: 10,
+                color: const Color(0xFFBB00FF), fontSize: 10,
                 fontFamily: 'monospace',
               ),
             ),
@@ -602,7 +602,7 @@ class _AgentModeBanner extends StatelessWidget {
             onTap: () => ctrl.receiveCommand('agent mode band karo'),
             child: const Text('STOP',
               style: TextStyle(
-                color: AppColors.purplePrimary, fontSize: 10,
+                color: const Color(0xFFBB00FF), fontSize: 10,
                 fontWeight: FontWeight.bold, fontFamily: 'monospace',
               )),
           ),

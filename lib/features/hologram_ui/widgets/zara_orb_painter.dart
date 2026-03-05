@@ -1,189 +1,239 @@
 // lib/features/hologram_ui/widgets/zara_orb_painter.dart
-// Z.A.R.A. — The Holographic Core & DNA Helix
-// ✅ Video-Matched Vertical DNA Logic
-// ✅ Breathing Neon Core (Voice Synced)
-// ✅ 0% Dummy — High-Performance Custom Rendering
+// Z.A.R.A. Floating Voice-Reactive Orb
+// Reacts to: idle (slow pulse), listening (fast green), speaking (purple wave)
 
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:zara/core/constants/app_colors.dart';
-import 'package:zara/core/enums/mood_enum.dart';
-import 'package:zara/features/hologram_ui/painters/ring_data_painter.dart';
 
-class ZaraOrbWidget extends StatefulWidget {
-  final bool guardianMode;
-  final double pulseValue;
-  final Mood mood;
+// ── ORB STATES ─────────────────────────────────────────────────────────────
+enum OrbState { idle, listening, speaking, thinking }
 
-  const ZaraOrbWidget({
+class ZaraFloatingOrb extends StatefulWidget {
+  final OrbState state;
+  final double   volumeLevel; // 0.0–1.0 from TTS
+  final VoidCallback? onTap;
+
+  const ZaraFloatingOrb({
     super.key,
-    this.guardianMode = false,
-    this.pulseValue = 0.0,
-    required this.mood,
+    this.state       = OrbState.idle,
+    this.volumeLevel = 0.0,
+    this.onTap,
   });
 
   @override
-  State<ZaraOrbWidget> createState() => _ZaraOrbWidgetState();
+  State<ZaraFloatingOrb> createState() => _ZaraFloatingOrbState();
 }
 
-class _ZaraOrbWidgetState extends State<ZaraOrbWidget> with TickerProviderStateMixin {
-  late AnimationController _rotationController;
-  late AnimationController _glowController;
+class _ZaraFloatingOrbState extends State<ZaraFloatingOrb>
+    with TickerProviderStateMixin {
+
+  late AnimationController _pulseCtrl;
+  late AnimationController _ringCtrl;
+  late AnimationController _waveCtrl;
+  late Animation<double>   _pulseAnim;
+  late Animation<double>   _ringAnim;
 
   @override
   void initState() {
     super.initState();
-    _rotationController = AnimationController(
+
+    _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 15),
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+
+    _ringCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
     )..repeat();
 
-    _glowController = AnimationController(
+    _waveCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 800),
     )..repeat(reverse: true);
+
+    _pulseAnim = Tween<double>(begin: 0.85, end: 1.15).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+
+    _ringAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ringCtrl, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void didUpdateWidget(ZaraFloatingOrb old) {
+    super.didUpdateWidget(old);
+    _updateAnimationSpeed();
+  }
+
+  void _updateAnimationSpeed() {
+    switch (widget.state) {
+      case OrbState.listening:
+        _pulseCtrl.duration = const Duration(milliseconds: 400);
+        _pulseCtrl.repeat(reverse: true);
+        break;
+      case OrbState.speaking:
+        _pulseCtrl.duration = const Duration(milliseconds: 600);
+        _pulseCtrl.repeat(reverse: true);
+        break;
+      case OrbState.thinking:
+        _pulseCtrl.duration = const Duration(milliseconds: 900);
+        _pulseCtrl.repeat(reverse: true);
+        break;
+      case OrbState.idle:
+        _pulseCtrl.duration = const Duration(milliseconds: 1800);
+        _pulseCtrl.repeat(reverse: true);
+        break;
+    }
   }
 
   @override
   void dispose() {
-    _rotationController.dispose();
-    _glowController.dispose();    super.dispose();
+    _pulseCtrl.dispose();
+    _ringCtrl.dispose();
+    _waveCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── COLORS per state ──────────────────────────────────────────────────────
+  Color get _coreColor {
+    switch (widget.state) {
+      case OrbState.listening: return const Color(0xFF00FF88);
+      case OrbState.speaking:  return const Color(0xFFBB00FF);
+      case OrbState.thinking:  return const Color(0xFFFFAA00);
+      case OrbState.idle:      return const Color(0xFF00F0FF);
+    }
+  }
+
+  Color get _glowColor {
+    switch (widget.state) {
+      case OrbState.listening: return const Color(0xFF00FF88).withOpacity(0.4);
+      case OrbState.speaking:  return const Color(0xFFBB00FF).withOpacity(0.5);
+      case OrbState.thinking:  return const Color(0xFFFFAA00).withOpacity(0.4);
+      case OrbState.idle:      return const Color(0xFF00F0FF).withOpacity(0.3);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_rotationController, _glowController]),
-      builder: (context, child) {
-        final combinedPulse = (_glowController.value * 0.3) + (widget.pulseValue * 0.7);
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_pulseAnim, _ringAnim, _waveCtrl]),
+        builder: (_, __) {
+          // Volume boosts pulse when speaking
+          final volumeBoost = widget.state == OrbState.speaking
+              ? (1.0 + widget.volumeLevel * 0.4)
+              : 1.0;
+          final scale = _pulseAnim.value * volumeBoost;
 
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _DNAHelixPainter(
-                  progress: _rotationController.value,
-                  opacity: 0.15,
-                  guardianMode: widget.guardianMode,
-                ),
+          return SizedBox(
+            width: 80, height: 80,
+            child: CustomPaint(
+              painter: _OrbPainter(
+                scale:      scale,
+                ringProgress: _ringAnim.value,
+                wavePhase:  _waveCtrl.value,
+                coreColor:  _coreColor,
+                glowColor:  _glowColor,
+                state:      widget.state,
+                volume:     widget.volumeLevel,
               ),
             ),
-            SizedBox(
-              width: 320,
-              height: 320,
-              child: CustomPaint(
-                painter: RingDataPainter(
-                  animationValue: _rotationController.value,
-                  pulseValue: combinedPulse,
-                  guardianMode: widget.guardianMode,
-                ),
-              ),
-            ),
-            _buildGlowingCore(combinedPulse),
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _ParticleFieldPainter(
-                  progress: _rotationController.value,
-                  pulseValue: combinedPulse,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildGlowingCore(double pulse) {
-    final color = widget.mood.primaryColor;    return Container(
-      width: 60 + (pulse * 15),
-      height: 60 + (pulse * 15),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            Colors.white.withOpacity(0.9),
-            color.withOpacity(0.8),
-            color.withOpacity(0.2),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.2, 0.6, 1.0],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.6),
-            blurRadius: 30 * pulse,
-            spreadRadius: 5 * pulse,
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 }
 
-// 🧬 THE REAL DNA HELIX PAINTER (Matched to Video)
-class _DNAHelixPainter extends CustomPainter {
-  final double progress;
-  final double opacity;
-  final bool guardianMode;
+// ── CUSTOM PAINTER ─────────────────────────────────────────────────────────
+class _OrbPainter extends CustomPainter {
+  final double   scale;
+  final double   ringProgress;
+  final double   wavePhase;
+  final Color    coreColor;
+  final Color    glowColor;
+  final OrbState state;
+  final double   volume;
 
-  _DNAHelixPainter({
-    required this.progress,
-    required this.opacity,
-    this.guardianMode = false,
+  _OrbPainter({
+    required this.scale,
+    required this.ringProgress,
+    required this.wavePhase,
+    required this.coreColor,
+    required this.glowColor,
+    required this.state,
+    required this.volume,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final color = AppColors.neonCyan.withOpacity(opacity);
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r  = size.width * 0.30 * scale;
 
-    const xSpacing = 120.0;
-    for (double y = 0; y < size.height; y += 4) {
-      final waveValue = sin((y * 0.02) + (progress * 2 * pi));      final x1 = center.dx + (waveValue * xSpacing / 2);
-      final x2 = center.dx - (waveValue * xSpacing / 2);
-      if (y % 20 == 0) {
-        canvas.drawLine(Offset(x1, y), Offset(x2, y), paint..strokeWidth = 0.5);
+    final paint = Paint()..isAntiAlias = true;
+
+    // 1. Outer glow ring
+    if (state == OrbState.speaking || state == OrbState.listening) {
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = glowColor.withOpacity(1.0 - ringProgress);
+      canvas.drawCircle(Offset(cx, cy), r + (12 * ringProgress), paint);
+    }
+
+    // 2. Glow halo
+    paint
+      ..style  = PaintingStyle.fill
+      ..shader = RadialGradient(
+          colors: [glowColor, Colors.transparent],
+          stops:  const [0.5, 1.0],
+        ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r * 1.6));
+    canvas.drawCircle(Offset(cx, cy), r * 1.6, paint);
+
+    // 3. Core orb
+    paint.shader = RadialGradient(
+      colors: [Colors.white.withOpacity(0.9), coreColor, coreColor.withOpacity(0.3)],
+      stops:  const [0.0, 0.5, 1.0],
+    ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+    canvas.drawCircle(Offset(cx, cy), r, paint);
+    paint.shader = null;
+
+    // 4. Voice wave bars when speaking
+    if (state == OrbState.speaking && volume > 0.05) {
+      paint
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..strokeCap   = StrokeCap.round
+        ..color       = Colors.white.withOpacity(0.7);
+
+      const bars   = 5;
+      const barW   = 3.0;
+      final totalW = bars * barW * 2.5;
+      final startX = cx - totalW / 2;
+
+      for (int i = 0; i < bars; i++) {
+        final x      = startX + i * barW * 2.5;
+        final phase  = wavePhase * 2 * pi + i * 0.8;
+        final height = r * 0.5 * (0.3 + 0.7 * (sin(phase).abs() * volume));
+        canvas.drawLine(
+          Offset(x, cy - height),
+          Offset(x, cy + height),
+          paint,
+        );
       }
-      canvas.drawCircle(Offset(x1, y), 1, paint..style = PaintingStyle.fill);
-      canvas.drawCircle(Offset(x2, y), 1, paint..style = PaintingStyle.fill);
     }
+
+    // 5. Inner bright spot
+    paint
+      ..style  = PaintingStyle.fill
+      ..color  = Colors.white.withOpacity(0.8);
+    canvas.drawCircle(Offset(cx - r * 0.2, cy - r * 0.2), r * 0.18, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _DNAHelixPainter oldDelegate) => true;
-}
-
-// ✨ THE CYBER PARTICLE PAINTER
-class _ParticleFieldPainter extends CustomPainter {
-  final double progress;
-  final double pulseValue;
-  final Random _rnd = Random(42);
-
-  _ParticleFieldPainter({
-    required this.progress,
-    required this.pulseValue,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final paint = Paint()..color = AppColors.neonCyan.withOpacity(0.3 * pulseValue);
-
-    for (int i = 0; i < 25; i++) {
-      final angle = _rnd.nextDouble() * 2 * pi + (progress * pi);
-      final radius = 90 + _rnd.nextDouble() * 100;
-      final x = center.dx + radius * cos(angle);
-      final y = center.dy + radius * sin(angle);
-      canvas.drawCircle(Offset(x, y), _rnd.nextDouble() * 1.5, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ParticleFieldPainter oldDelegate) => true;
+  bool shouldRepaint(_OrbPainter old) => true;
 }
