@@ -23,4 +23,13 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }
 
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://alphacephei.com/maven/") }
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+
 include(":app")

@@ -81,6 +81,6 @@ dependencies {
     // Fully FREE — no API key, no internet required for wake word detection
     // Model: https://alphacephei.com/vosk/models → vosk-model-small-en-in-0.4
     // Place unzipped as: android/app/src/main/assets/model/
-    implementation("net.java.dev.jna:jna:5.13.0@aar")
-    implementation("org.vosk:vosk-android:0.3.47")
+    
+    implementation("com.alphacep:vosk-android:0.3.47")
 }
