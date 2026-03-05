@@ -293,9 +293,6 @@ class AccessibilityService {
     }
   }
 
-  // ── Agent Message Handler — native fires this when WA message arrives ─────
-  void Function(String contact, String message)? _agentHandler;
-
   // ── Wake Word Engine ──────────────────────────────────────────────────────
   Future<bool> startWakeWord() async {
     try { return await _ch.invokeMethod<bool>('startWakeWord') ?? false; }
@@ -366,19 +363,11 @@ class AccessibilityService {
 
   void Function(String, String)? _agentHandler;
 
+  // Call this to register agent message handler AFTER setWakeWordHandlers
   void setAgentMessageHandler(void Function(String, String) handler) {
     _agentHandler = handler;
-    // Listen for native onAgentMessageReceived events
-    _ch.setMethodCallHandler((call) async {
-      if (call.method == 'onAgentMessageReceived') {
-        final args    = Map<String, dynamic>.from(call.arguments as Map);
-        final contact = args['contact']?.toString() ?? '';
-        final message = args['message']?.toString() ?? '';
-        if (contact.isNotEmpty && message.isNotEmpty) {
-          _agentHandler?.call(contact, message);
-        }
-      }
-    });
+    // _agentHandler is already called inside setWakeWordHandlers switch-case
+    // No new setMethodCallHandler needed — would overwrite wake word handler
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -412,4 +401,4 @@ class AccessibilityService {
       return false;
     }
   }
-}}
+}

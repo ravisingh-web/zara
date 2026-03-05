@@ -157,8 +157,8 @@ class ZaraController extends ChangeNotifier {
       final msg = 'Sir, Google Sheets mein naya row aaya: $rowText';
       _processResponse(msg);
     };
-    if (kDebugMode) debugPrint('AutomationService: pipedream=${ApiKeys.pipedreamReady}, sheets=${ApiKeys.sheetsReady}');
-    if (ApiKeys.pipedreamReady && ApiKeys.sheetsReady) {
+    if (kDebugMode) debugPrint('AutomationService: n8n=${ApiKeys.n8nReady}, sheets=${ApiKeys.sheetsReady}');
+    if (ApiKeys.n8nReady && ApiKeys.sheetsReady) {
       _auto.startPolling();
     }
     // Whisper 5s chunks → onTranscription → receiveCommand
@@ -211,7 +211,7 @@ class ZaraController extends ChangeNotifier {
     // ── Wake Word engine — auto start ──────────────────────────────────────
     // Porcupine (preferred) OR VAD+Whisper fallback
     // Both paths use startWakeWord() on native side
-    if (ApiKeys.porcupineKey.isNotEmpty || ApiKeys.openaiKey.isNotEmpty) {
+    if (ApiKeys.openaiKey.isNotEmpty) {
       Future.delayed(const Duration(seconds: 2), () {
         if (!_disposed) startWakeWordEngine();
       });
@@ -787,8 +787,8 @@ class ZaraController extends ChangeNotifier {
       unawaited(_tts.speak(aiMessage, mood: _state.mood));
     }
 
-    // Log to PipeDream/Sheets — non-blocking
-    if (ApiKeys.pipedreamReady) {
+    // Log to n8n/Sheets — non-blocking
+    if (ApiKeys.n8nReady) {
       unawaited(_auto.logConversation(_state.lastCommand, aiMessage));
     }
   }

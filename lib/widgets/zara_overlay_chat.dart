@@ -17,7 +17,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:zara/core/theme/app_colors.dart';
+import 'package:zara/core/constants/app_colors.dart';
 import 'package:zara/features/zara_engine/models/zara_state.dart';
 import 'package:zara/features/zara_engine/providers/zara_provider.dart';
 
