@@ -239,6 +239,10 @@ class AccessibilityService {
   Future<bool> openSettings2() => openApp('com.android.settings');
   Future<bool> openCamera()    => openApp('com.android.camera2');
 
+  // ── YouTube ────────────────────────────────────────────────────────────────
+  Future<bool> youtubeSearch(String q)  => _callBool('youtubeSearch',  {'query': q});
+  Future<bool> youtubePlayFirst()        => _callBool('youtubePlayFirst');
+
   // ── Instagram ──────────────────────────────────────────────────────────────
   Future<bool> instagramOpenReels()           => _callBool('instagramOpenReels');
   Future<bool> instagramScrollReels(int n)    => _callBool('instagramScrollReels', {'count': n});
@@ -306,25 +310,6 @@ class AccessibilityService {
       }
     });
   }
-
-  // ── Permission Status (from native) ───────────────────────────────────────
-  Future<Map<String, bool>> getPermissionStatus() async {
-    try {
-      final raw = await _ch.invokeMethod<Map>('getPermissionStatus');
-      if (raw == null) return _defaultPerms();
-      return {
-        'accessibility': raw['accessibility'] == true,
-        'microphone':    raw['microphone']    == true,
-        'storage':       raw['storage']       == true,
-        'overlay':       raw['overlay']       == true,
-      };
-    } catch (_) { return _defaultPerms(); }
-  }
-
-  Map<String, bool> _defaultPerms() => {
-    'accessibility': false, 'microphone': false,
-    'storage': false,       'overlay': false,
-  };
 
   // ══════════════════════════════════════════════════════════════════════════
   // STATUS MAP
