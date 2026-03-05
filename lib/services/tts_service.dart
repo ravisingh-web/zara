@@ -223,11 +223,10 @@ class ZaraTtsService {
   Future<void> _playBytes(Uint8List bytes) async {
     if (_stopFlag || _disposed) return;
 
-    File? tmp;
     try {
       final dir  = await getTemporaryDirectory();
       final path = '${dir.path}/zara_tts_${DateTime.now().millisecondsSinceEpoch}.mp3';
-      tmp = File(path);
+      final tmp  = File(path);
       await tmp.writeAsBytes(bytes, flush: true);
       _tmpFiles.add(tmp);
 
@@ -236,20 +235,19 @@ class ZaraTtsService {
       final player = _player;
       if (player == null) return;
 
-      // setFilePath on existing player — fast, no re-init
       await player.setFilePath(path);
       await player.seek(Duration.zero);
       await player.play();
 
-      // Wait until this chunk finishes playing
+      // ✅ FIX: Wait for 'playing' state first, THEN wait for 'completed'
+      // Problem was: 'idle' fires BEFORE play() starts, causing premature exit
+      // Solution: skip idle, only stop on 'completed' or if _stopFlag set
       await player.playerStateStream
-          .where((s) =>
-              s.processingState == ProcessingState.completed ||
-              s.processingState == ProcessingState.idle)
+          .where((s) => s.processingState == ProcessingState.completed)
           .first
           .timeout(
             const Duration(seconds: 90),
-            onTimeout: () => PlayerState(false, ProcessingState.idle),
+            onTimeout: () => PlayerState(false, ProcessingState.completed),
           );
     } catch (e) {
       if (kDebugMode) debugPrint('ZaraTTS _playBytes: $e');

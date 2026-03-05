@@ -15,9 +15,6 @@ package com.mahakal.zara
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -29,7 +26,6 @@ import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import androidx.core.app.NotificationCompat
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
@@ -92,13 +88,13 @@ class ZaraAccessibilityService : AccessibilityService() {
             packageNames        = null
         }
 
-        createNotificationChannel()
-        startForeground(1001, buildNotification("Z.A.R.A. God Mode", "Device Control Active"))
+        // ❌ DO NOT call startForeground() here — AccessibilityService manages
+        //    its own lifecycle. Calling startForeground() causes "malfunctioning"
+        //    crash on Android 12+. Foreground notification is handled by
+        //    ZaraForegroundService separately.
+
         isMonitoring = true
-
-        // Race condition fix — attach to pending engine if already configured
         pendingEngine?.let { attachToEngine(it) }
-
         Log.d(TAG, "God Mode ACTIVE ✅")
         sendEvent("onServiceStatusChanged", mapOf("enabled" to true))
     }
@@ -621,19 +617,4 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private fun int(args: Map<String, Any>, key: String, default: Int = 0) =
         (args[key] as? Int) ?: args[key]?.toString()?.toIntOrNull() ?: default
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val ch = NotificationChannel(
-            "zara_god", "Z.A.R.A. God Mode", NotificationManager.IMPORTANCE_LOW
-        ).apply { description = "Screen control active"; setShowBadge(false) }
-        getSystemService(NotificationManager::class.java)?.createNotificationChannel(ch)
-    }
-
-    private fun buildNotification(title: String, text: String): Notification =
-        NotificationCompat.Builder(this, "zara_god")
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle(title).setContentText(text)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true).build()
 }
