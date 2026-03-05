@@ -48,6 +48,9 @@ class ZaraForegroundService : Service() {
 
         fun stop(context: Context) =
             context.stopService(Intent(context, ZaraForegroundService::class.java))
+
+        const val ORB_SIZE = 90   // px — orb canvas size
+        const val DOT_SIZE = 24   // px — collapsed dot size
     }
 
     private val handler       = Handler(Looper.getMainLooper())
@@ -291,11 +294,6 @@ class ZaraForegroundService : Service() {
 
     private fun dpToPx(dp: Int): Int =
         (dp * resources.displayMetrics.density).toInt()
-
-    companion object Sizes {
-        const val ORB_SIZE = 90   // px — orb canvas size
-        const val DOT_SIZE = 24   // px — collapsed dot size
-    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
