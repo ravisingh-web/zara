@@ -49,7 +49,6 @@ import kotlin.math.sqrt
 import org.json.JSONObject
 import org.vosk.Model
 import org.vosk.Recognizer
-import org.vosk.android.StorageService
 
 class ZaraAccessibilityService : AccessibilityService() {
 
@@ -236,30 +235,24 @@ class ZaraAccessibilityService : AccessibilityService() {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // WAKE WORD ENGINE — Vosk Offline Speech Recognition (FREE, no API key)
+    // WAKE WORD ENGINE — Vosk Offline STT (com.alphacephei:vosk-android:0.3.75)
     // ══════════════════════════════════════════════════════════════════════════
     //
-    // Setup (one-time):
-    //   1. Add to build.gradle.kts:
-    //        implementation("net.java.dev.jna:jna:5.13.0@aar")
-    //        implementation("org.vosk:vosk-android:0.3.47")
-    //   2. Download Vosk small model (50MB, English+Hindi):
-    //        https://alphacephei.com/vosk/models → vosk-model-small-en-in-0.4
-    //   3. Unzip → rename folder to "model" → place in:
-    //        android/app/src/main/assets/model/
-    //   4. No API key needed. Fully offline.
+    // Setup:
+    //   1. Model already in: android/app/src/main/assets/model/
+    //      (vosk-model-small-en-in-0.4 — am/ conf/ graph/ ivector/ README)
+    //   2. No API key needed — 100% offline
     //
-    // How it works:
-    //   AudioRecord (16kHz mono PCM) → Vosk Recognizer → partial text
-    //   If partial text contains WAKE_WORDS → fire wake sequence
-    //   Same sendEvent("wake_word_detected") as before → zero Flutter changes
+    // Flow: AudioRecord → Vosk Recognizer → partial text
+    //       "hi zara"/"sunna" match → wake_word_detected → ElevenLabs speaks
+    //   Fallback: if model missing → VAD + PCM → Flutter → Whisper
     // ══════════════════════════════════════════════════════════════════════════
 
     private var voskModel      : Model?      = null
     private var voskRecognizer : Recognizer? = null
     private var audioRecord    : AudioRecord? = null
     private val SAMPLE_RATE    = 16000
-    private val FRAME_SIZE     = 4096   // Vosk prefers larger frames
+    private val FRAME_SIZE     = 4096
     private val ENERGY_THRESHOLD = 600.0
 
     private fun startWakeWordEngine() {
@@ -271,31 +264,22 @@ class ZaraAccessibilityService : AccessibilityService() {
             return
         }
         wakeWordActive = true
-
-        // Initialize Vosk model from assets asynchronously
         serviceScope.launch(Dispatchers.IO) { _initVoskAndListen() }
         sendEvent("onWakeWordEngineChanged", mapOf("active" to true))
         Log.d(TAG, "🎙️ Vosk wake word engine starting...")
     }
 
     private suspend fun _initVoskAndListen() {
-        // Vosk StorageService unpacks model from assets to internal storage
-        // Model folder must be at: android/app/src/main/assets/model/
         try {
-            // Check if model assets exist
             val modelFiles = try { assets.list("model") ?: emptyArray() }
                              catch (_: Exception) { emptyArray<String>() }
 
             if (modelFiles.isEmpty()) {
-                Log.w(TAG, "Vosk: 'model' folder not found in assets → VAD fallback")
-                Log.w(TAG, "Download: https://alphacephei.com/vosk/models")
-                Log.w(TAG, "Place at: android/app/src/main/assets/model/")
-                // Fall back to energy VAD + PCM → Flutter path
-                wakeWordVadLoop()
-                return
+                Log.w(TAG, "Vosk: assets/model/ not found → VAD fallback")
+                wakeWordVadLoop(); return
             }
 
-            // Unpack model from assets to internal storage (only on first run)
+            // Unpack model from assets to internal storage (first run only)
             val modelDir = "${filesDir.absolutePath}/vosk_model"
             _unpackVoskModel(modelDir)
 
@@ -303,57 +287,45 @@ class ZaraAccessibilityService : AccessibilityService() {
                 try {
                     voskModel      = Model(modelDir)
                     voskRecognizer = Recognizer(voskModel, SAMPLE_RATE.toFloat())
-                    // Set grammar to ONLY recognize wake words → much faster + accurate
-                    // Small vocabulary = very low CPU usage
+                    // Restrict grammar to wake words only → faster + lower CPU
                     voskRecognizer?.setGrammar(
-                        """["hi zara", "hii zara", "hey zara", "sunna", "suno", "zara", "[unk]"]"""
+                        """["hi zara", "hii zara", "hey zara", "sunna", "suno", "[unk]"]"""
                     )
-                    Log.d(TAG, "✅ Vosk model loaded — wake word detection active")
+                    Log.d(TAG, "✅ Vosk loaded — say 'Hi Zara' or 'Sunna'")
                     serviceScope.launch(Dispatchers.IO) { voskListenLoop() }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Vosk model init failed: $e → VAD fallback")
+                    Log.e(TAG, "Vosk init failed: $e → VAD fallback")
                     serviceScope.launch(Dispatchers.IO) { wakeWordVadLoop() }
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Vosk init error: $e → VAD fallback")
+            Log.e(TAG, "Vosk error: $e → VAD fallback")
             serviceScope.launch(Dispatchers.IO) { wakeWordVadLoop() }
         }
     }
 
-    // Unpack Vosk model from APK assets to internal storage
-    // Only copies if not already present (idempotent)
     private fun _unpackVoskModel(destDir: String) {
         val dest = java.io.File(destDir)
-        if (dest.exists() && dest.list()?.isNotEmpty() == true) {
-            Log.d(TAG, "Vosk: model already unpacked at $destDir")
-            return
-        }
+        if (dest.exists() && dest.list()?.isNotEmpty() == true) return
         dest.mkdirs()
-        Log.d(TAG, "Vosk: unpacking model assets → $destDir")
         _copyAssetsDir("model", dest)
+        Log.d(TAG, "Vosk: model unpacked → $destDir")
     }
 
     private fun _copyAssetsDir(assetPath: String, dest: java.io.File) {
         val list = try { assets.list(assetPath) ?: return } catch (_: Exception) { return }
         if (list.isEmpty()) {
-            // It's a file
             try {
                 assets.open(assetPath).use { input ->
-                    java.io.File(dest.parentFile, dest.name).outputStream().use { out ->
-                        input.copyTo(out)
-                    }
+                    dest.outputStream().use { input.copyTo(it) }
                 }
-            } catch (e: Exception) { Log.e(TAG, "_copyAssetsDir file: $e") }
+            } catch (e: Exception) { Log.e(TAG, "_copyAssets: $e") }
             return
         }
         dest.mkdirs()
-        list.forEach { child ->
-            _copyAssetsDir("$assetPath/$child", java.io.File(dest, child))
-        }
+        list.forEach { child -> _copyAssetsDir("$assetPath/$child", java.io.File(dest, child)) }
     }
 
-    // Main Vosk listening loop — runs on IO dispatcher
     private suspend fun voskListenLoop() {
         val bufSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -369,23 +341,16 @@ class ZaraAccessibilityService : AccessibilityService() {
             Log.e(TAG, "Vosk AudioRecord: $e"); wakeWordActive = false; return
         }
 
-        val pcm      = ByteArray(FRAME_SIZE * 2) // 16-bit = 2 bytes per sample
-        val pcmShort = ShortArray(FRAME_SIZE)
-        Log.d(TAG, "🎙️ Vosk listening loop ACTIVE — say 'Hi Zara' or 'Sunna'")
+        val pcm = ByteArray(FRAME_SIZE * 2)
+        Log.d(TAG, "🎙️ Vosk listening — say 'Hi Zara' or 'Sunna'")
 
-        while (wakeWordActive && isActive) {
+        while (wakeWordActive && currentCoroutineContext().isActive) {
             val read = audioRecord?.read(pcm, 0, pcm.size) ?: -1
             if (read <= 0) { delay(10); continue }
 
-            // Energy gate — skip silence to save CPU
-            val energy = computeRmsBytes(pcm, read)
-            if (energy < ENERGY_THRESHOLD) continue
-
             val recognizer = voskRecognizer ?: break
-
-            // Feed to Vosk
-            val isFinal = recognizer.acceptWaveForm(pcm, read)
-            val json = if (isFinal) recognizer.result else recognizer.partialResult
+            val isFinal    = recognizer.acceptWaveForm(pcm, read)
+            val json       = if (isFinal) recognizer.result else recognizer.partialResult
 
             try {
                 val text = JSONObject(json)
@@ -395,22 +360,17 @@ class ZaraAccessibilityService : AccessibilityService() {
                 if (text.isNotEmpty()) {
                     val matched = WAKE_WORDS.firstOrNull { text.contains(it) }
                     if (matched != null) {
-                        Log.d(TAG, "🔔 Vosk wake word: '$matched' in '$text'")
+                        Log.d(TAG, "🔔 Vosk: '$matched' detected")
                         withContext(Dispatchers.Main) {
-                            sendEvent("wake_word_detected", mapOf(
-                                "transcript" to text,
-                                "word"       to matched
-                            ))
+                            sendEvent("wake_word_detected",
+                                mapOf("transcript" to text, "word" to matched))
                         }
-                        // Reset recognizer after wake word hit to clear buffer
                         recognizer.reset()
-                        // Brief cooldown — don't fire twice
-                        delay(2000)
+                        delay(2000) // cooldown
                     }
                 }
             } catch (_: Exception) {}
         }
-
         try { audioRecord?.stop(); audioRecord?.release() } catch (_: Exception) {}
         audioRecord = null
     }
@@ -418,18 +378,16 @@ class ZaraAccessibilityService : AccessibilityService() {
     private fun stopWakeWordEngine() {
         wakeWordActive = false
         wakeListenJob?.cancel(); wakeListenJob = null
-        try {
-            voskRecognizer?.close(); voskRecognizer = null
-            voskModel?.close();      voskModel      = null
-        } catch (_: Exception) {}
-        try { audioRecord?.stop(); audioRecord?.release() } catch (_: Exception) {}
+        try { voskRecognizer?.close(); voskRecognizer = null } catch (_: Exception) {}
+        try { voskModel?.close();      voskModel      = null } catch (_: Exception) {}
+        try { audioRecord?.stop();     audioRecord?.release() } catch (_: Exception) {}
         audioRecord = null
         Log.d(TAG, "🎙️ Wake word engine STOPPED")
         sendEvent("onWakeWordEngineChanged", mapOf("active" to false))
     }
 
-    // ── VAD Fallback — used when Vosk model not found in assets ──────────────
-    // Sends PCM to Flutter → Flutter → Whisper → onWakeWordTranscript() callback
+    // VAD fallback — when Vosk model not in assets
+    // Sends PCM to Flutter → Whisper transcribes → onWakeWordTranscript()
     private suspend fun wakeWordVadLoop() {
         val bufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -442,7 +400,7 @@ class ZaraAccessibilityService : AccessibilityService() {
                 AudioFormat.ENCODING_PCM_16BIT, bufferSize)
             audioRecord!!.startRecording()
         } catch (e: Exception) {
-            Log.e(TAG, "VAD AudioRecord init: $e"); wakeWordActive = false; return
+            Log.e(TAG, "VAD init: $e"); wakeWordActive = false; return
         }
 
         val pcm       = ShortArray(512)
@@ -452,12 +410,11 @@ class ZaraAccessibilityService : AccessibilityService() {
 
         Log.d(TAG, "🎙️ VAD fallback loop active")
 
-        while (wakeWordActive && isActive) {
+        while (wakeWordActive && currentCoroutineContext().isActive) {
             val read = audioRecord?.read(pcm, 0, 512) ?: -1
             if (read <= 0) { delay(10); continue }
 
             val rms = computeRms(pcm, read)
-
             if (rms > ENERGY_THRESHOLD) {
                 speaking = true; silenceMs = 0L
                 speechBuf.add(pcm.copyOf(read))
@@ -483,12 +440,11 @@ class ZaraAccessibilityService : AccessibilityService() {
         audioRecord = null
     }
 
-    // Called from Flutter after Whisper transcribes PCM (VAD path only)
     fun onWakeWordTranscript(transcript: String) {
         val lower = transcript.lowercase().trim()
         val match = WAKE_WORDS.any { lower.contains(it) }
         if (match) {
-            Log.d(TAG, "🔔 Wake word matched via Flutter: '$lower'")
+            Log.d(TAG, "🔔 Wake word (VAD path): '$lower'")
             sendEvent("wake_word_detected", mapOf("transcript" to transcript, "word" to lower))
         }
     }
@@ -497,17 +453,6 @@ class ZaraAccessibilityService : AccessibilityService() {
         var sum = 0.0
         for (i in 0 until len) sum += (pcm[i].toLong() * pcm[i].toLong()).toDouble()
         return kotlin.math.sqrt(sum / len)
-    }
-
-    private fun computeRmsBytes(bytes: ByteArray, len: Int): Double {
-        var sum = 0.0
-        var i   = 0
-        while (i < len - 1) {
-            val sample = (bytes[i].toInt() and 0xFF) or (bytes[i + 1].toInt() shl 8)
-            sum += (sample.toLong() * sample.toLong()).toDouble()
-            i += 2
-        }
-        return kotlin.math.sqrt(sum / (len / 2.0))
     }
 
     private fun shortsToBytes(shorts: ShortArray): ByteArray {
