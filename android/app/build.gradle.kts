@@ -1,10 +1,6 @@
 // android/app/build.gradle.kts
-// Z.A.R.A. v8.0 — Android Build Config
-// ✅ targetSdk 35  — Android 15 ready, "keeps stopping" FIXED
-// ✅ compileSdk 35 — aligned (was 36 vs targetSdk 33 = mismatch crash)
-// ✅ coreLibraryDesugaringEnabled = true (just_audio + record need this)
-// ✅ Java 17 / Kotlin 17
-// ✅ minSdk 24 — covers 99%+ active devices
+// Z.A.R.A. v9.0 — Android Build Config
+// Wake Word: Energy VAD + Whisper (no Vosk dependency needed)
 
 plugins {
     id("com.android.application")
@@ -32,7 +28,7 @@ android {
         minSdk        = 24
         targetSdk     = 35
         versionCode   = 1
-        versionName   = "8.0.0"
+        versionName   = "9.0.0"
     }
 
     buildTypes {
@@ -70,23 +66,15 @@ flutter {
     source = "../.."
 }
 
-repositories {
-    google()
-    mavenCentral()
-    maven { url = uri("https://alphacephei.com/maven/") }
-    maven { url = uri("https://jitpack.io") }
-}
-
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
     implementation("androidx.core:core-ktx:1.13.1")
-    // Coroutines — required by ZaraAccessibilityService
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     // ── Vosk — Offline Wake Word Detection ("Hii Zara", "Sunna") ─────────────
-    // FREE, no API key, fully offline
+    // Maven Central pe available: com.alphacephei:vosk-android:0.3.75
     // Model: https://alphacephei.com/vosk/models → vosk-model-small-en-in-0.4
     // Place unzipped as: android/app/src/main/assets/model/
-    implementation("com.alphacep:vosk-android:0.3.47")
+    implementation("com.alphacephei:vosk-android:0.3.75")
 }
