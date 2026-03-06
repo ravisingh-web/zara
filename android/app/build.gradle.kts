@@ -70,17 +70,23 @@ flutter {
     source = "../.."
 }
 
+repositories {
+    google()
+    mavenCentral()
+    maven { url = uri("https://alphacephei.com/maven/") }
+    maven { url = uri("https://jitpack.io") }
+}
+
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
     implementation("androidx.core:core-ktx:1.13.1")
-    // Coroutines — required by ZaraAccessibilityService (replaces Thread.sleep)
+    // Coroutines — required by ZaraAccessibilityService
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     // ── Vosk — Offline Wake Word Detection ("Hii Zara", "Sunna") ─────────────
-    // Fully FREE — no API key, no internet required for wake word detection
+    // FREE, no API key, fully offline
     // Model: https://alphacephei.com/vosk/models → vosk-model-small-en-in-0.4
     // Place unzipped as: android/app/src/main/assets/model/
-    
     implementation("com.alphacep:vosk-android:0.3.47")
 }
