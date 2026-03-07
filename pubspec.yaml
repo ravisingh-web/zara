@@ -30,7 +30,7 @@ dependencies:
   record: ^6.2.0
 
   # ── LiveKit — real-time voice room ─────────────────────────────────────────
-  livekit_client: ^2.4.3
+  livekit_client: ^2.6.4
 
   # ── Permissions ────────────────────────────────────────────────────────────
   permission_handler: ^11.3.1

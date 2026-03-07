@@ -20,6 +20,7 @@ import 'package:zara/features/zara_engine/providers/zara_provider.dart';
 import 'package:zara/features/hologram_ui/widgets/zara_orb_painter.dart';
 import 'package:zara/features/hologram_ui/widgets/central_response_panel.dart';
 import 'package:zara/widgets/zara_overlay_chat.dart';
+import 'package:zara/screens/settings_screen.dart';
 
 class ZaraHomeScreen extends StatefulWidget {
   const ZaraHomeScreen({super.key});
@@ -252,7 +253,10 @@ class _TopBar extends StatelessWidget {
           // Settings
           IconButton(
             icon: const Icon(Icons.tune, color: AppColors.cyanPrimary, size: 20),
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
             padding: const EdgeInsets.all(6),
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),

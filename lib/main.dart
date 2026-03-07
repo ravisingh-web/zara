@@ -113,6 +113,9 @@ class ZaraApp extends StatelessWidget {
 
       // Home with API Key Guard
       home: const ApiKeyGuard(child: ZaraHomeScreen()),
+      routes: {
+        '/settings': (_) => const SettingsScreen(),
+      },
     );
   }
 }

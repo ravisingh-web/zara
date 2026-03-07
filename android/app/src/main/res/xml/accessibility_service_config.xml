@@ -1,17 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Z.A.R.A. Guardian Mode — Accessibility Service Config -->
-<!-- Comments must be OUTSIDE the tag, not inside attributes -->
 <accessibility-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
-    android:summary="Z.A.R.A. Guardian Mode"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked|typeViewFocused|typeViewTextChanged"
+    android:summary="Z.A.R.A. God Mode — Jarvis-level Android Control"
+    android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagIncludeNotImportantViews|flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:accessibilityFlags="flagIncludeNotImportantViews|flagReportViewIds|flagRetrieveInteractiveWindows|flagRequestFilterKeyEvents"
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
+    android:canRequestFilterKeyEvents="true"
     android:canTakeScreenshot="true"
     android:isAccessibilityTool="true"
-    android:packageNames="com.android.systemui,com.android.keyguard,com.android.settings"
     android:notificationTimeout="100"
     android:settingsActivity="com.mahakal.zara.MainActivity" />

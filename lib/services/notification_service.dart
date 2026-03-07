@@ -18,11 +18,16 @@ class NotificationService {
   // Callback — ZaraController yahan subscribe karega
   void Function(NotificationAlert)? onProactiveAlert;
 
+  static const _fgCh    = MethodChannel('com.mahakal.zara/foreground');
+
   bool _initialized = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
     _notifCh.setMethodCallHandler(_onNativeCall);
+    // ✅ FIX: ForegroundService sends on /foreground channel, not /notifications
+    // requestWakeWordStart and onForegroundStarted come from ZaraForegroundService
+    _fgCh.setMethodCallHandler(_onNativeCall);
     _initialized = true;
     if (kDebugMode) debugPrint('NotificationService ✅ initialized');
   }
