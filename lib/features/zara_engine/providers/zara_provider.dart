@@ -64,6 +64,13 @@ enum GodCommand {
   whatsappSend,
   whatsappVoiceCall,
   whatsappVideoCall,
+  // ── Vision commands ──────────────────────────────────────────────────────
+  clickById,        // CLICK_BY_ID,ID:...
+  clickByText,      // CLICK_BY_TEXT,TEXT:...
+  tapAt,            // TAP_AT,X:...,Y:...
+  typeText,         // TYPE_TEXT,TEXT:...
+  pressBack,        // PRESS_BACK
+  pressHome,        // PRESS_HOME
   unknown,
 }
 
@@ -154,11 +161,14 @@ class ZaraController extends ChangeNotifier {
       _notif.updateOrb('still');
       notifyListeners();
 
-      // ✅ 800ms silence buffer after speaking — prevents Zara hearing herself
-      // Only restart wake word mode if NOT in realtime loop
+      // ✅ 800ms buffer — prevents Zara hearing her own voice echo
+      // Then ACTUALLY restart Vosk engine (not just mode flag)
       if (!_realtimeActive) {
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (!_disposed) _vosk.enterWakeWordMode();
+        Future.delayed(const Duration(milliseconds: 800), () async {
+          if (!_disposed && !_realtimeActive) {
+            _vosk.enterWakeWordMode();
+            await _vosk.start(); // ← restart native Vosk engine
+          }
         });
       }
 
@@ -278,21 +288,34 @@ class ZaraController extends ChangeNotifier {
       _vosk.enterWakeWordMode();
       return;
     }
-    if (kDebugMode) debugPrint('🔔 Wake word: "$transcript"');
+    if (kDebugMode) debugPrint('🔔 Wake: "$transcript" → mic handover');
     _notif.updateOrb('listening');
 
-    // Anjura acknowledgment — non-blocking
-    final acks = ['Ji Ravi ji?', 'Hmm?', 'Haan boliye?', 'Ji?', 'Haan Sir?'];
-    final ack  = acks[DateTime.now().millisecond % acks.length];
-    unawaited(_tts.speak(ack, mood: _state.mood));
+    // ── SEAMLESS MIC HANDOVER ─────────────────────────────────────────────
+    // Vosk holds AudioRecord lock — Whisper CANNOT claim mic until released.
+    //
+    // SEQUENCE (order matters — do NOT reorder):
+    //   1. enterCommandMode() already set by VoskService before this fires
+    //   2. _vosk.stop()     → calls native stopWakeWord → AudioRecord.release()
+    //   3. delay(200ms)     → OS AudioRecord teardown is async on many OEMs;
+    //                         Pixel releases in ~80ms, Samsung/OnePlus needs
+    //                         up to ~180ms. 200ms is safe across all devices.
+    //   4. _whisper.startRecording() → AudioRecord.startRecording() succeeds
+    //
+    // WITHOUT step 2+3:
+    //   Whisper gets AudioRecord(AUDIOFOCUS_LOSS) on Snapdragon
+    //   or AudioRecord.ERROR_INVALID_OPERATION on Exynos.
+    await _vosk.stop();
+    await Future.delayed(const Duration(milliseconds: 200)); // ← 200ms OEM safe
 
-    // Start listening for the actual command
-    if (!_realtimeActive && !_isListening) {
-      await Future.delayed(const Duration(milliseconds: 700));
-      if (!_disposed) {
-        _realtimeActive = true;   // single-shot realtime listen
-        await _startRealtimeListen();
-      }
+    // Wake ack — sayQuick (not speak) so it finishes fast, mic not blocked
+    final acks = ['Ji Sir?', 'Hmm?', 'Haan boliye?', 'Ji?', 'Haan Sir?'];
+    unawaited(_tts.sayQuick(acks[DateTime.now().millisecond % acks.length]));
+
+    // Now Whisper can safely open AudioRecord
+    if (!_realtimeActive && !_isListening && !_disposed) {
+      _realtimeActive = true;
+      await _startRealtimeListen();
     }
   }
 
@@ -479,19 +502,42 @@ class ZaraController extends ChangeNotifier {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SCREEN QUERY
+  // VISION PIPELINE — "The Eyes"
+  //
+  // 1. scanScreen()  → JSON map of ALL clickable elements (x,y coords, IDs)
+  // 2. getScreenContext() → plain text of visible content
+  // 3. Both injected into Gemini prompt → AI knows EXACTLY what's on screen
+  //
+  // Gemini response may include precise COMMAND tags:
+  //   [COMMAND:CLICK_BY_ID,ID:com.whatsapp:id/send]
+  //   [COMMAND:TAP_AT,X:980,Y:1840]
+  //   [COMMAND:CLICK_BY_TEXT,TEXT:Send]
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<String> _handleScreenQuery(String cmd) async {
-    String screenCtx = '';
-    try {
-      screenCtx = await _access.getScreenContext()
-          .timeout(const Duration(seconds: 3), onTimeout: () => '');
-    } catch (_) {}
-    final enriched = screenCtx.isNotEmpty
-        ? '$cmd\n\n[SCREEN_CONTEXT: $screenCtx]' : cmd;
+    // Run both scans in parallel
+    final results = await Future.wait([
+      _access.scanScreen()
+          .timeout(const Duration(seconds: 3), onTimeout: () => '{}'),
+      _access.getScreenContext()
+          .timeout(const Duration(seconds: 2), onTimeout: () => ''),
+    ]);
+
+    final scanJson  = results[0]; // structured JSON → Gemini system prompt
+    final plainText = results[1]; // plain text     → appended to user message
+
+    // User message = command + visible plain text (readable context)
+    final userMsg = plainText.isNotEmpty
+        ? '$cmd\n\n[VISIBLE SCREEN TEXT: $plainText]'
+        : cmd;
+
+    // scanJson → injected into Gemini SYSTEM PROMPT via screenLayout param
+    // Cleaner than embedding JSON inside the user message
     _setMood(Mood.calm);
-    return await _ai.generalQuery(enriched);
+    return await _ai.generalQuery(
+      userMsg,
+      screenLayout: scanJson, // ← Gemini "sees" all elements + coordinates
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -520,7 +566,14 @@ class ZaraController extends ChangeNotifier {
       case 'WHATSAPP_SEND':     return ParsedCommand(GodCommand.whatsappSend,     params);
       case 'WHATSAPP_CALL':     return ParsedCommand(GodCommand.whatsappVoiceCall,params);
       case 'WHATSAPP_VIDEO':    return ParsedCommand(GodCommand.whatsappVideoCall,params);
-      default:                  return const ParsedCommand(GodCommand.unknown,    {});
+      // ── Vision commands ───────────────────────────────────────────────────
+      case 'CLICK_BY_ID':       return ParsedCommand(GodCommand.clickById,   params);
+      case 'CLICK_BY_TEXT':     return ParsedCommand(GodCommand.clickByText, params);
+      case 'TAP_AT':            return ParsedCommand(GodCommand.tapAt,       params);
+      case 'TYPE_TEXT':         return ParsedCommand(GodCommand.typeText,    params);
+      case 'PRESS_BACK':        return ParsedCommand(GodCommand.pressBack,   params);
+      case 'PRESS_HOME':        return ParsedCommand(GodCommand.pressHome,   params);
+      default:                  return const ParsedCommand(GodCommand.unknown, {});
     }
   }
 
@@ -597,6 +650,51 @@ class ZaraController extends ChangeNotifier {
           await _processResponse('$clean\n\n📹 $to ko video call kar rahi hoon…');
           await _access.whatsappVideoCall(to);
         }
+        break;
+
+      // ── Vision commands ───────────────────────────────────────────────────
+
+      case GodCommand.clickById:
+        final id = cmd.params['ID'] ?? '';
+        if (id.isNotEmpty) {
+          await _access.clickById(id);
+          await _processResponse(clean);
+        }
+        break;
+
+      case GodCommand.clickByText:
+        final text = cmd.params['TEXT'] ?? '';
+        if (text.isNotEmpty) {
+          await _access.clickText(text);
+          await _processResponse(clean);
+        }
+        break;
+
+      case GodCommand.tapAt:
+        final x = int.tryParse(cmd.params['X'] ?? '0') ?? 0;
+        final y = int.tryParse(cmd.params['Y'] ?? '0') ?? 0;
+        if (x > 0 && y > 0) {
+          await _access.tapAt(x, y);
+          await _processResponse(clean);
+        }
+        break;
+
+      case GodCommand.typeText:
+        final text = cmd.params['TEXT'] ?? '';
+        if (text.isNotEmpty) {
+          await _access.typeText(text);
+          await _processResponse(clean);
+        }
+        break;
+
+      case GodCommand.pressBack:
+        await _access.pressBack();
+        await _processResponse(clean);
+        break;
+
+      case GodCommand.pressHome:
+        await _access.pressHome();
+        await _processResponse(clean);
         break;
 
       case GodCommand.unknown:

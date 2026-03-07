@@ -148,6 +148,38 @@ class AccessibilityService {
   Future<bool> openQuickSettings() => _invoke('openQuickSettings');
 
   // ══════════════════════════════════════════════════════════════════════════
+  // VISION — SCREEN SCANNER
+  //
+  // Returns JSON string with all interactive elements on screen:
+  // {
+  //   "package": "com.whatsapp",
+  //   "elements": [{"text":"Send","desc":"","id":"com.wa:id/send",
+  //                 "clickable":true,"editable":false,
+  //                 "x":980,"y":1840,"w":120,"h":80},...],
+  //   "editableFields": [...],
+  //   "allText": "all visible text joined",
+  //   "elementCount": 12
+  // }
+  //
+  // ZaraProvider passes this JSON to Gemini so AI knows exactly what
+  // buttons/fields exist and where → Gemini emits precise COMMAND tags
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<String> scanScreen() async {
+    try {
+      final result = await _ch.invokeMethod<String>('scanScreen');
+      final json   = result ?? '{}';
+      if (kDebugMode && json.length > 2) {
+        debugPrint('👁️ scanScreen: ${json.length} chars');
+      }
+      return json;
+    } catch (e) {
+      if (kDebugMode) debugPrint('AccessSvc scanScreen: $e');
+      return '{}';
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // QUERIES
   // ══════════════════════════════════════════════════════════════════════════
 

@@ -155,6 +155,7 @@ class ZaraAccessibilityService : AccessibilityService() {
             "isEnabled"           -> isMonitoring
             "getForegroundApp"    -> currentPackage
             "getScreenContext"    -> getScreenContext()
+            "scanScreen"          -> scanScreen()          // ← NEW: full node map
             "getPermissionStatus" -> getPermissionStatus()
             "findTextOnScreen"    -> safeFind { findNodeWithText(str(args, "text")) } != null
 
@@ -571,7 +572,12 @@ class ZaraAccessibilityService : AccessibilityService() {
                 } else {
                     // ✅ IME_ACTION_SEARCH — not GLOBAL_ACTION(66)
                     val root = rootInActiveWindow
-                    submitSearchField(root)
+                    val submitted = submitSearchField(root)
+                    // ✅ Wait 1200ms for search UI to load results before any
+                    // subsequent click. Without this delay the results list
+                    // hasn't rendered yet and clicks land on stale nodes.
+                    if (submitted) delay(1200)
+                    submitted
                 }
             }
             "TYPE_TEXT"  -> typeInFocused(target)
@@ -1066,6 +1072,121 @@ class ZaraAccessibilityService : AccessibilityService() {
                 android.provider.Settings.canDrawOverlays(this)
         } catch (_: Exception) { false }
         return mapOf("accessibility" to isMonitoring, "microphone" to mic, "overlay" to overlay)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SCREEN SCANNER — "The Eyes" v2.0
+    //
+    // Returns a JSON map of ALL interactive elements on screen:
+    //   {
+    //     "package": "com.whatsapp",
+    //     "elements": [
+    //       { "text":"Send", "desc":"Send message", "id":"com.whatsapp:id/send",
+    //         "clickable":true, "editable":false, "x":980, "y":1840,
+    //         "w":120, "h":80, "depth":5 },
+    //       ...
+    //     ],
+    //     "editableFields": [...],
+    //     "allText": "full screen text joined"
+    //   }
+    //
+    // ZaraProvider passes this JSON to Gemini so AI knows EXACTLY what
+    // buttons exist, where they are, what text is on screen.
+    // Gemini can then say: [COMMAND:CLICK_BY_ID,ID:com.whatsapp:id/send]
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun scanScreen(): String {
+        val root = rootInActiveWindow ?: return "{\"error\":\"no_window\"}"
+        return try {
+            val elements   = mutableListOf<Map<String, Any>>()
+            val editable   = mutableListOf<Map<String, Any>>()
+            val texts      = mutableListOf<String>()
+            val pkg        = currentPackage
+
+            _scanNode(root, elements, editable, texts, 0, 12)
+
+            org.json.JSONObject().apply {
+                put("package",   pkg)
+                put("timestamp", System.currentTimeMillis())
+                put("elements",  org.json.JSONArray().also { arr ->
+                    elements.take(60).forEach { el ->
+                        arr.put(org.json.JSONObject(el))
+                    }
+                })
+                put("editableFields", org.json.JSONArray().also { arr ->
+                    editable.take(10).forEach { el ->
+                        arr.put(org.json.JSONObject(el))
+                    }
+                })
+                put("allText", texts.take(80).joinToString(" | "))
+                put("elementCount", elements.size)
+            }.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "scanScreen: $e")
+            "{\"error\":\"${e.message}\"}"
+        }
+    }
+
+    private fun _scanNode(
+        node    : AccessibilityNodeInfo?,
+        elements: MutableList<Map<String, Any>>,
+        editable: MutableList<Map<String, Any>>,
+        texts   : MutableList<String>,
+        depth   : Int,
+        maxDepth: Int
+    ) {
+        if (node == null || depth > maxDepth) return
+        try {
+            val text  = try { node.text?.toString()?.trim()          } catch (_: Exception) { null }
+            val desc  = try { node.contentDescription?.toString()?.trim() } catch (_: Exception) { null }
+            val resId = try { node.viewIdResourceName?.toString()     } catch (_: Exception) { null }
+            val click = try { node.isClickable } catch (_: Exception) { false }
+            val edit  = try { node.isEditable  } catch (_: Exception) { false }
+            val vis   = try { node.isVisibleToUser } catch (_: Exception) { false }
+
+            if (!vis) return  // skip invisible nodes
+
+            // Collect text for allText
+            if (!text.isNullOrEmpty() && text.length > 1) texts.add(text)
+            else if (!desc.isNullOrEmpty() && desc.length > 1) texts.add(desc)
+
+            // Get bounds for coordinates
+            val bounds = android.graphics.Rect()
+            try { node.getBoundsInScreen(bounds) } catch (_: Exception) {}
+
+            val label = when {
+                !text.isNullOrEmpty() -> text
+                !desc.isNullOrEmpty() -> desc
+                !resId.isNullOrEmpty() -> resId.substringAfterLast("/")
+                else                  -> null
+            }
+
+            if ((click || edit) && bounds.width() > 0 && bounds.height() > 0) {
+                val el = mapOf(
+                    "text"      to (text  ?: ""),
+                    "desc"      to (desc  ?: ""),
+                    "id"        to (resId ?: ""),
+                    "label"     to (label ?: ""),
+                    "clickable" to click,
+                    "editable"  to edit,
+                    "x"         to bounds.centerX(),
+                    "y"         to bounds.centerY(),
+                    "w"         to bounds.width(),
+                    "h"         to bounds.height(),
+                    "depth"     to depth
+                )
+                if (edit) editable.add(el)
+                else      elements.add(el)
+            }
+
+            // Recurse into children
+            val childCount = try { node.childCount } catch (_: Exception) { 0 }
+            for (i in 0 until childCount) {
+                val child = try { node.getChild(i) } catch (_: Exception) { null }
+                _scanNode(child, elements, editable, texts, depth + 1, maxDepth)
+                try { child?.recycle() } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
     }
 
     // ══════════════════════════════════════════════════════════════════════════

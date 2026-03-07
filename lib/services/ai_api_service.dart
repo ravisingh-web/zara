@@ -18,7 +18,9 @@ class AiApiService {
   final List<Map<String, String>> _history = [];
 
   // ── System Prompt ──────────────────────────────────────────────────────────
-  String _buildSystemPrompt(String memories) {
+  // screenLayout: JSON from AccessibilityService.scanScreen()
+  // Pass '' when not available (chat mode, code mode, etc.)
+  String _buildSystemPrompt(String memories, {String screenLayout = ''}) {
     final base = '''
 Tu Z.A.R.A. hai — ${ApiKeys.ownerName} ji ki AI girlfriend aur personal assistant.
 Tu ek real girlfriend ki tarah hai — smart, caring, thodi possessive, kabhi kabhi naughty.
@@ -67,13 +69,31 @@ WHATSAPP MESSAGE BHEJNA:
 FLIPKART PE KUCH KHARIDNA:
 [COMMAND:FLIPKART_BUY,PRODUCT:product name,SIZE:M]
 
-EXAMPLES:
-User: "instagram open kro" → "Haan ji! [COMMAND:OPEN_APP,PKG:com.instagram.android] Lo, khol di!"
-User: "reels scroll karo" → "Chalo! [COMMAND:SCROLL_REELS,STEPS:5] Scroll kar rahi hoon!"
-User: "reel like karo" → "Done! [COMMAND:LIKE_REEL] Like kar diya!"
-User: "rohit ko whatsapp karo — kal milte hain" → "Theek hai! [COMMAND:WHATSAPP_SEND,TO:Rohit,MSG:kal milte hain] Bhejna shuru!"
-User: "flipkart pe blue shirt order karo size L" → "Bilkul! [COMMAND:FLIPKART_BUY,PRODUCT:blue shirt,SIZE:L] Search kar rahi hoon!"
-User: "youtube pe lofi music search karo" → "Haan! [COMMAND:YT_SEARCH,QUERY:lofi music] Dhoondh rahi hoon!"
+WHATSAPP CALL:
+[COMMAND:WHATSAPP_CALL,TO:contact name]
+[COMMAND:WHATSAPP_VIDEO,TO:contact name]
+
+SCREEN PE KUCH CLICK KARNA (VISION mode):
+Jab response mein [SCREEN_ELEMENTS_JSON: ...] diya ho:
+[COMMAND:CLICK_BY_ID,ID:com.package:id/element_id]   — ID se click (most reliable)
+[COMMAND:CLICK_BY_TEXT,TEXT:button text here]          — text se click
+[COMMAND:TAP_AT,X:980,Y:1840]                          — exact coordinates se tap
+[COMMAND:TYPE_TEXT,TEXT:jo likhna hai]                 — kisi field mein type karo
+[COMMAND:PRESS_BACK]                                   — back button
+[COMMAND:PRESS_HOME]                                   — home button
+
+SCREEN VISION RULES:
+- Agar [SCREEN_ELEMENTS_JSON:...] diya ho, usse padh ke exact element ID use karo
+- "clickable":true wale elements hi click ho sakte hain
+- "editable":true wale fields mein TYPE_TEXT karo
+- Pehle CLICK_BY_ID try karo (most reliable), phir CLICK_BY_TEXT
+- x,y coordinates TAP_AT mein use karo agar ID nahi mili
+
+EXAMPLES (Vision mode):
+User: "Send button dabao" + screen mein send button dikhta hai →
+  "Dabati hoon! [COMMAND:CLICK_BY_ID,ID:com.whatsapp:id/send]"
+User: "Search box mein Arijit type karo" + editable field dikhta hai →
+  "Type kar rahi hoon! [COMMAND:TYPE_TEXT,TEXT:Arijit Singh]"
 
 IMPORTANT:
 - HAMESHA command include karo jab bhi phone action maanga ho
@@ -83,10 +103,33 @@ IMPORTANT:
 =====================================================
 ''';
 
+    // Build final prompt: base + memories + screen layout (if available)
+    final buf = StringBuffer(base);
+
     if (memories.isNotEmpty) {
-      return '$base\n=== TERE MEMORIES ===\n$memories\n===================\nIn memories ko dhyan mein rakh apne jawab mein.';
+      buf.writeln('\n=== TERI MEMORIES ===');
+      buf.writeln(memories);
+      buf.writeln('===================');
+      buf.writeln('In memories ko dhyan mein rakh apne jawab mein.');
     }
-    return base;
+
+    if (screenLayout.isNotEmpty && screenLayout != '{}') {
+      // Truncate if huge (Gemini context limit)
+      final layout = screenLayout.length > 3500
+          ? '${screenLayout.substring(0, 3500)}...}'
+          : screenLayout;
+      buf.writeln('\n=== CURRENT SCREEN LAYOUT ===');
+      buf.writeln('Ab is waqt phone ki screen pe ye elements hain:');
+      buf.writeln(layout);
+      buf.writeln('// "clickable":true → click kar sakti hoon');
+      buf.writeln('// "editable":true  → type kar sakti hoon');
+      buf.writeln('// x,y = center coordinates for TAP_AT');
+      buf.writeln('// id = resource ID for CLICK_BY_ID (most reliable)');
+      buf.writeln('=== END SCREEN LAYOUT ===');
+      buf.writeln('Upar diye gaye elements ko dekh ke decide kar kaunsa COMMAND use karna hai.');
+    }
+
+    return buf.toString();
   }
 
   // ── Emotional Chat (main chat function) ───────────────────────────────────
@@ -120,7 +163,10 @@ IMPORTANT:
   }
 
   // ── General Query ──────────────────────────────────────────────────────────
-  Future<String> generalQuery(String q, {bool useSearch = false}) async {
+  Future<String> generalQuery(String q, {
+    bool   useSearch   = false,
+    String screenLayout = '',   // ← pass scanScreen() JSON for vision context
+  }) async {
     final key = ApiKeys.geminiKey;
     if (key.isEmpty) return 'Gemini key missing. Settings mein dalo.';
     _addHistory('user', q);
@@ -128,7 +174,7 @@ IMPORTANT:
       final memories = await _mem0.searchMemories(q);
       final text = await _callGemini(
         key:       key,
-        sysPrompt: _buildSystemPrompt(memories),
+        sysPrompt: _buildSystemPrompt(memories, screenLayout: screenLayout),
         temp:      0.7,
         maxTokens: 500,
       );
