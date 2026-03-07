@@ -156,7 +156,12 @@ IMPORTANT:
   }
 
   // ── ElevenLabs TTS ─────────────────────────────────────────────────────────
-  // Voice: Simran (rdz6GofVsYlLgQl2dBEE) | Model: eleven_v3 → fallback eleven_multilingual_v2
+  // Voice  : Anjura (rdz6GofVsYlLgQl2dBEE)
+  // Model  : eleven_flash_v2_5  → eleven_turbo_v2_5 → eleven_multilingual_v2
+  //          eleven_flash_v2_5 = ~75ms latency, free tier OK, 32 languages
+  //          eleven_turbo_v2_5 = ~250ms, higher quality, free tier OK
+  //          eleven_multilingual_v2 = best quality, highest latency
+  // Format : mp3_22050_32 — free tier compatible (44100_128 = Pro tier only!)
   Future<List<int>?> elevenLabsTts({
     required String text,
     required String voiceId,
@@ -166,27 +171,31 @@ IMPORTANT:
     double style           = 0.40,
   }) async {
     if (apiKey.isEmpty) {
-      if (kDebugMode) debugPrint('ElevenLabs: key empty — Settings mein dalo!');
+      if (kDebugMode) debugPrint('ElevenLabs ❌ key empty — Settings mein dalo!');
       return null;
     }
     if (text.trim().isEmpty) return null;
 
-    // Try eleven_v3 (latest)
-    var bytes = await _elRequest(
-      text: text, voiceId: voiceId, apiKey: apiKey,
-      modelId: 'eleven_v3',
-      stability: stability, similarityBoost: similarityBoost, style: style,
-    );
-    if (bytes != null) return bytes;
+    // Model priority: Flash (fastest, free) → Turbo (balanced, free) → Multilingual (quality)
+    // eleven_v3 is Creator+ plan only — DO NOT USE on free tier
+    const models = [
+      'eleven_flash_v2_5',      // ~75ms, free tier, 32 languages
+      'eleven_turbo_v2_5',      // ~250ms, free tier, high quality
+      'eleven_multilingual_v2', // highest quality, slowest
+    ];
 
-    if (kDebugMode) debugPrint('eleven_v3 failed → trying eleven_multilingual_v2');
+    for (final modelId in models) {
+      final bytes = await _elRequest(
+        text: text, voiceId: voiceId, apiKey: apiKey,
+        modelId: modelId,
+        stability: stability, similarityBoost: similarityBoost, style: style,
+      );
+      if (bytes != null) return bytes;
+      if (kDebugMode) debugPrint('ElevenLabs: $modelId failed → trying next model');
+    }
 
-    // Fallback
-    return await _elRequest(
-      text: text, voiceId: voiceId, apiKey: apiKey,
-      modelId: 'eleven_multilingual_v2',
-      stability: stability, similarityBoost: similarityBoost, style: style,
-    );
+    if (kDebugMode) debugPrint('ElevenLabs ❌ All models failed — check API key & quota');
+    return null;
   }
 
   Future<List<int>?> _elRequest({
@@ -199,22 +208,24 @@ IMPORTANT:
     required double style,
   }) async {
     try {
+      // ✅ mp3_22050_32 — free tier compatible
+      // ❌ mp3_44100_128 = Pro tier only (causes 401/403 on free accounts)
       final uri = Uri.parse(
         'https://api.elevenlabs.io/v1/text-to-speech/$voiceId'
-        '?output_format=mp3_44100_128',
+        '?output_format=mp3_22050_32',
       );
 
       if (kDebugMode) {
-        final preview = text.length > 50 ? text.substring(0, 50) : text;
-        debugPrint('ElevenLabs → $modelId | "$preview"');
+        final preview = text.length > 60 ? '${text.substring(0, 60)}…' : text;
+        debugPrint('ElevenLabs → model:$modelId | "$preview"');
       }
 
       final client = http.Client();
       try {
         final req = http.Request('POST', uri);
-        req.headers['xi-api-key']   = apiKey;
-        req.headers['Content-Type'] = 'application/json';
-        req.headers['Accept']       = 'audio/mpeg';
+        req.headers['xi-api-key']    = apiKey;
+        req.headers['Content-Type']  = 'application/json';
+        req.headers['Accept']        = 'audio/mpeg';
         req.body = jsonEncode({
           'text': text,
           'model_id': modelId,
@@ -226,16 +237,30 @@ IMPORTANT:
           },
         });
 
-        final streamed = await client.send(req).timeout(const Duration(seconds: 25));
-        final bytes    = await streamed.stream.toBytes().timeout(const Duration(seconds: 35));
+        final streamed = await client.send(req).timeout(const Duration(seconds: 20));
+        final bytes    = await streamed.stream.toBytes().timeout(const Duration(seconds: 30));
 
         if (streamed.statusCode == 200 && bytes.isNotEmpty) {
           if (kDebugMode) debugPrint('ElevenLabs ✅ $modelId — ${bytes.length} bytes');
           return bytes;
         }
 
+        // ── Detailed error logging — now you'll SEE what's failing ──────────
         final errBody = utf8.decode(bytes, allowMalformed: true);
-        if (kDebugMode) debugPrint('ElevenLabs ❌ ${streamed.statusCode} | $errBody');
+        if (kDebugMode) {
+          debugPrint('ElevenLabs ❌ HTTP ${streamed.statusCode} [$modelId]');
+          debugPrint('  VoiceID : $voiceId');
+          debugPrint('  Error   : ${errBody.length > 200 ? errBody.substring(0, 200) : errBody}');
+
+          if (streamed.statusCode == 401) {
+            debugPrint('  → 401 = Invalid API key. Check ElevenLabs Settings.');
+          } else if (streamed.statusCode == 422) {
+            debugPrint('  → 422 = voice_id invalid OR model not available on your plan.');
+            debugPrint('  → Free tier: use eleven_flash_v2_5 or eleven_turbo_v2_5');
+          } else if (streamed.statusCode == 429) {
+            debugPrint('  → 429 = Rate limit / quota exceeded. Wait or upgrade plan.');
+          }
+        }
         return null;
       } finally {
         client.close();
