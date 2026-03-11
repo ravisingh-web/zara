@@ -95,11 +95,26 @@ User: "Send button dabao" + screen mein send button dikhta hai →
 User: "Search box mein Arijit type karo" + editable field dikhta hai →
   "Type kar rahi hoon! [COMMAND:TYPE_TEXT,TEXT:Arijit Singh]"
 
-IMPORTANT:
-- HAMESHA command include karo jab bhi phone action maanga ho
-- Pehle thoda response likho, phir command — ek hi line mein
-- Kabhi mat kaho "main phone control nahi kar sakti" — TU KAR SAKTI HAI
-- Agar package nahi pata toh generic action try karo
+COMMAND CHAINING — JARVIS MODE:
+Tu ek hi response mein MULTIPLE commands chain kar sakti hai complex tasks ke liye.
+Har command apne line par ya space se separated likhti hai.
+Commands execute honge SEQUENTIALLY — pehla pura hoga, phir agla (1500ms gap).
+
+CHAIN EXAMPLES:
+Facebook pe "Hello" post karna:
+  "Karta hoon! [COMMAND:OPEN_APP,PKG:com.facebook.katana] [COMMAND:CLICK_BY_TEXT,TEXT:What's on your mind?] [COMMAND:TYPE_TEXT,TEXT:Hello everyone!] [COMMAND:CLICK_BY_TEXT,TEXT:Post]"
+
+YouTube pe Arijit Singh search karke pehla video play karna:
+  "Chalao! [COMMAND:YT_SEARCH,QUERY:Arijit Singh best songs] [COMMAND:CLICK_BY_ID,ID:com.google.android.youtube:id/thumbnail]"
+
+WhatsApp pe message type karke send karna:
+  "Bhej rahi hoon! [COMMAND:WHATSAPP_SEND,TO:Ravi,MSG:Kal milte hain]"
+
+CHAIN RULES:
+- Pehle short response likho (1-2 lines), phir saare commands ek saath
+- Har command EXACT format mein — koi extra space ID ke andar nahi
+- Agar ek step fail ho, agla phir bhi try hoga
+- OPEN_APP ke baad hamesha delay hota hai automatically — seed dono commands likh do
 =====================================================
 ''';
 
@@ -222,12 +237,12 @@ IMPORTANT:
     }
     if (text.trim().isEmpty) return null;
 
-    // Model priority: Flash (fastest, free) → Turbo (balanced, free) → Multilingual (quality)
-    // eleven_v3 is Creator+ plan only — DO NOT USE on free tier
+    // Fix: eleven_flash_v2_5 removed — causes 422 on standard accounts.
+    // eleven_turbo_v2_5 = ~75ms latency, works on free + standard plans.
+    // eleven_multilingual_v2 = highest quality, slowest, reliable fallback.
     const models = [
-      'eleven_flash_v2_5',      // ~75ms, free tier, 32 languages
-      'eleven_turbo_v2_5',      // ~250ms, free tier, high quality
-      'eleven_multilingual_v2', // highest quality, slowest
+      'eleven_turbo_v2_5',      // PRIMARY: ~75ms, free/standard tier ✅
+      'eleven_multilingual_v2', // FALLBACK: highest quality, all plans ✅
     ];
 
     for (final modelId in models) {
@@ -291,21 +306,35 @@ IMPORTANT:
           return bytes;
         }
 
-        // ── Detailed error logging — now you'll SEE what's failing ──────────
+        // ── Detailed error logging — diagnose API issues immediately ────────
         final errBody = utf8.decode(bytes, allowMalformed: true);
         if (kDebugMode) {
+          debugPrint('═══════════════════════════════════════════════');
           debugPrint('ElevenLabs ❌ HTTP ${streamed.statusCode} [$modelId]');
           debugPrint('  VoiceID : $voiceId');
-          debugPrint('  Error   : ${errBody.length > 200 ? errBody.substring(0, 200) : errBody}');
+          debugPrint('  Body    : ${errBody.length > 400 ? errBody.substring(0, 400) : errBody}');
 
           if (streamed.statusCode == 401) {
-            debugPrint('  → 401 = Invalid API key. Check ElevenLabs Settings.');
+            debugPrint('  ┌─ 401 = WRONG API KEY ──────────────────────────');
+            debugPrint('  │  Go to: https://elevenlabs.io/app/subscription');
+            debugPrint('  │  Copy your API key → Settings → ElevenLabs key');
+            debugPrint('  └────────────────────────────────────────────────');
           } else if (streamed.statusCode == 422) {
-            debugPrint('  → 422 = voice_id invalid OR model not available on your plan.');
-            debugPrint('  → Free tier: use eleven_flash_v2_5 or eleven_turbo_v2_5');
+            debugPrint('  ┌─ 422 = MODEL NOT AVAILABLE ON YOUR PLAN ───────');
+            debugPrint('  │  eleven_flash_v2_5 requires Creator+ plan');
+            debugPrint('  │  Use: eleven_turbo_v2_5 or eleven_multilingual_v2');
+            debugPrint('  └────────────────────────────────────────────────');
           } else if (streamed.statusCode == 429) {
-            debugPrint('  → 429 = Rate limit / quota exceeded. Wait or upgrade plan.');
+            debugPrint('  ┌─ 429 = QUOTA EXCEEDED / RATE LIMITED ──────────');
+            debugPrint('  │  Free tier: 10,000 chars/month');
+            debugPrint('  │  Check: https://elevenlabs.io/app/subscription');
+            debugPrint('  └────────────────────────────────────────────────');
+          } else if (streamed.statusCode == 403) {
+            debugPrint('  ┌─ 403 = VOICE NOT ACCESSIBLE ───────────────────');
+            debugPrint('  │  VoiceID $voiceId not available on your account');
+            debugPrint('  └────────────────────────────────────────────────');
           }
+          debugPrint('═══════════════════════════════════════════════');
         }
         return null;
       } finally {

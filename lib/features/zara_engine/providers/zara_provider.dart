@@ -321,11 +321,17 @@ class ZaraController extends ChangeNotifier {
     // Step 2: Wait for OS to fully release AudioRecord hardware
     await Future.delayed(const Duration(milliseconds: 200));
 
-    // Quick ack — sayQuick uses existing player, doesn't block mic
+    // Fix: AWAIT sayQuick fully — unawaited caused AudioFocus collision
+    // where speaker was still active when Whisper tried to open mic.
+    // On Android, AudioFocus release is NOT instant after playback ends —
+    // 300ms buffer gives OS time to fully release the audio hardware.
     final acks = ['Ji Sir?', 'Hmm?', 'Haan boliye?', 'Ji?', 'Haan Sir?'];
-    unawaited(_tts.sayQuick(acks[DateTime.now().millisecond % acks.length]));
+    await _tts.sayQuick(acks[DateTime.now().millisecond % acks.length]);
 
-    // Step 3: Whisper can now safely open AudioRecord
+    // Step 3: 300ms buffer — AudioFocus release on Android is async
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Step 4: Whisper can now safely open AudioRecord
     if (!_realtimeActive && !_isListening && !_disposed) {
       _realtimeActive = true;
       await _startRealtimeListen();
@@ -497,25 +503,21 @@ class ZaraController extends ChangeNotifier {
         _setMood(Mood.coding);
         response = await _ai.generateCode(cmd);
 
-      } else if (_isScreenQuery(cmd)) {
-        response = await _handleScreenQuery(cmd);
-
       } else if (_isChatCommand(cmd)) {
         _determineMood(cmd);
         response = await _ai.emotionalChat(cmd, _state.affectionLevel);
 
       } else {
-        _setMood(Mood.calm);
-        response = await _ai.generalQuery(
-          cmd,
-          useSearch:   _needsSearch(cmd),
-          screenLayout: '', // no vision needed for generic queries
-        );
+        // Fix 4: ALWAYS give AI "eyes" on the screen for ALL non-chat queries.
+        // This fixes the "Blind AI" — AI can now autonomously decide what to
+        // tap/type even for generic commands like "Post hello on Facebook".
+        response = await _handleScreenQuery(cmd);
       }
 
-      final parsed = _parseGodCommand(response);
-      if (parsed.type != GodCommand.unknown) {
-        await _executeGodCommand(parsed, response);
+      // Fix 5: Parse ALL commands (allMatches), not just firstMatch
+      final commands = _parseAllGodCommands(response);
+      if (commands.isNotEmpty && commands.first.type != GodCommand.unknown) {
+        await _executeGodCommandChain(commands, response);
       } else {
         await _processResponse(response);
       }
@@ -575,70 +577,111 @@ class ZaraController extends ChangeNotifier {
   // GOD MODE — COMMAND PARSER
   // ══════════════════════════════════════════════════════════════════════════
 
-  ParsedCommand _parseGodCommand(String text) {
-    final match = RegExp(r'\[COMMAND:(\w+)([^\]]*)\]').firstMatch(text);
-    if (match == null) return const ParsedCommand(GodCommand.unknown, {});
+  // ══════════════════════════════════════════════════════════════════════════
+  // GOD MODE — COMMAND PARSER (Fix 5: allMatches → full command chain)
+  //
+  // OLD: firstMatch → only 1 command executed
+  // NEW: allMatches → List<ParsedCommand> → all commands execute in sequence
+  //
+  // Example AI response:
+  //   "Karta hoon! [COMMAND:OPEN_APP,PKG:com.facebook.katana]
+  //    [COMMAND:CLICK_BY_TEXT,TEXT:What's on your mind?]
+  //    [COMMAND:TYPE_TEXT,TEXT:Hello everyone!]
+  //    [COMMAND:CLICK_BY_TEXT,TEXT:Post]"
+  //   → 4 commands all execute with 1500ms gap between each
+  // ══════════════════════════════════════════════════════════════════════════
 
-    final cmdStr = match.group(1)?.toUpperCase() ?? '';
-    final rest   = match.group(2) ?? '';
-    final params = <String, String>{};
-
-    for (final kv in RegExp(r',\s*(\w+):([^,\]]+)').allMatches(rest)) {
-      params[kv.group(1)!.trim().toUpperCase()] = kv.group(2)!.trim();
+  List<ParsedCommand> _parseAllGodCommands(String text) {
+    final results = <ParsedCommand>[];
+    final matches = RegExp(r'\[COMMAND:(\w+)([^\]]*)\]').allMatches(text);
+    for (final match in matches) {
+      final cmdStr = match.group(1)?.toUpperCase() ?? '';
+      final rest   = match.group(2) ?? '';
+      final params = <String, String>{};
+      for (final kv in RegExp(r',\s*(\w+):([^,\]]+)').allMatches(rest)) {
+        params[kv.group(1)!.trim().toUpperCase()] = kv.group(2)!.trim();
+      }
+      GodCommand type;
+      switch (cmdStr) {
+        case 'OPEN_APP':       type = GodCommand.openApp;           break;
+        case 'SCROLL_REELS':   type = GodCommand.scrollReels;       break;
+        case 'LIKE_REEL':      type = GodCommand.likeReel;          break;
+        case 'YT_SEARCH':      type = GodCommand.ytSearch;          break;
+        case 'IG_COMMENT':     type = GodCommand.instagramComment;  break;
+        case 'FLIPKART_BUY':   type = GodCommand.flipkartBuy;       break;
+        case 'WHATSAPP_SEND':  type = GodCommand.whatsappSend;      break;
+        case 'WHATSAPP_CALL':  type = GodCommand.whatsappVoiceCall; break;
+        case 'WHATSAPP_VIDEO': type = GodCommand.whatsappVideoCall; break;
+        case 'CLICK_BY_ID':    type = GodCommand.clickById;         break;
+        case 'CLICK_BY_TEXT':  type = GodCommand.clickByText;       break;
+        case 'TAP_AT':         type = GodCommand.tapAt;             break;
+        case 'TYPE_TEXT':      type = GodCommand.typeText;          break;
+        case 'PRESS_BACK':     type = GodCommand.pressBack;         break;
+        case 'PRESS_HOME':     type = GodCommand.pressHome;         break;
+        default:               type = GodCommand.unknown;
+      }
+      if (type != GodCommand.unknown) results.add(ParsedCommand(type, params));
     }
-
-    switch (cmdStr) {
-      case 'OPEN_APP':       return ParsedCommand(GodCommand.openApp,           params);
-      case 'SCROLL_REELS':   return ParsedCommand(GodCommand.scrollReels,       params);
-      case 'LIKE_REEL':      return ParsedCommand(GodCommand.likeReel,          params);
-      case 'YT_SEARCH':      return ParsedCommand(GodCommand.ytSearch,          params);
-      case 'IG_COMMENT':     return ParsedCommand(GodCommand.instagramComment,  params);
-      case 'FLIPKART_BUY':   return ParsedCommand(GodCommand.flipkartBuy,       params);
-      case 'WHATSAPP_SEND':  return ParsedCommand(GodCommand.whatsappSend,      params);
-      case 'WHATSAPP_CALL':  return ParsedCommand(GodCommand.whatsappVoiceCall, params);
-      case 'WHATSAPP_VIDEO': return ParsedCommand(GodCommand.whatsappVideoCall, params);
-      // Vision
-      case 'CLICK_BY_ID':    return ParsedCommand(GodCommand.clickById,   params);
-      case 'CLICK_BY_TEXT':  return ParsedCommand(GodCommand.clickByText, params);
-      case 'TAP_AT':         return ParsedCommand(GodCommand.tapAt,       params);
-      case 'TYPE_TEXT':      return ParsedCommand(GodCommand.typeText,    params);
-      case 'PRESS_BACK':     return ParsedCommand(GodCommand.pressBack,   params);
-      case 'PRESS_HOME':     return ParsedCommand(GodCommand.pressHome,   params);
-      default:               return const ParsedCommand(GodCommand.unknown, {});
-    }
+    if (results.isEmpty) return [const ParsedCommand(GodCommand.unknown, {})];
+    return results;
   }
 
+  // Legacy single-command parser — kept for compatibility
+  ParsedCommand _parseGodCommand(String text) => _parseAllGodCommands(text).first;
+
   // ══════════════════════════════════════════════════════════════════════════
-  // GOD MODE — COMMAND EXECUTOR
+  // GOD MODE — COMMAND CHAIN EXECUTOR (Fix 5)
+  //
+  // Executes commands sequentially with 1500ms gap between each step.
+  // This gap is critical — Android UI needs time to render between actions.
+  // Too fast → tapping stale/empty nodes → nothing happens.
+  //
+  // Only speaks the AI text ONCE (before first command), not after each step.
   // ══════════════════════════════════════════════════════════════════════════
 
-  Future<void> _executeGodCommand(ParsedCommand cmd, String fullAiResponse) async {
+  Future<void> _executeGodCommandChain(
+      List<ParsedCommand> commands, String fullAiResponse) async {
     final clean = fullAiResponse
         .replaceAll(RegExp(r'\[COMMAND:[^\]]+\]'), '').trim();
 
+    // Speak the AI's text response once, then execute all commands silently
+    if (clean.isNotEmpty) await _processResponse(clean);
+
+    for (int i = 0; i < commands.length; i++) {
+      if (_disposed) break;
+      await _executeSingleCommand(commands[i], '');
+
+      // 1500ms gap between steps — UI rendering time
+      if (i < commands.length - 1) {
+        await Future.delayed(const Duration(milliseconds: 1500));
+      }
+    }
+  }
+
+  // Legacy single executor — delegates to chain
+  Future<void> _executeGodCommand(ParsedCommand cmd, String fullAiResponse) =>
+      _executeGodCommandChain([cmd], fullAiResponse);
+
+  Future<void> _executeSingleCommand(ParsedCommand cmd, String clean) async {
     switch (cmd.type) {
 
       case GodCommand.openApp:
         final pkg = cmd.params['PKG'] ?? '';
         if (pkg.isNotEmpty) {
-          await _processResponse('$clean\n\n📱 App khol rahi hoon…');
           final ok = await _access.openApp(pkg);
           if (!ok) await _processResponse(
               'Accessibility Service enable karo Sir → Settings → God Mode.');
         }
 
       case GodCommand.scrollReels:
-        await _processResponse('$clean\n\nScroll kar rahi hoon…');
         await _access.scrollDown(steps: 3);
 
       case GodCommand.likeReel:
-        await _processResponse('$clean\n\n❤️ Like kar diya!');
         await _access.instagramLikeReel();
 
       case GodCommand.ytSearch:
         final query = cmd.params['QUERY'] ?? '';
         if (query.isNotEmpty) {
-          await _processResponse('$clean\n\n🔍 YouTube pe dhoondh rahi hoon: "$query"');
           final ok = await _access.youtubeSearch(query);
           if (!ok) await _processResponse(
               'YouTube search mein problem. Accessibility enable hai?');
@@ -646,13 +689,11 @@ class ZaraController extends ChangeNotifier {
 
       case GodCommand.instagramComment:
         final txt = cmd.params['TEXT'] ?? '';
-        await _processResponse('$clean\n\n💬 Comment kar rahi hoon…');
         await _access.instagramPostComment(txt);
 
       case GodCommand.flipkartBuy:
         final product = cmd.params['PRODUCT'] ?? '';
         final size    = cmd.params['SIZE']    ?? 'M';
-        await _processResponse('$clean\n\n🛍️ Flipkart pe search: $product');
         await _access.flipkartSearchProduct(product);
         await Future.delayed(const Duration(seconds: 3));
         await _access.flipkartSelectSize(size);
@@ -664,61 +705,40 @@ class ZaraController extends ChangeNotifier {
       case GodCommand.whatsappSend:
         final to  = cmd.params['TO']  ?? '';
         final msg = cmd.params['MSG'] ?? '';
-        await _processResponse('$clean\n\n📤 $to ko message bhej rahi hoon…');
         await _access.whatsappSendMessage(to, msg);
 
       case GodCommand.whatsappVoiceCall:
         final to = cmd.params['TO'] ?? '';
-        if (to.isNotEmpty) {
-          await _processResponse('$clean\n\n📞 $to ko call kar rahi hoon…');
-          await _access.whatsappVoiceCall(to);
-        }
+        if (to.isNotEmpty) await _access.whatsappVoiceCall(to);
 
       case GodCommand.whatsappVideoCall:
         final to = cmd.params['TO'] ?? '';
-        if (to.isNotEmpty) {
-          await _processResponse('$clean\n\n📹 $to ko video call kar rahi hoon…');
-          await _access.whatsappVideoCall(to);
-        }
+        if (to.isNotEmpty) await _access.whatsappVideoCall(to);
 
       // ── Vision commands ─────────────────────────────────────────────────────
 
       case GodCommand.clickById:
         final id = cmd.params['ID'] ?? '';
-        if (id.isNotEmpty) {
-          await _access.clickById(id);
-          await _processResponse(clean);
-        }
+        if (id.isNotEmpty) await _access.clickById(id);
 
       case GodCommand.clickByText:
         final text = cmd.params['TEXT'] ?? '';
-        if (text.isNotEmpty) {
-          await _access.clickText(text);
-          await _processResponse(clean);
-        }
+        if (text.isNotEmpty) await _access.clickText(text);
 
       case GodCommand.tapAt:
         final x = int.tryParse(cmd.params['X'] ?? '0') ?? 0;
         final y = int.tryParse(cmd.params['Y'] ?? '0') ?? 0;
-        if (x > 0 && y > 0) {
-          await _access.tapAt(x, y);
-          await _processResponse(clean);
-        }
+        if (x > 0 && y > 0) await _access.tapAt(x, y);
 
       case GodCommand.typeText:
         final text = cmd.params['TEXT'] ?? '';
-        if (text.isNotEmpty) {
-          await _access.typeText(text);
-          await _processResponse(clean);
-        }
+        if (text.isNotEmpty) await _access.typeText(text);
 
       case GodCommand.pressBack:
         await _access.pressBack();
-        await _processResponse(clean);
 
       case GodCommand.pressHome:
         await _access.pressHome();
-        await _processResponse(clean);
 
       case GodCommand.unknown:
         await _processResponse(clean);

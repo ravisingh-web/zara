@@ -443,12 +443,28 @@ class ZaraAccessibilityService : AccessibilityService() {
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         ).coerceAtLeast(FRAME_SIZE * 2)
 
+        // Fix 3: UNPROCESSED avoids Android pre-emption in background.
+        // MIC is the fallback if UNPROCESSED not available on device.
+        val audioSource = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            MediaRecorder.AudioSource.UNPROCESSED
+        } else {
+            MediaRecorder.AudioSource.MIC
+        }
         try {
             audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                audioSource,
                 SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, bufSize
             )
+            if (audioRecord!!.state != AudioRecord.STATE_INITIALIZED) {
+                // UNPROCESSED not supported — fall back to MIC
+                audioRecord?.release()
+                audioRecord = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT, bufSize
+                )
+            }
             audioRecord!!.startRecording()
         } catch (e: Exception) {
             Log.e(TAG, "Vosk AudioRecord: $e"); wakeWordActive = false; return
@@ -505,12 +521,26 @@ class ZaraAccessibilityService : AccessibilityService() {
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         ).coerceAtLeast(512 * 4)
 
+        // Fix 3: UNPROCESSED for background mic resilience
+        val vadAudioSource = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            MediaRecorder.AudioSource.UNPROCESSED
+        } else {
+            MediaRecorder.AudioSource.MIC
+        }
         try {
             audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                vadAudioSource,
                 SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, bufferSize
             )
+            if (audioRecord!!.state != AudioRecord.STATE_INITIALIZED) {
+                audioRecord?.release()
+                audioRecord = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT, bufferSize
+                )
+            }
             audioRecord!!.startRecording()
         } catch (e: Exception) { Log.e(TAG, "VAD init: $e"); wakeWordActive = false; return }
 
@@ -1022,6 +1052,36 @@ class ZaraAccessibilityService : AccessibilityService() {
     // PRIMITIVE ACTIONS
     // ══════════════════════════════════════════════════════════════════════════
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Fix 2: PARENT-TRAP CLICK — walks up to 5 parent levels to find clickable
+    //
+    // Modern apps (Instagram, Facebook, WhatsApp) wrap text in non-clickable
+    // spans inside a clickable container. Direct ACTION_CLICK on text node
+    // silently fails. This helper climbs the tree until it finds a clickable
+    // ancestor (max 5 levels = safe, prevents infinite walk to root).
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun performClickOnNodeOrParent(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        var current: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (current != null && depth < 5) {
+            try {
+                if (current.isClickable) {
+                    val ok = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    if (ok) return true
+                }
+            } catch (_: Exception) {}
+            val parent = try { current.parent } catch (_: Exception) { null }
+            if (depth > 0) try { current.recycle() } catch (_: Exception) {}
+            current = parent
+            depth++
+        }
+        // Final attempt on whatever we have
+        return try { current?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false }
+               catch (_: Exception) { false }
+    }
+
     private fun openApp(pkg: String): Boolean {
         return try {
             val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return false
@@ -1033,8 +1093,7 @@ class ZaraAccessibilityService : AccessibilityService() {
         if (text.isBlank()) return false
         val node = safeFind { findNodeWithText(text) } ?: return false
         return try {
-            val ok = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            if (!ok) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false else true
+            performClickOnNodeOrParent(node)
         } catch (_: Exception) { false }
         finally { try { node.recycle() } catch (_: Exception) {} }
     }
@@ -1044,8 +1103,7 @@ class ZaraAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return false
         val node = safeFind { findNodeByDesc(root, desc.lowercase()) } ?: return false
         return try {
-            val ok = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            if (!ok) node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false else true
+            performClickOnNodeOrParent(node)
         } catch (_: Exception) { false }
         finally { try { node.recycle() } catch (_: Exception) {} }
     }
@@ -1189,10 +1247,13 @@ class ZaraAccessibilityService : AccessibilityService() {
     // ══════════════════════════════════════════════════════════════════════════
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Fix 1: Return IMMEDIATELY — never block the main thread here.
+        // Heavy string work (password check, agent message) offloaded to Default dispatcher.
         if (event == null || !isMonitoring) return
-        val pkg = try { event.packageName?.toString() } catch (_: Exception) { null } ?: return
+        val pkg       = try { event.packageName?.toString() } catch (_: Exception) { null } ?: return
+        val eventType = try { event.eventType } catch (_: Exception) { return }
 
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && pkg != lastWindowPkg) {
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && pkg != lastWindowPkg) {
             currentPackage = pkg; lastWindowPkg = pkg
             windowChangedJob?.cancel()
             windowChangedJob = serviceScope.launch {
@@ -1200,22 +1261,33 @@ class ZaraAccessibilityService : AccessibilityService() {
             }
         }
 
-        if (LOCK_PACKAGES.contains(pkg)) {
-            try {
-                val text = event.text?.joinToString(" ").orEmpty().lowercase()
-                if (PASSWORD_WORDS.any { text.contains(it) }) _handleWrongPassword()
-            } catch (_: Exception) {}
+        // Offload all string/node work — never block main thread
+        if (LOCK_PACKAGES.contains(pkg) && eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            val textSnapshot = try { event.text?.map { it?.toString() } ?: emptyList() }
+                               catch (_: Exception) { emptyList<String?>() }
+            serviceScope.launch(Dispatchers.Default) {
+                try {
+                    val text = textSnapshot.filterNotNull().joinToString(" ").lowercase()
+                    if (PASSWORD_WORDS.any { text.contains(it) }) {
+                        withContext(Dispatchers.Main) { _handleWrongPassword() }
+                    }
+                } catch (_: Exception) {}
+            }
         }
 
         if (agentModeActive && pkg == "com.whatsapp" &&
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            try {
-                val text = event.text?.joinToString(" ")?.trim()
-                if (!text.isNullOrEmpty()) serviceScope.launch {
-                    sendEvent("onAgentMessageReceived",
-                        mapOf("contact" to agentContact, "message" to text))
-                }
-            } catch (_: Exception) {}
+            eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            val textSnapshot = try { event.text?.map { it?.toString() } ?: emptyList() }
+                               catch (_: Exception) { emptyList<String?>() }
+            serviceScope.launch(Dispatchers.Default) {
+                try {
+                    val text = textSnapshot.filterNotNull().joinToString(" ").trim()
+                    if (text.isNotEmpty()) withContext(Dispatchers.Main) {
+                        sendEvent("onAgentMessageReceived",
+                            mapOf("contact" to agentContact, "message" to text))
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 
