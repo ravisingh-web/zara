@@ -89,6 +89,9 @@ class VoskService {
   /// Agent message received (dispatched from native)
   void Function(String contact, String message)? onAgentMessage;
 
+  /// Security event (wrong password, capture photo trigger)
+  void Function(String type, int count)? onSecurityEvent;
+
   // ── Start Vosk ─────────────────────────────────────────────────────────────
 
   Future<bool> start() async {
@@ -214,6 +217,38 @@ class VoskService {
         final args    = _asMap(call.arguments);
         final enabled = args['enabled'] == 'true';
         if (kDebugMode) debugPrint('AccessibilityService enabled: $enabled');
+        break;
+
+      // ── Window changed (foreground app changed) ───────────────────────────
+      case 'onWindowChanged':
+        // Forward to provider if needed via onEngineChanged or separate callback
+        // Currently informational — provider uses AccessibilityService directly
+        break;
+
+      // ── Command chain complete ─────────────────────────────────────────────
+      case 'onChainComplete':
+        if (kDebugMode) {
+          final args    = _asMap(call.arguments);
+          final results = args['results'] ?? '';
+          debugPrint('⛓️ Chain complete: $results');
+        }
+        break;
+
+      // ── Agent mode changed ─────────────────────────────────────────────────
+      case 'onAgentModeChanged':
+        final args    = _asMap(call.arguments);
+        final active  = args['active'] == 'true';
+        final contact = args['contact'] ?? '';
+        if (kDebugMode) debugPrint('🤖 Agent mode: $active contact=$contact');
+        break;
+
+      // ── Security event ─────────────────────────────────────────────────────
+      case 'onSecurityEvent':
+        final args  = _asMap(call.arguments);
+        final type  = args['type'] ?? '';
+        final count = args['count'] ?? '0';
+        if (kDebugMode) debugPrint('🛡️ Security: $type count=$count');
+        onSecurityEvent?.call(type, int.tryParse(count) ?? 0);
         break;
 
       default:

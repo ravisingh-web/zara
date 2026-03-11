@@ -335,6 +335,13 @@ class ZaraController extends ChangeNotifier {
     if (!_realtimeActive && !_isListening && !_disposed) {
       _realtimeActive = true;
       await _startRealtimeListen();
+      // Fix 6: If whisper failed to start (mic busy, permission denied),
+      // reset _realtimeActive so Vosk can restart cleanly on next wake word
+      if (!_isListening && _realtimeActive) {
+        _realtimeActive = false;
+        _vosk.enterWakeWordMode();
+        await _vosk.start();
+      }
     }
   }
 
@@ -674,7 +681,8 @@ class ZaraController extends ChangeNotifier {
         }
 
       case GodCommand.scrollReels:
-        await _access.scrollDown(steps: 3);
+        final steps = int.tryParse(cmd.params['STEPS'] ?? '3') ?? 3;
+        await _access.scrollDown(steps: steps.clamp(1, 20));
 
       case GodCommand.likeReel:
         await _access.instagramLikeReel();

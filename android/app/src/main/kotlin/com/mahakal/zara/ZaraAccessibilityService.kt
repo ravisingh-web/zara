@@ -310,6 +310,9 @@ class ZaraAccessibilityService : AccessibilityService() {
             }.toString()
         } catch (e: Exception) {
             Log.e(TAG, "scanScreen: $e"); "{}"
+        } finally {
+            // Fix 4: Always recycle root — prevents memory leak / "Malfunctioning"
+            try { root.recycle() } catch (_: Exception) {}
         }
     }
 
@@ -753,6 +756,7 @@ class ZaraAccessibilityService : AccessibilityService() {
             _collectTextSafe(root, sb, 0, 12)
             sb.toString().trim().let { if (it.length > 2000) it.substring(0, 2000) else it }
         } catch (_: Exception) { "" }
+        finally { try { root.recycle() } catch (_: Exception) {} }
     }
 
     private fun _collectTextSafe(
@@ -849,11 +853,12 @@ class ZaraAccessibilityService : AccessibilityService() {
     private suspend fun youtubePlayFirstResult(): Boolean {
         delay(600)
         val root       = rootInActiveWindow ?: return false
-        val clickables = findAllClickableNodesSafe(root)
         return try {
+            val clickables = findAllClickableNodesSafe(root)
             (clickables.getOrNull(2) ?: clickables.firstOrNull())
                 ?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
         } catch (_: Exception) { false }
+        finally { try { root.recycle() } catch (_: Exception) {} }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
