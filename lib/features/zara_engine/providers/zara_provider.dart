@@ -232,7 +232,8 @@ class ZaraController extends ChangeNotifier {
       if (isWake) {
         _onWakeWordDetected(text);
       } else if (_realtimeActive) {
-        receiveCommand(text);
+        final cleaned = _stripWakeWord(text);
+        if (cleaned.isNotEmpty) receiveCommand(cleaned);
       }
     };
 
@@ -418,7 +419,17 @@ class ZaraController extends ChangeNotifier {
 
     final text = await _whisper.stopAndTranscribe();
     if (text != null && text.trim().isNotEmpty) {
-      await receiveCommand(text.trim());
+      // ── WAKE WORD STRIP ──────────────────────────────────────────────────
+      // Whisper captures the tail-end of wake word audio too.
+      // "Hii Zara YouTube khol" → strip "hii zara" → "YouTube khol"
+      // Without this: WhatsApp search gets "hii zara mummy", not "mummy"
+      final cleaned = _stripWakeWord(text.trim());
+      if (cleaned.isEmpty) {
+        // Only wake word detected, no actual command — restart listening
+        await _startRealtimeListen();
+        return;
+      }
+      await receiveCommand(cleaned);
     } else {
       _state = _state.copyWith(lastResponse: 'Hmm, kuch sunai nahi diya Sir.');
       _notif.updateOrb('still');
@@ -480,16 +491,31 @@ class ZaraController extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> receiveCommand(String cmd) async {
-    if (cmd.trim().isEmpty) return;
+    // Fix: Strip wake words from command — prevents "Zara" being typed literally
+    // e.g. "Zara WhatsApp mein Mummy ko message kar" → "WhatsApp mein Mummy ko message kar"
+    String cleaned = cmd.trim();
+    const wakeWords = [
+      'hii zara ', 'hi zara ', 'hey zara ', 'zara sunna ', 'zara suno ',
+      'hii zara, ', 'hi zara, ', 'hey zara, ',
+      'zara, ', 'zara ',
+    ];
+    final lower = cleaned.toLowerCase();
+    for (final w in wakeWords) {
+      if (lower.startsWith(w)) {
+        cleaned = cleaned.substring(w.length).trim();
+        break;
+      }
+    }
+    if (cleaned.isEmpty) return;
     _handsFreeListenTimer?.cancel();
     _tts.resetIdleTimer();
 
-    final userMsg    = ChatMessage.fromUser(cmd);
-    final newHistory = List<String>.from(_state.dialogueHistory)..add(cmd);
+    final userMsg    = ChatMessage.fromUser(cleaned);
+    final newHistory = List<String>.from(_state.dialogueHistory)..add(cleaned);
     final newMsgs    = List<ChatMessage>.from(_state.messages)..add(userMsg);
 
     _state = _state.copyWith(
-      lastCommand:     cmd,
+      lastCommand:     cleaned,
       dialogueHistory: _trimHistory(newHistory),
       messages:        newMsgs,
       lastResponse:    'Ummm...',
@@ -506,19 +532,16 @@ class ZaraController extends ChangeNotifier {
     try {
       String response = '';
 
-      if (_isCodeCommand(cmd)) {
+      if (_isCodeCommand(cleaned)) {
         _setMood(Mood.coding);
-        response = await _ai.generateCode(cmd);
+        response = await _ai.generateCode(cleaned);
 
-      } else if (_isChatCommand(cmd)) {
-        _determineMood(cmd);
-        response = await _ai.emotionalChat(cmd, _state.affectionLevel);
+      } else if (_isChatCommand(cleaned)) {
+        _determineMood(cleaned);
+        response = await _ai.emotionalChat(cleaned, _state.affectionLevel);
 
       } else {
-        // Fix 4: ALWAYS give AI "eyes" on the screen for ALL non-chat queries.
-        // This fixes the "Blind AI" — AI can now autonomously decide what to
-        // tap/type even for generic commands like "Post hello on Facebook".
-        response = await _handleScreenQuery(cmd);
+        response = await _handleScreenQuery(cleaned);
       }
 
       // Fix 5: Parse ALL commands (allMatches), not just firstMatch
@@ -1139,6 +1162,40 @@ class ZaraController extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════════════
   // CLASSIFIERS
   // ══════════════════════════════════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // WAKE WORD STRIPPER
+  //
+  // Whisper records ~0.5s before wake word ends — transcript contains:
+  //   "hii zara YouTube khol"  → should be → "YouTube khol"
+  //   "hey zara mummy ko call" → should be → "mummy ko call"
+  //   "zara"                   → empty (only wake word, no command)
+  //
+  // Strips leading wake word phrase, returns actual command.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static const _wakeWords = [
+    'hii zara', 'hi zara', 'hey zara', 'zara sunna',
+    'zara suno', 'suno zara', 'sunna zara',
+    'hii', 'hey', 'zara',
+  ];
+
+  String _stripWakeWord(String text) {
+    var lower = text.toLowerCase().trim();
+    // Try longest match first (greedy)
+    final sorted = List<String>.from(_wakeWords)
+      ..sort((a, b) => b.length.compareTo(a.length));
+    for (final w in sorted) {
+      if (lower.startsWith(w)) {
+        lower = lower.substring(w.length).trim();
+        // Remove leading punctuation/comma
+        lower = lower.replaceFirst(RegExp(r'^[,\.\-\s]+'), '').trim();
+        if (kDebugMode) debugPrint('🧹 WakeStrip: "$text" → "$lower"');
+        return lower;
+      }
+    }
+    return text.trim(); // no wake word prefix found — return as-is
+  }
 
   bool _isCodeCommand(String cmd) {
     final l = cmd.toLowerCase();
