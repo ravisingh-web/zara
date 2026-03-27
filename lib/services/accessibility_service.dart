@@ -205,6 +205,7 @@ class AccessibilityService {
   Future<bool> openGmail()     => openApp('com.google.android.gm');
   Future<bool> openMaps()      => openApp('com.google.android.apps.maps');
   Future<bool> openFacebook()  => openApp('com.facebook.katana');
+  Future<bool> facebookPost(String text) => _callBool('facebookPost', {'text': text});
   Future<bool> openCamera()    => openApp('com.android.camera2');
 
   // ══════════════════════════════════════════════════════════════════════════

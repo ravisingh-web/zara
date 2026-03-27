@@ -71,6 +71,11 @@ INSTAGRAM COMMENT:
 
 WHATSAPP MESSAGE BHEJNA:
 [COMMAND:WHATSAPP_SEND,TO:contact name,MSG:message text]
+Note: TO mein sirf contact ka naam likho — "Mummy", "Ravi", "Bhai" etc.
+      KABHI "Zara" ya wake word TO mein mat daalna.
+
+FACEBOOK PE POST KARNA:
+[COMMAND:FACEBOOK_POST,TEXT:post text yahan]
 
 FLIPKART PE KUCH KHARIDNA:
 [COMMAND:FLIPKART_BUY,PRODUCT:product name,SIZE:M]

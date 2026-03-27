@@ -263,6 +263,9 @@ class ZaraAccessibilityService : AccessibilityService() {
             "flipkartAddToCart"     -> flipkartAddToCart()
             "flipkartGoToPayment"   -> flipkartGoToPayment()
 
+            // Facebook
+            "facebookPost"         -> facebookPost(str(args, "text"))
+
             else -> { Log.w(TAG, "Unknown: $method"); false }
         }
     }
@@ -868,10 +871,21 @@ class ZaraAccessibilityService : AccessibilityService() {
     private suspend fun whatsappSendMessage(contact: String, message: String): Boolean {
         if (!openApp("com.whatsapp")) return false; delay(1800)
         if (!clickById("com.whatsapp:id/menuitem_search")) clickByDesc("Search")
-        delay(700); typeInFocused(contact); delay(1300)
-        if (!clickByText(contact))
-            findAllClickableNodesSafe(rootInActiveWindow ?: return false)
-                .getOrNull(1)?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        delay(700); typeInFocused(contact)
+
+        // Retry loop — wait for contact to appear in search results (max 4s)
+        var contactClicked = false
+        repeat(4) { attempt ->
+            if (contactClicked) return@repeat
+            delay(800)
+            contactClicked = clickByText(contact)
+            if (!contactClicked && attempt == 3) {
+                // Last resort: tap first result in list
+                findAllClickableNodesSafe(rootInActiveWindow ?: return@repeat)
+                    .getOrNull(1)?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                contactClicked = true
+            }
+        }
         delay(1200); typeInFocused(message); delay(400)
         return clickById("com.whatsapp:id/send") || clickByDesc("Send")
     }
@@ -949,10 +963,20 @@ class ZaraAccessibilityService : AccessibilityService() {
     private suspend fun _whatsappCallViaUI(contact: String, video: Boolean): Boolean {
         if (!openApp("com.whatsapp")) return false; delay(1800)
         if (!clickById("com.whatsapp:id/menuitem_search")) clickByDesc("Search")
-        delay(700); typeInFocused(contact); delay(1300)
-        if (!clickByText(contact))
-            findAllClickableNodesSafe(rootInActiveWindow ?: return false)
-                .getOrNull(1)?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        delay(700); typeInFocused(contact)
+
+        // Retry loop — wait for contact to appear (max 4s)
+        var contactClicked = false
+        repeat(4) { attempt ->
+            if (contactClicked) return@repeat
+            delay(800)
+            contactClicked = clickByText(contact)
+            if (!contactClicked && attempt == 3) {
+                findAllClickableNodesSafe(rootInActiveWindow ?: return@repeat)
+                    .getOrNull(1)?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                contactClicked = true
+            }
+        }
         delay(1500)
         return if (video)
             clickById("com.whatsapp:id/video_call_btn") ||
@@ -975,8 +999,36 @@ class ZaraAccessibilityService : AccessibilityService() {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 📸 INSTAGRAM
+    // 📘 FACEBOOK POST
     // ══════════════════════════════════════════════════════════════════════════
+
+    private suspend fun facebookPost(text: String): Boolean {
+        if (text.isBlank()) return false
+        if (!openApp("com.facebook.katana")) return false; delay(2500)
+
+        // Click "What's on your mind?" composer
+        val composerClicked =
+            clickByText("What's on your mind?") ||
+            clickByText("Aap kya soch rahe hain?") ||
+            clickById("com.facebook.katana:id/composer_what_do_you_think_prompt_text") ||
+            clickByText("Write something...")
+        if (!composerClicked) return false
+        delay(1200)
+
+        // Type the post text
+        typeInFocused(text)
+        delay(800)
+
+        // Submit post — try multiple button labels
+        val posted =
+            clickByText("Post")     ||
+            clickByText("POST")     ||
+            clickByText("Share")    ||
+            clickById("com.facebook.katana:id/composer_share_button") ||
+            clickByDesc("Post")
+        if (posted) delay(1500)
+        return posted
+    }
 
     private suspend fun instagramOpenReels(): Boolean {
         if (!openApp("com.instagram.android")) return false; delay(1800)
@@ -1126,6 +1178,22 @@ class ZaraAccessibilityService : AccessibilityService() {
 
     private fun typeInFocused(text: String): Boolean {
         if (text.isBlank()) return false
+
+        // ── WAKE WORD GUARD ────────────────────────────────────────────────────
+        // Problem: Wake word transcript ("hii zara", "zara sunna") gets passed
+        // as TYPE_TEXT command and typed into WhatsApp search / Facebook post box.
+        // Fix: Block any text that IS a wake word or starts with one.
+        val lower = text.lowercase().trim()
+        val wakeWordList = listOf(
+            "hi zara", "hii zara", "hey zara",
+            "zara", "sunna", "suno", "zara sunna"
+        )
+        if (wakeWordList.any { lower == it || lower.startsWith(it) }) {
+            Log.w(TAG, "typeInFocused: BLOCKED wake word text = \"$text\"")
+            return false
+        }
+        // ──────────────────────────────────────────────────────────────────────
+
         val root    = rootInActiveWindow ?: return false
         val focused = try { root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }
                       catch (_: Exception) { null }
