@@ -157,6 +157,8 @@ class ZaraController extends ChangeNotifier {
       final msg = 'Sir, Google Sheets mein naya row aaya: $rowText';
       _processResponse(msg);
     };
+    if (kDebugMode) debugPrint('AutomationService: n8n=${ApiKeys.n8nReady}, sheets=${ApiKeys.sheetsReady}');
+    if (ApiKeys.n8nReady && ApiKeys.sheetsReady) {
       _auto.startPolling();
     }
     // Whisper 5s chunks → onTranscription → receiveCommand
@@ -179,6 +181,32 @@ class ZaraController extends ChangeNotifier {
 
     // ── Wake Word + Agent mode callbacks ──────────────────────────────────
     // Single setMethodCallHandler handles: PCM ready, wake word, agent msgs
+    _access.setWakeWordHandlers(
+      onPcmReady: (pcmBase64, sampleRate) async {
+        // PCM chunk from native → transcribe with Whisper
+        if (_disposed || _isSpeaking) return;
+        final text = await _whisper.transcribePcmBase64(pcmBase64, sampleRate);
+        if (text == null || text.trim().isEmpty) return;
+        // Check if it's a wake word
+        final lower = text.toLowerCase().trim();
+        final isWake = ['hii zara', 'hi zara', 'hey zara', 'sunna', 'suno', 'zara sunna']
+            .any((w) => lower.contains(w));
+        if (isWake) {
+          // Fire wake word → Zara responds + starts listening for command
+          _onWakeWordDetected(text);
+        } else if (realtimeActive) {
+          // Not a wake word but realtime is on — treat as command
+          receiveCommand(text);
+        }
+      },
+      onDetected: (transcript) {
+        if (!_disposed) _onWakeWordDetected(transcript);
+      },
+    );
+
+    _access.setAgentMessageHandler((contact, message) {
+      if (!_disposed) handleAgentMessage(contact, message);
+    });
 
     // ── Wake Word engine — auto start ──────────────────────────────────────
     // Porcupine (preferred) OR VAD+Whisper fallback
@@ -785,6 +813,7 @@ class ZaraController extends ChangeNotifier {
     }
 
     // Log to n8n/Sheets — non-blocking
+    if (ApiKeys.n8nReady) {
       unawaited(_auto.logConversation(_state.lastCommand, aiMessage));
     }
   }
