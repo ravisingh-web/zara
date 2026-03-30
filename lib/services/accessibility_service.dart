@@ -1,25 +1,77 @@
 // lib/services/accessibility_service.dart
-// Z.A.R.A. v10.0 — God Mode Flutter Bridge
+// Z.A.R.A. v11.0 — God Mode Flutter Bridge
 //
-// Pure Dart MethodChannel bridge — NO Kotlin code here.
-// All automation logic lives in ZaraAccessibilityService.kt (native side).
-//
-// ✅ whatsappVoiceCall  — NEW
-// ✅ whatsappVideoCall  — NEW
-// ✅ setAgentMessageHandler — standalone (no longer tied to setWakeWordHandlers)
-// ✅ VoskService now owns the MethodChannel handler (setWakeWordHandlers removed)
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  FIX v11: CHANNEL CONFLICT RESOLVED                                     ║
+// ║                                                                         ║
+// ║  🔴 ROOT CAUSE:                                                         ║
+// ║     VoskService called _ch.setMethodCallHandler() in start()            ║
+// ║     AccessibilityService was also using the same channel                ║
+// ║     → Two handlers on same channel = second one silently wins          ║
+// ║     → Either vosk events OR accessibility events lost                  ║
+// ║                                                                         ║
+// ║  ✅ FIX:                                                                ║
+// ║     AccessibilityService owns the SINGLE handler for                   ║
+// ║     'com.mahakal.zara/accessibility'.                                   ║
+// ║     It calls VoskService.dispatchNativeCall() for vosk events.         ║
+// ║     VoskService ONLY invokes methods, never sets handler.              ║
+// ║                                                                         ║
+// ║  ✅ setupChannelHandler() — call once from ZaraController.initialize() ║
+// ║     Sets the single handler. Safe to call multiple times (idempotent) ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:zara/services/vosk_service.dart';
 
 class AccessibilityService {
   static const _ch   = MethodChannel('com.mahakal.zara/accessibility');
   static const _main = MethodChannel('com.mahakal.zara/main');
 
-  // ── Singleton ──────────────────────────────────────────────────────────────
   static final AccessibilityService _instance = AccessibilityService._internal();
   factory AccessibilityService() => _instance;
   AccessibilityService._internal();
+
+  bool _handlerSetup = false;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ✅ FIX: SINGLE CHANNEL HANDLER
+  //
+  // Call this ONCE from ZaraController.initialize() BEFORE VoskService.start()
+  // This handler receives ALL events from native side and dispatches to
+  // the appropriate service (VoskService or AccessibilityService).
+  // ══════════════════════════════════════════════════════════════════════════
+
+  void setupChannelHandler() {
+    if (_handlerSetup) return; // idempotent
+    _handlerSetup = true;
+
+    _ch.setMethodCallHandler((call) async {
+      // Vosk + agent + security events → forward to VoskService dispatcher
+      const voskEvents = {
+        'wake_word_detected',
+        'onWakeWordPcmReady',
+        'onWakeWordEngineChanged',
+        'onWakeWordError',
+        'onAgentMessageReceived',
+        'onChainComplete',
+        'onAgentModeChanged',
+        'onSecurityEvent',
+        'onServiceStatusChanged',
+        'onWindowChanged',
+      };
+
+      if (voskEvents.contains(call.method)) {
+        await VoskService().dispatchNativeCall(call);
+        return;
+      }
+
+      // Accessibility-specific events can be handled here if needed
+      if (kDebugMode) debugPrint('AccessSvc unhandled: ${call.method}');
+    });
+
+    if (kDebugMode) debugPrint('AccessibilityService ✅ channel handler set');
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // STATUS
@@ -36,7 +88,7 @@ class AccessibilityService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SCREEN CONTEXT — real-time screen text for Gemini
+  // SCREEN CONTEXT
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<String> getScreenContext() async {
@@ -149,20 +201,6 @@ class AccessibilityService {
 
   // ══════════════════════════════════════════════════════════════════════════
   // VISION — SCREEN SCANNER
-  //
-  // Returns JSON string with all interactive elements on screen:
-  // {
-  //   "package": "com.whatsapp",
-  //   "elements": [{"text":"Send","desc":"","id":"com.wa:id/send",
-  //                 "clickable":true,"editable":false,
-  //                 "x":980,"y":1840,"w":120,"h":80},...],
-  //   "editableFields": [...],
-  //   "allText": "all visible text joined",
-  //   "elementCount": 12
-  // }
-  //
-  // ZaraProvider passes this JSON to Gemini so AI knows exactly what
-  // buttons/fields exist and where → Gemini emits precise COMMAND tags
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<String> scanScreen() async {
@@ -241,11 +279,9 @@ class AccessibilityService {
   Future<bool> whatsappSendMessage(String contact, String message) =>
       _callBool('whatsappSendMessage', {'contact': contact, 'message': message});
 
-  /// Voice call — contact = name ("Rahul") or number ("9876543210")
   Future<bool> whatsappVoiceCall(String contact) =>
       _callBool('whatsappVoiceCall', {'contact': contact});
 
-  /// Video call — contact = name ("Rahul") or number ("9876543210")
   Future<bool> whatsappVideoCall(String contact) =>
       _callBool('whatsappVideoCall', {'contact': contact});
 
@@ -272,8 +308,7 @@ class AccessibilityService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // WAKE WORD — start/stop only
-  // Handler is now owned by VoskService (vosk_service.dart)
+  // WAKE WORD — invoke only (handler is now owned by setupChannelHandler)
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<bool> startWakeWord() async {
@@ -287,8 +322,7 @@ class AccessibilityService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // AGENT MODE HANDLER
-  // Called from VoskService's MethodChannel handler when agent msg arrives
+  // AGENT MODE
   // ══════════════════════════════════════════════════════════════════════════
 
   void Function(String contact, String message)? _agentHandler;
@@ -297,13 +331,12 @@ class AccessibilityService {
     _agentHandler = handler;
   }
 
-  // Called by VoskService when 'onAgentMessageReceived' fires
   void dispatchAgentMessage(String contact, String message) {
     _agentHandler?.call(contact, message);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // UNIVERSAL GENERIC CONTROL — ANY app
+  // UNIVERSAL GENERIC CONTROL
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<bool> performGenericAction(

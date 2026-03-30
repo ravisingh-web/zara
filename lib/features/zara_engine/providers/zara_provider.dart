@@ -1,38 +1,28 @@
 // lib/features/zara_engine/providers/zara_provider.dart
-// Z.A.R.A. v15.0 — Neural Intelligence Controller
+// Z.A.R.A. v16.0 — Neural Intelligence Controller
 //
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  STATE MACHINE                                                          ║
+// ║  FIXES v16:                                                             ║
 // ║                                                                         ║
-// ║  ZaraMode.wakeWord ──── Vosk offline scanning (screen-off safe)        ║
-// ║       │  "Hii Zara" heard                                              ║
-// ║       ▼                                                                 ║
-// ║  [MIC HANDOVER]  vosk.stop() → 200ms OS release → whisper.start()     ║
-// ║       │                                                                 ║
-// ║  ZaraMode.command ───── Whisper recording (8s window)                  ║
-// ║       │  command transcribed                                            ║
-// ║       ▼                                                                 ║
-// ║  ZaraMode.thinking ──── Gemini 2.5 Flash                               ║
-// ║       │  response + screenLayout JSON (VISION)                         ║
-// ║       ▼                                                                 ║
-// ║  ZaraMode.speaking ──── ElevenLabs eleven_turbo_v2_5 streaming         ║
-// ║       │  TTS done + 800ms buffer                                       ║
-// ║       ▼                                                                 ║
-// ║  ZaraMode.wakeWord ──── loop restarts                                  ║
+// ║  🔴 BUG 1: MethodChannel conflict — VoskService + AccessibilityService  ║
+// ║     both called setMethodCallHandler() on same channel                  ║
+// ║     FIX: _access.setupChannelHandler() called FIRST in initialize()    ║
+// ║           VoskService.dispatchNativeCall() used for vosk events        ║
 // ║                                                                         ║
-// ║  VISION PIPELINE: scanScreen() JSON → Gemini system prompt             ║
-// ║  MIC HANDOVER: vosk.stop() + 200ms → whisper.startRecording()         ║
-// ║  VOICE CALLS: whatsappVoiceCall + whatsappVideoCall                    ║
+// ║  🔴 BUG 2: TTS errors silently swallowed, UI shows nothing             ║
+// ║     FIX: _tts.onError wired → _processResponse(errorMsg)              ║
+// ║           User hears/sees actual error in Hindi                        ║
+// ║                                                                         ║
+// ║  🔴 BUG 3: sayQuick() called even when ElevenLabs key missing          ║
+// ║     FIX: isTtsConfigured check before ack speak on wake word           ║
+// ║                                                                         ║
+// ║  🔴 BUG 4: Vosk restart fails after TTS error (mode stays 'speaking')  ║
+// ║     FIX: _vosk.enterWakeWordMode() always in onSpeakDone finally block ║
+// ║                                                                         ║
+// ║  🔴 BUG 5: initialize() order issue — VoskService.start() called       ║
+// ║     BEFORE setupChannelHandler() → events lost on startup             ║
+// ║     FIX: setupChannelHandler() is first thing in initialize()         ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
-// ❌ n8n         — REMOVED
-// ❌ Sheets      — REMOVED
-// ❌ PipeDream   — REMOVED
-// ❌ AutomationService — REMOVED
-// ✅ Vosk        — wake word (offline)
-// ✅ Whisper     — command STT
-// ✅ Gemini      — AI brain
-// ✅ ElevenLabs  — Anjura TTS (streaming)
-// ✅ Vision      — scanScreen() → Gemini eyes
 
 import 'dart:async';
 import 'dart:convert';
@@ -71,13 +61,12 @@ enum GodCommand {
   whatsappVoiceCall,
   whatsappVideoCall,
   facebookPost,
-  // ── Vision commands ────────────────────────────────────────────────────────
-  clickById,        // [COMMAND:CLICK_BY_ID,ID:com.pkg:id/element]
-  clickByText,      // [COMMAND:CLICK_BY_TEXT,TEXT:button label]
-  tapAt,            // [COMMAND:TAP_AT,X:540,Y:960]
-  typeText,         // [COMMAND:TYPE_TEXT,TEXT:jo likhna hai]
-  pressBack,        // [COMMAND:PRESS_BACK]
-  pressHome,        // [COMMAND:PRESS_HOME]
+  clickById,
+  clickByText,
+  tapAt,
+  typeText,
+  pressBack,
+  pressHome,
   unknown,
 }
 
@@ -93,7 +82,6 @@ class ParsedCommand {
 
 class ZaraController extends ChangeNotifier {
 
-  // ── Services ───────────────────────────────────────────────────────────────
   final _ai       = AiApiService();
   final _camera   = CameraService();
   final _location = LocationService();
@@ -105,7 +93,6 @@ class ZaraController extends ChangeNotifier {
   final _vosk     = VoskService();
   final _livekit  = LiveKitService();
 
-  // ── State ──────────────────────────────────────────────────────────────────
   ZaraState _state = ZaraState.initial();
   ZaraState get state => _state;
 
@@ -141,6 +128,10 @@ class ZaraController extends ChangeNotifier {
   Future<void> initialize() async {
     await _loadNeuralMemory();
 
+    // ✅ FIX BUG 1 + BUG 5: Setup channel handler FIRST before anything else
+    // This ensures events from native side are not lost during startup
+    _access.setupChannelHandler();
+
     try { await _email.initialize(); } catch (_) {}
 
     // ── TTS ──────────────────────────────────────────────────────────────────
@@ -156,7 +147,7 @@ class ZaraController extends ChangeNotifier {
       _isSpeaking = true;
       _state = _state.copyWith(isSpeaking: true);
       _notif.updateOrb('speaking');
-      _vosk.enterSpeakingMode(); // ← suppress wake detection while Zara speaks
+      _vosk.enterSpeakingMode();
       notifyListeners();
     };
 
@@ -165,25 +156,43 @@ class ZaraController extends ChangeNotifier {
       onVolumeLevel?.call(v);
     };
 
+    // ✅ FIX BUG 2: Wire TTS errors to UI so user knows what went wrong
+    _tts.onError = (errorMsg) {
+      if (_disposed) return;
+      if (kDebugMode) debugPrint('TTS ERROR → UI: $errorMsg');
+      _state = _state.copyWith(
+        lastResponse: errorMsg,
+        isProcessing: false,
+      );
+      // ✅ FIX BUG 4: Always reset vosk mode on TTS error
+      _vosk.enterWakeWordMode();
+      notifyListeners();
+      // Also restart vosk so wake word detection resumes
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!_disposed && !_wakeWordListening && !_realtimeActive) {
+          startWakeWordEngine();
+        }
+      });
+    };
+
     _tts.onSpeakDone = () {
       if (_disposed) return;
       _isSpeaking = false;
       _state = _state.copyWith(isSpeaking: false);
       _notif.updateOrb('still');
+
+      // ✅ FIX BUG 4: Always call enterWakeWordMode here — was missing on error path
+      _vosk.enterWakeWordMode();
       notifyListeners();
 
-      // After speaking, restart Vosk wake word engine
-      // 800ms buffer prevents Zara hearing her own TTS echo
       if (!_realtimeActive) {
         Future.delayed(const Duration(milliseconds: 800), () async {
           if (!_disposed && !_realtimeActive) {
-            _vosk.enterWakeWordMode();
             await _vosk.start();
           }
         });
       }
 
-      // Realtime loop: auto-listen after speaking
       if (_realtimeActive && !_disposed) {
         Future.delayed(const Duration(milliseconds: 800), () {
           if (_realtimeActive && !_disposed && !_isListening) {
@@ -211,7 +220,6 @@ class ZaraController extends ChangeNotifier {
     // VOSK STATE MACHINE CALLBACKS
     // ══════════════════════════════════════════════════════════════════════════
 
-    // Vosk heard "Hii Zara" / "Sunna"
     _vosk.onWakeDetected = (word) {
       if (_disposed || _isSpeaking) {
         _vosk.enterWakeWordMode();
@@ -221,7 +229,6 @@ class ZaraController extends ChangeNotifier {
       _onWakeWordDetected(word);
     };
 
-    // VAD fallback (Vosk model missing) — PCM → Whisper → wake word check
     _vosk.onPcmReady = (pcmBase64, sampleRate) async {
       if (_disposed || _isSpeaking || _vosk.mode != ZaraMode.wakeWord) return;
       final text = await _whisper.transcribePcmBase64(pcmBase64, sampleRate);
@@ -245,30 +252,40 @@ class ZaraController extends ChangeNotifier {
 
     _vosk.onError = (err) {
       if (kDebugMode) debugPrint('Vosk: $err');
+      // If mic permission denied, inform user
+      if (err.contains('no_mic_permission') || err.contains('permission')) {
+        _state = _state.copyWith(
+            lastResponse: 'Mic permission chahiye Sir! Settings mein do.');
+        notifyListeners();
+      }
     };
 
-    // ── Agent mode ────────────────────────────────────────────────────────────
+    // Agent mode
     _access.setAgentMessageHandler((contact, message) {
       if (!_disposed) handleAgentMessage(contact, message);
     });
 
-    // ── Auto-start Vosk — fully offline, no key needed ────────────────────────
-    // 2s delay gives FlutterEngine / MethodChannel time to be ready
-    Future.delayed(const Duration(seconds: 2), () {
+    // ✅ FIX: VoskService agentMessage dispatch via VoskService callback
+    _vosk.onAgentMessage = (contact, message) {
+      _access.dispatchAgentMessage(contact, message);
+    };
+
+    // ── Auto-start Vosk — 3s delay for engine + channel handler to settle ─────
+    // (was 2s, increased to 3s to ensure setupChannelHandler() is fully effective)
+    Future.delayed(const Duration(seconds: 3), () {
       if (!_disposed) startWakeWordEngine();
     });
 
-    // ── Permission check ──────────────────────────────────────────────────────
     _checkAndGuidePermissions();
 
     if (kDebugMode) {
-      debugPrint('╔══ ZARA v15.0 ════════════════════════╗');
+      debugPrint('╔══ ZARA v16.0 ════════════════════════╗');
       debugPrint('║ Gemini    : ${ApiKeys.geminiReady  ? "✅" : "❌ MISSING"}');
-      debugPrint('║ ElevenLabs: ${ApiKeys.elevenReady  ? "✅" : "❌ MISSING"}');
+      debugPrint('║ ElevenLabs: ${ApiKeys.elevenReady  ? "✅" : "❌ MISSING — TTS OFF"}');
       debugPrint('║ OpenAI    : ${ApiKeys.openaiReady  ? "✅" : "— optional"}');
       debugPrint('║ LiveKit   : ${ApiKeys.livekitReady ? "✅" : "— optional"}');
       debugPrint('║ Vosk      : ✅ offline');
-      debugPrint('║ n8n/Sheets: ❌ removed');
+      debugPrint('║ Channel   : ✅ single handler (conflict fixed)');
       debugPrint('║ Model     : ${ApiKeys.geminiModel}');
       debugPrint('╚══════════════════════════════════════╝');
     }
@@ -279,7 +296,6 @@ class ZaraController extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> startWakeWordEngine() async {
-    // Release Whisper mic before Vosk starts (exclusive resource)
     if (_whisper.alwaysOnActive) await _whisper.stopAlwaysOn();
 
     final ok = await _vosk.start();
@@ -296,17 +312,6 @@ class ZaraController extends ChangeNotifier {
 
   // ══════════════════════════════════════════════════════════════════════════
   // MIC HANDOVER — "Hii Zara" detected
-  //
-  // CRITICAL SEQUENCE — do NOT reorder:
-  //   1. _vosk.stop()         → releases AudioRecord lock
-  //   2. delay(200ms)         → OS teardown is async on OEMs:
-  //                             Pixel ~80ms · Samsung Exynos ~150ms
-  //                             OnePlus Snapdragon ~180ms
-  //                             200ms = safe across all devices
-  //   3. _whisper.startRecording() → AudioRecord.startRecording() succeeds
-  //
-  // WITHOUT step 1+2: Whisper gets AudioRecord.ERROR_INVALID_OPERATION
-  // on Exynos or AUDIOFOCUS_LOSS on Snapdragon
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> _onWakeWordDetected(String transcript) async {
@@ -320,25 +325,25 @@ class ZaraController extends ChangeNotifier {
     // Step 1: Release Vosk AudioRecord
     await _vosk.stop();
 
-    // Step 2: Wait for OS to fully release AudioRecord hardware
+    // Step 2: OS mic release buffer (OEM-safe: Exynos/Snapdragon ~180ms)
     await Future.delayed(const Duration(milliseconds: 200));
 
-    // Fix: AWAIT sayQuick fully — unawaited caused AudioFocus collision
-    // where speaker was still active when Whisper tried to open mic.
-    // On Android, AudioFocus release is NOT instant after playback ends —
-    // 300ms buffer gives OS time to fully release the audio hardware.
-    final acks = ['Ji Sir?', 'Hmm?', 'Haan boliye?', 'Ji?', 'Haan Sir?'];
-    await _tts.sayQuick(acks[DateTime.now().millisecond % acks.length]);
-
-    // Step 3: 300ms buffer — AudioFocus release on Android is async
-    await Future.delayed(const Duration(milliseconds: 300));
+    // ✅ FIX BUG 3: Only sayQuick if ElevenLabs key is configured
+    if (_tts.isTtsConfigured) {
+      final acks = ['Ji Sir?', 'Hmm?', 'Haan boliye?', 'Ji?', 'Haan Sir?'];
+      await _tts.sayQuick(acks[DateTime.now().millisecond % acks.length]);
+      // 300ms buffer after TTS — AudioFocus release is async on Android
+      await Future.delayed(const Duration(milliseconds: 300));
+    } else {
+      // No TTS key — skip ack, show text in UI instead
+      _state = _state.copyWith(lastResponse: 'Haan Sir, bol do...');
+      notifyListeners();
+    }
 
     // Step 4: Whisper can now safely open AudioRecord
     if (!_realtimeActive && !_isListening && !_disposed) {
       _realtimeActive = true;
       await _startRealtimeListen();
-      // Fix 6: If whisper failed to start (mic busy, permission denied),
-      // reset _realtimeActive so Vosk can restart cleanly on next wake word
       if (!_isListening && _realtimeActive) {
         _realtimeActive = false;
         _vosk.enterWakeWordMode();
@@ -420,13 +425,8 @@ class ZaraController extends ChangeNotifier {
 
     final text = await _whisper.stopAndTranscribe();
     if (text != null && text.trim().isNotEmpty) {
-      // ── WAKE WORD STRIP ──────────────────────────────────────────────────
-      // Whisper captures the tail-end of wake word audio too.
-      // "Hii Zara YouTube khol" → strip "hii zara" → "YouTube khol"
-      // Without this: WhatsApp search gets "hii zara mummy", not "mummy"
       final cleaned = _stripWakeWord(text.trim());
       if (cleaned.isEmpty) {
-        // Only wake word detected, no actual command — restart listening
         await _startRealtimeListen();
         return;
       }
@@ -447,7 +447,7 @@ class ZaraController extends ChangeNotifier {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // HANDS-FREE MODE (legacy — kept for compatibility)
+  // HANDS-FREE MODE
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> toggleHandsFree() async {
@@ -492,8 +492,6 @@ class ZaraController extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> receiveCommand(String cmd) async {
-    // Strip wake word prefix using canonical _stripWakeWord
-    // e.g. "Zara Mummy ko WhatsApp kar" → "Mummy ko WhatsApp kar"
     final cleaned = _stripWakeWord(cmd);
     if (cleaned.isEmpty) return;
     _handsFreeListenTimer?.cancel();
@@ -533,7 +531,6 @@ class ZaraController extends ChangeNotifier {
         response = await _handleScreenQuery(cleaned);
       }
 
-      // Fix 5: Parse ALL commands (allMatches), not just firstMatch
       final commands = _parseAllGodCommands(response);
       if (commands.isNotEmpty && commands.first.type != GodCommand.unknown) {
         await _executeGodCommandChain(commands, response);
@@ -551,23 +548,10 @@ class ZaraController extends ChangeNotifier {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // VISION PIPELINE — "The Eyes"
-  //
-  // 1. scanScreen() runs on AccessibilityService → returns JSON with ALL
-  //    interactive elements: {id, text, desc, x, y, w, h, clickable, editable}
-  // 2. getScreenContext() → plain text of everything visible
-  // 3. scanScreen JSON is injected into Gemini's SYSTEM PROMPT (not user msg)
-  //    so AI treats it as factual context about current phone state
-  //
-  // Gemini response may contain vision commands:
-  //   [COMMAND:CLICK_BY_ID,ID:com.whatsapp:id/send]
-  //   [COMMAND:TAP_AT,X:980,Y:1840]
-  //   [COMMAND:CLICK_BY_TEXT,TEXT:Send]
-  //   [COMMAND:TYPE_TEXT,TEXT:Haan bhai kal milte hain]
+  // VISION PIPELINE
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<String> _handleScreenQuery(String cmd) async {
-    // Run both scans in parallel — max 3s timeout each
     final results = await Future.wait([
       _access.scanScreen()
           .timeout(const Duration(seconds: 3), onTimeout: () => '{}'),
@@ -575,39 +559,22 @@ class ZaraController extends ChangeNotifier {
           .timeout(const Duration(seconds: 2), onTimeout: () => ''),
     ]);
 
-    final scanJson  = results[0]; // structured JSON → Gemini system prompt
-    final plainText = results[1]; // plain text     → appended to user message
+    final scanJson  = results[0];
+    final plainText = results[1];
 
-    // User message = command + visible plain text
     final userMsg = plainText.isNotEmpty
         ? '$cmd\n\n[VISIBLE TEXT: $plainText]'
         : cmd;
 
-    // scanJson → Gemini system prompt via screenLayout param
-    // This is cleaner than embedding raw JSON in user message
     _setMood(Mood.calm);
     return await _ai.generalQuery(
       userMsg,
-      screenLayout: scanJson, // ← Gemini "sees" screen elements
+      screenLayout: scanJson,
     );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // GOD MODE — COMMAND PARSER
-  // ══════════════════════════════════════════════════════════════════════════
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // GOD MODE — COMMAND PARSER (Fix 5: allMatches → full command chain)
-  //
-  // OLD: firstMatch → only 1 command executed
-  // NEW: allMatches → List<ParsedCommand> → all commands execute in sequence
-  //
-  // Example AI response:
-  //   "Karta hoon! [COMMAND:OPEN_APP,PKG:com.facebook.katana]
-  //    [COMMAND:CLICK_BY_TEXT,TEXT:What's on your mind?]
-  //    [COMMAND:TYPE_TEXT,TEXT:Hello everyone!]
-  //    [COMMAND:CLICK_BY_TEXT,TEXT:Post]"
-  //   → 4 commands all execute with 1500ms gap between each
   // ══════════════════════════════════════════════════════════════════════════
 
   List<ParsedCommand> _parseAllGodCommands(String text) {
@@ -646,17 +613,10 @@ class ZaraController extends ChangeNotifier {
     return results;
   }
 
-  // Legacy single-command parser — kept for compatibility
   ParsedCommand _parseGodCommand(String text) => _parseAllGodCommands(text).first;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // GOD MODE — COMMAND CHAIN EXECUTOR (Fix 5)
-  //
-  // Executes commands sequentially with 1500ms gap between each step.
-  // This gap is critical — Android UI needs time to render between actions.
-  // Too fast → tapping stale/empty nodes → nothing happens.
-  //
-  // Only speaks the AI text ONCE (before first command), not after each step.
+  // GOD MODE — COMMAND CHAIN EXECUTOR
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> _executeGodCommandChain(
@@ -664,21 +624,17 @@ class ZaraController extends ChangeNotifier {
     final clean = fullAiResponse
         .replaceAll(RegExp(r'\[COMMAND:[^\]]+\]'), '').trim();
 
-    // Speak the AI's text response once, then execute all commands silently
     if (clean.isNotEmpty) await _processResponse(clean);
 
     for (int i = 0; i < commands.length; i++) {
       if (_disposed) break;
       await _executeSingleCommand(commands[i], '');
-
-      // 1500ms gap between steps — UI rendering time
       if (i < commands.length - 1) {
         await Future.delayed(const Duration(milliseconds: 1500));
       }
     }
   }
 
-  // Legacy single executor — delegates to chain
   Future<void> _executeGodCommand(ParsedCommand cmd, String fullAiResponse) =>
       _executeGodCommandChain([cmd], fullAiResponse);
 
@@ -740,8 +696,6 @@ class ZaraController extends ChangeNotifier {
         final text = cmd.params['TEXT'] ?? '';
         if (text.isNotEmpty) await _access.facebookPost(text);
 
-      // ── Vision commands ─────────────────────────────────────────────────────
-
       case GodCommand.clickById:
         final id = cmd.params['ID'] ?? '';
         if (id.isNotEmpty) await _access.clickById(id);
@@ -771,7 +725,7 @@ class ZaraController extends ChangeNotifier {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // STT — manual mic button (tap to speak)
+  // STT — manual mic button
   // ══════════════════════════════════════════════════════════════════════════
 
   void Function(String)? _oneTimeTranscribeCallback;
@@ -856,17 +810,21 @@ class ZaraController extends ChangeNotifier {
         return;
       }
 
-      await _processResponse(
-        'Sir, permissions missing hain: ${missing.join(", ")}. '
-        'Settings → Z.A.R.A. → Permissions mein enable kar do.',
-      );
+      // ✅ Only warn in UI text, don't attempt TTS if key not set
+      final msg = 'Sir, permissions missing: ${missing.join(", ")}. '
+          'Settings → Z.A.R.A. → Enable karo.';
+      _state = _state.copyWith(lastResponse: msg);
+      notifyListeners();
+      if (_tts.isTtsConfigured) {
+        unawaited(_tts.speak(msg));
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('_checkAndGuidePermissions: $e');
     }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // AGENT MODE — auto-reply WhatsApp as proxy
+  // AGENT MODE
   // ══════════════════════════════════════════════════════════════════════════
 
   bool   _agentModeActive  = false;
@@ -914,12 +872,10 @@ class ZaraController extends ChangeNotifier {
   }) => _access.performGenericAction(action, target,
            target2: target2, steps: steps);
 
-  // ── Command chain ──────────────────────────────────────────────────────────
   Future<void> executeCommandChain(List<Map<String, dynamic>> commands) async {
     await _access.executeChain(commands);
   }
 
-  // ── Volume callback ────────────────────────────────────────────────────────
   void Function(double)? onVolumeLevel;
 
   Future<String?> speakLastResponse() async {
@@ -1157,17 +1113,6 @@ class ZaraController extends ChangeNotifier {
   // CLASSIFIERS
   // ══════════════════════════════════════════════════════════════════════════
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // WAKE WORD STRIPPER
-  //
-  // Whisper records ~0.5s before wake word ends — transcript contains:
-  //   "hii zara YouTube khol"  → should be → "YouTube khol"
-  //   "hey zara mummy ko call" → should be → "mummy ko call"
-  //   "zara"                   → empty (only wake word, no command)
-  //
-  // Strips leading wake word phrase, returns actual command.
-  // ══════════════════════════════════════════════════════════════════════════
-
   static const _wakeWords = [
     'hii zara', 'hi zara', 'hey zara', 'zara sunna',
     'zara suno', 'suno zara', 'sunna zara',
@@ -1176,57 +1121,34 @@ class ZaraController extends ChangeNotifier {
 
   String _stripWakeWord(String text) {
     var lower = text.toLowerCase().trim();
-    // Try longest match first (greedy)
     final sorted = List<String>.from(_wakeWords)
       ..sort((a, b) => b.length.compareTo(a.length));
     for (final w in sorted) {
       if (lower.startsWith(w)) {
         lower = lower.substring(w.length).trim();
-        // Remove leading punctuation/comma
         lower = lower.replaceFirst(RegExp(r'^[,\.\-\s]+'), '').trim();
         if (kDebugMode) debugPrint('🧹 WakeStrip: "$text" → "$lower"');
         return lower;
       }
     }
-    return text.trim(); // no wake word prefix found — return as-is
+    return text.trim();
   }
 
   bool _isCodeCommand(String cmd) {
     final l = cmd.toLowerCase();
-    return l.contains('code')     || l.contains('dart')     ||
-           l.contains('flutter')  || l.contains('fix')      ||
-           l.contains('error')    || l.contains('function');
+    return l.contains('code')    || l.contains('dart')    ||
+           l.contains('flutter') || l.contains('fix')     ||
+           l.contains('error')   || l.contains('function');
   }
 
   bool _isChatCommand(String cmd) {
     final l = cmd.toLowerCase();
-    // ONLY pure emotional/personal queries go to emotionalChat
-    // DO NOT add 'hi', 'zara', 'ravi' here — those appear in action commands too
-    // e.g. "Ravi ko WhatsApp kar" contains 'ravi' but is an ACTION, not chat
     return l.contains('pyar')   || l.contains('love')    ||
            l.contains('miss')   || l.contains('kaisi ho') ||
            l.contains('kya kar rahi') || l.contains('tum kahan') ||
            l.contains('boyfriend') || l.contains('girlfriend') ||
-           l.contains('shayari') || l.contains('poem')    ||
+           l.contains('shayari') || l.contains('poem')   ||
            l.contains('joke')   || l.contains('hasao');
-  }
-
-  bool _needsSearch(String cmd) {
-    final l = cmd.toLowerCase();
-    return l.contains('search') || l.contains('news')   ||
-           l.contains('weather')|| l.contains('latest') ||
-           l.contains('today');
-  }
-
-  bool _isScreenQuery(String cmd) {
-    final l = cmd.toLowerCase();
-    return l.contains('screen')      || l.contains('dikha')      ||
-           l.contains('dikh raha')   || l.contains('yahan kya')  ||
-           l.contains('kya open')    || l.contains('abhi kya')   ||
-           l.contains('is app mein') || l.contains('kya likha')  ||
-           l.contains('page pe')     || l.contains('click karo') ||
-           l.contains('tap karo')    || l.contains('press karo') ||
-           l.contains('button dabao');
   }
 
   void _determineMood(String cmd) {
@@ -1283,7 +1205,7 @@ class ZaraController extends ChangeNotifier {
     _silenceTimer?.cancel();
     _handsFreeListenTimer?.cancel();
     _tts.onAutoListenTrigger = null;
-    await _vosk.dispose();           // releases WakeLock + stops AudioRecord
+    await _vosk.dispose();
     await _whisper.stopAlwaysOn();
     await _tts.dispose();
     super.dispose();
