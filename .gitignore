@@ -28,6 +28,3 @@ Thumbs.db
 
 # GitHub Actions (optional)
 .github/workflows/*.log
-android/app/src/main/assets/model/
-android/app/src/main/assets/model/
-android/app/src/main/assets/model/

@@ -122,7 +122,7 @@ class ZaraTtsService {
 
   // ── Constants ──────────────────────────────────────────────────────────────
   static const _voiceId      = 'rdz6GofVsYlLgQl2dBEE'; // Anjura
-  static const _models = ['eleven_flash_v2_5', 'eleven_turbo_v2_5', 'eleven_multilingual_v2', 'eleven_flash_v2'];
+  static const _models = ['eleven_flash_v2_5', 'eleven_multilingual_v2', 'eleven_flash_v2'];
   static const _outputFormat = 'mp3_44100_128';
   static const _latencyOpt   = 4;
   static const _minPlayBytes = 6144;
