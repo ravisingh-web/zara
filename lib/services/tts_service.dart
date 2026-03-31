@@ -122,8 +122,8 @@ class ZaraTtsService {
 
   // ── Constants ──────────────────────────────────────────────────────────────
   static const _voiceId      = 'rdz6GofVsYlLgQl2dBEE'; // Anjura
-  static const _models       = ['eleven_turbo_v2_5', 'eleven_multilingual_v2'];
-  static const _outputFormat = 'mp3_22050_32';
+  static const _models = ['eleven_flash_v2_5', 'eleven_turbo_v2_5', 'eleven_multilingual_v2', 'eleven_flash_v2'];
+  static const _outputFormat = 'mp3_44100_128';
   static const _latencyOpt   = 4;
   static const _minPlayBytes = 6144;
 
@@ -264,7 +264,7 @@ class ZaraTtsService {
       final ok = await _tryStream(
         'Haan Sir, ElevenLabs ka test ho gaya. Main bilkul sahi kaam kar rahi hoon!',
         apiKey.trim(),
-        'eleven_turbo_v2_5',
+        'eleven_flash_v2_5',
       );
 
       _isSpeaking = false;
@@ -576,34 +576,4 @@ class ZaraTtsService {
 
   Future<void> _idle() async {
     if (_disposed || !_enabled || _isSpeaking) return;
-    if (!isTtsConfigured) return; // ✅ Don't idle-speak if key not set
-    if (DateTime.now().difference(_lastActivity).inMinutes >= 4) {
-      await sayQuick(_idlePhrases[_rnd.nextInt(_idlePhrases.length)]);
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // SETTERS
-  // ══════════════════════════════════════════════════════════════════════════
-
-  void setEnabled(bool v)   { _enabled = v; if (!v) stop(); }
-  void setMood(Mood m)      { _mood = m; }
-  void resetIdleTimer()     { _lastActivity = DateTime.now(); }
-  void setHandsFree(bool v) { _handsFreeMode = v; }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // DISPOSE
-  // ══════════════════════════════════════════════════════════════════════════
-
-  Future<void> dispose() async {
-    _disposed   = true;
-    _stopFlag   = true;
-    _isSpeaking = false;
-    stopIdleSystem();
-    _cancelSrc();
-    try { await _player?.stop();    } catch (_) {}
-    try { await _player?.dispose(); _player = null; } catch (_) {}
-    _http.close();
-    _initialized = false;
-  }
-}
+    if (!isTtsConfigured) return; // ✅ Don't idle-speak if key not 
