@@ -1,4 +1,4 @@
-name: ZARA Build APK
+name: Z.A.R.A. Build APK
 
 on:
   push:
@@ -8,23 +8,15 @@ on:
 env:
   FLUTTER_VERSION: '3.41.1'
   JAVA_VERSION: '17'
-  APK_PATH: 'build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk'
 
 jobs:
-  build-apk:
-    name: Build Debug APK
+  build:
+    name: Build Debug + Release APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: false
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -33,19 +25,59 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: 'gradle'
 
-      - name: Install dependencies
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
         run: flutter pub get
 
-      - name: Analyze code
+      - name: Analyze (non-fatal)
         run: flutter analyze --no-fatal-warnings || true
         continue-on-error: true
 
-      - name: Build APK
+      - name: Build Debug APK (arm64)
         run: flutter build apk --debug --target-platform android-arm64 --split-per-abi
 
-      - name: Upload APK
+      - name: Build Release APK (arm64)
+        run: flutter build apk --release --target-platform android-arm64 --split-per-abi
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: zara-debug-apk
-          path: ${{ env.APK_PATH }}
-          retention-days: 7
+          name: ZARA-debug-arm64
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
+          retention-days: 30
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZARA-release-arm64
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Z.A.R.A. Build #${{ github.run_number }}"
+          body: |
+            ## Z.A.R.A. Auto Build 🚀
+            - Branch: `${{ github.ref_name }}`
+            - Commit: `${{ github.sha }}`
+            - Flutter: `${{ env.FLUTTER_VERSION }}`
+
+            ### Download
+            - **Release APK** → Production use
+            - **Debug APK** → Testing/debugging
+          files: |
+            build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

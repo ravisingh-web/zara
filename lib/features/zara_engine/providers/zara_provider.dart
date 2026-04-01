@@ -247,6 +247,9 @@ class ZaraController extends ChangeNotifier {
 
     _vosk.onEngineChanged = (active) {
       _wakeWordListening = active;
+      // Update MIC dot in UI when wake word engine starts/stops
+      _permissions = Map<String, bool>.from(_permissions)
+        ..['microphone'] = active || _isListening;
       notifyListeners();
     };
 
@@ -793,11 +796,14 @@ class ZaraController extends ChangeNotifier {
   Future<void> _checkAndGuidePermissions() async {
     try {
       final perms = await _access.checkAllPermissions();
+      // Check microphone via Vosk engine status
+      final micOk = _wakeWordListening || _isListening;
       _permissions = {
         'accessibility':        perms['accessibility']        ?? false,
         'overlay':              perms['overlay']              ?? false,
         'notificationListener': perms['notificationListener'] ?? false,
         'foregroundService':    perms['foregroundService']    ?? false,
+        'microphone':           micOk,
       };
       notifyListeners();
 
