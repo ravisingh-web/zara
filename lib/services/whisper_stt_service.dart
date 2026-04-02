@@ -1,10 +1,16 @@
 // lib/services/whisper_stt_service.dart
-// Z.A.R.A. v8.0 — OpenAI Whisper STT + Always-On Background Listening
+// Z.A.R.A. v17.0 — Multi-Provider STT
 //
-// ✅ Manual mode  : startRecording / stopAndTranscribe
-// ✅ Always-On    : continuous 5s chunk recording → Whisper → callback
-// ✅ Noise filter : skips silence / hallucinated text
-// ✅ Background   : runs while Zara is minimized via ForegroundService
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  PROVIDERS:                                                             ║
+// ║  1. HuggingFace Whisper large-v3 — FREE (no key needed basic use)      ║
+// ║  2. OpenAI Whisper — fallback if HF fails (needs paid key)             ║
+// ║                                                                         ║
+// ║  HF MODEL: openai/whisper-large-v3                                     ║
+// ║  • 99 languages including Hindi                                         ║
+// ║  • FREE via HF Inference API                                            ║
+// ║  • With HF token → higher rate limits                                   ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
 
 import 'dart:async';
 import 'dart:convert';
@@ -30,17 +36,19 @@ class WhisperSttService {
   bool get isRecording    => _isRecording;
   bool get alwaysOnActive => _alwaysOnActive;
 
-  // Callbacks
-  void Function(String text)? onTranscription;   // always-on: speech detected
-  void Function(bool active)? onAlwaysOnChange;  // mode changed
+  void Function(String text)? onTranscription;
+  void Function(bool active)? onAlwaysOnChange;
+
+  // HuggingFace Whisper
+  static const _hfWhisperModel = 'openai/whisper-large-v3';
+  static const _hfApiBase = 'https://api-inference.huggingface.co/models';
 
   static const _chunkDuration = Duration(seconds: 5);
-  static const _minChunkBytes = 6000; // skip silence chunks
+  static const _minChunkBytes = 6000;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // MANUAL MODE
+  // MANUAL RECORDING
   // ══════════════════════════════════════════════════════════════════════════
-
   Future<bool> startRecording() async {
     if (_isRecording || _alwaysOnActive) return false;
     try {
@@ -48,17 +56,18 @@ class WhisperSttService {
       final path = await _tmpPath('stt');
       await _recorder.start(
         const RecordConfig(
-            encoder: AudioEncoder.aacLc,
-            sampleRate: 16000,
-            bitRate: 128000,
-            numChannels: 1),
+          encoder:    AudioEncoder.aacLc,
+          sampleRate: 16000,
+          bitRate:    128000,
+          numChannels: 1,
+        ),
         path: path,
       );
       _isRecording = true;
-      if (kDebugMode) debugPrint('Whisper ✅ recording');
+      if (kDebugMode) debugPrint('WhisperSTT ✅ recording started');
       return true;
     } catch (e) {
-      if (kDebugMode) debugPrint('Whisper startRecording: $e');
+      if (kDebugMode) debugPrint('WhisperSTT startRecording: $e');
       return false;
     }
   }
@@ -83,174 +92,163 @@ class WhisperSttService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ALWAYS-ON MODE — background continuous listening
-  //
-  // Usage in zara_provider.initialize():
-  //   _whisper.onTranscription = (text) => receiveCommand(text);
-  //   await _whisper.startAlwaysOn();
-  //
-  // Flow:
-  //   record 5s → send to Whisper → if real speech → fire onTranscription
-  //   → immediately record next 5s → loop
+  // ALWAYS-ON MODE
   // ══════════════════════════════════════════════════════════════════════════
-
   Future<bool> startAlwaysOn() async {
     if (_alwaysOnActive || _disposed) return false;
-    if (!await _recorder.hasPermission()) {
-      if (kDebugMode) debugPrint('AlwaysOn: no mic permission');
-      return false;
-    }
+    if (!await _recorder.hasPermission()) return false;
     _alwaysOnActive = true;
     onAlwaysOnChange?.call(true);
-    if (kDebugMode) debugPrint('🎙️ Always-On: ACTIVE');
     unawaited(_alwaysOnLoop());
     return true;
   }
 
   Future<void> stopAlwaysOn() async {
     _alwaysOnActive = false;
-    if (_isRecording) {
-      try { await _recorder.cancel(); } catch (_) {}
-      _isRecording = false;
-    }
     onAlwaysOnChange?.call(false);
-    if (kDebugMode) debugPrint('🎙️ Always-On: STOPPED');
+    try { await _recorder.cancel(); } catch (_) {}
+    _isRecording = false;
   }
 
   Future<void> _alwaysOnLoop() async {
     while (_alwaysOnActive && !_disposed) {
       try {
-        final path = await _recordChunk();
-        if (path == null || !_alwaysOnActive) break;
-        // Transcribe in parallel — don't block next chunk
-        unawaited(_transcribeAndFire(path));
-        await Future.delayed(const Duration(milliseconds: 150));
+        final path = await _tmpPath('aon');
+        await _recorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000, numChannels: 1),
+          path: path,
+        );
+        _isRecording = true;
+        await Future.delayed(_chunkDuration);
+        if (!_alwaysOnActive) break;
+        final stopped = await _recorder.stop();
+        _isRecording  = false;
+        if (stopped != null) {
+          final file = File(stopped);
+          if (await file.exists() && await file.length() > _minChunkBytes) {
+            unawaited(_transcribeAndFire(stopped));
+          }
+        }
       } catch (e) {
-        if (kDebugMode) debugPrint('AlwaysOn loop: $e');
+        _isRecording = false;
         await Future.delayed(const Duration(seconds: 1));
       }
     }
   }
 
-  Future<String?> _recordChunk() async {
-    if (_disposed || !_alwaysOnActive) return null;
-    try {
-      final path = await _tmpPath('ao');
-      await _recorder.start(
-        const RecordConfig(
-            encoder: AudioEncoder.aacLc,
-            sampleRate: 16000,
-            bitRate: 64000,
-            numChannels: 1),
-        path: path,
-      );
-      _isRecording = true;
-      await Future.delayed(_chunkDuration);
-      if (!_alwaysOnActive) {
-        try { await _recorder.cancel(); } catch (_) {}
-        _isRecording = false;
-        return null;
-      }
-      final stopped = await _recorder.stop();
-      _isRecording  = false;
-      return stopped;
-    } catch (e) {
-      _isRecording = false;
-      return null;
-    }
-  }
-
   Future<void> _transcribeAndFire(String path) async {
     try {
-      final file = File(path);
-      if (!await file.exists()) return;
-      if (await file.length() < _minChunkBytes) { await file.delete(); return; }
-
       final text = await _transcribe(path);
-      if (text == null || text.trim().isEmpty) return;
-      if (_isNoise(text.trim().toLowerCase())) return;
-
-      if (kDebugMode) debugPrint('🎙️ AlwaysOn: "$text"');
-      onTranscription?.call(text.trim());
-    } catch (e) {
-      if (kDebugMode) debugPrint('_transcribeAndFire: $e');
-    }
-  }
-
-  // Whisper hallucinates these patterns on silence — filter them
-  bool _isNoise(String t) {
-    if (t.length < 3) return true;
-    const noise = ['thank you','thanks','bye','you','the','.','music',
-      'applause','silence','hmm','uh','um','uhh','oh','ah','okay okay',
-      'dhanyavaad','shukriya','ahem'];
-    return noise.any((n) => t == n || t == '$n.');
+      if (text != null && text.trim().isNotEmpty) {
+        onTranscription?.call(text.trim());
+      }
+    } catch (_) {}
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // WHISPER API
+  // CORE TRANSCRIPTION — HuggingFace first, OpenAI fallback
   // ══════════════════════════════════════════════════════════════════════════
-
   Future<String?> _transcribe(String filePath) async {
-    final key = ApiKeys.openaiKey;
-    if (key.isEmpty) {
-      if (kDebugMode) debugPrint('Whisper: OpenAI key missing');
+    // Try HuggingFace Whisper first (FREE)
+    final hfResult = await _transcribeHuggingFace(filePath);
+    if (hfResult != null && hfResult.trim().isNotEmpty) {
+      return _filterHallucinations(hfResult);
+    }
+
+    // Fallback to OpenAI Whisper
+    if (ApiKeys.openaiKey.isNotEmpty) {
+      if (kDebugMode) debugPrint('WhisperSTT → OpenAI fallback');
+      return await _transcribeOpenAI(filePath);
+    }
+
+    return null;
+  }
+
+  // ── HuggingFace Whisper ────────────────────────────────────────────────────
+  Future<String?> _transcribeHuggingFace(String filePath) async {
+    try {
+      final file  = File(filePath);
+      if (!await file.exists()) return null;
+      final bytes = await file.readAsBytes();
+
+      final headers = <String, String>{
+        'Content-Type': 'audio/m4a',
+      };
+      if (ApiKeys.hfKey.isNotEmpty) {
+        headers['Authorization'] = 'Bearer ${ApiKeys.hfKey}';
+      }
+      // Add Hindi language hint
+      final url = Uri.parse(
+        '$_hfApiBase/$_hfWhisperModel'
+        '?language=hi&task=transcribe',
+      );
+
+      if (kDebugMode) debugPrint('WhisperSTT → HuggingFace (${bytes.length} bytes)');
+
+      final resp = await http.post(url, headers: headers, body: bytes)
+          .timeout(const Duration(seconds: 30));
+
+      if (resp.statusCode == 200) {
+        final json = jsonDecode(resp.body);
+        final text = json['text'] as String? ?? '';
+        if (kDebugMode) debugPrint('WhisperSTT HF ✅: "$text"');
+        return text.trim().isEmpty ? null : text.trim();
+      } else if (resp.statusCode == 503) {
+        // Model loading
+        if (kDebugMode) debugPrint('WhisperSTT HF: loading model...');
+        await Future.delayed(const Duration(seconds: 5));
+        // Retry once
+        final retry = await http.post(url, headers: headers, body: bytes)
+            .timeout(const Duration(seconds: 30));
+        if (retry.statusCode == 200) {
+          final json = jsonDecode(retry.body);
+          return (json['text'] as String? ?? '').trim();
+        }
+      } else {
+        if (kDebugMode) debugPrint('WhisperSTT HF ❌ ${resp.statusCode}: ${resp.body.substring(0, min(100, resp.body.length))}');
+      }
+      return null;
+    } catch (e) {
+      if (kDebugMode) debugPrint('WhisperSTT HF error: $e');
       return null;
     }
-    final file = File(filePath);
-    if (!await file.exists()) return null;
+  }
+
+  // ── OpenAI Whisper fallback ────────────────────────────────────────────────
+  Future<String?> _transcribeOpenAI(String filePath) async {
     try {
+      final key  = ApiKeys.openaiKey;
+      if (key.isEmpty) return null;
+      final file = File(filePath);
+      if (!await file.exists()) return null;
+
       final req = http.MultipartRequest(
-          'POST', Uri.parse('https://api.openai.com/v1/audio/transcriptions'));
+        'POST', Uri.parse('https://api.openai.com/v1/audio/transcriptions'));
       req.headers['Authorization'] = 'Bearer $key';
-      req.files.add(await http.MultipartFile.fromPath(
-          'file', filePath, filename: 'audio.m4a'));
-      req.fields['model']           = 'whisper-1';
-      req.fields['language']        = _lang();
+      req.files.add(await http.MultipartFile.fromPath('file', filePath,
+          filename: 'audio.m4a'));
+      req.fields['model']    = 'whisper-1';
+      req.fields['language'] = 'hi';
       req.fields['response_format'] = 'json';
 
-      final streamed = await req.send().timeout(const Duration(seconds: 20));
-      final body     = await streamed.stream.bytesToString();
-      try { await file.delete(); } catch (_) {}
-
-      if (streamed.statusCode == 200) {
-        final text = (jsonDecode(body) as Map)['text'] as String? ?? '';
-        return text.trim().isEmpty ? null : text.trim();
-      }
-      if (kDebugMode) debugPrint('Whisper ❌ ${streamed.statusCode}');
-      return null;
+      final streamed = await req.send().timeout(const Duration(seconds: 30));
+      final body     = await streamed.stream.toBytes();
+      final json     = jsonDecode(utf8.decode(body));
+      return (json['text'] as String? ?? '').trim();
     } catch (e) {
-      if (kDebugMode) debugPrint('Whisper _transcribe: $e');
+      if (kDebugMode) debugPrint('WhisperSTT OpenAI: $e');
       return null;
     }
   }
 
-  String _lang() {
-    final l = ApiKeys.lang;
-    if (l.startsWith('hi')) return 'hi';
-    if (l.startsWith('en')) return 'en';
-    if (l.startsWith('mr')) return 'mr';
-    if (l.startsWith('gu')) return 'gu';
-    if (l.startsWith('ta')) return 'ta';
-    return 'hi';
-  }
-
-  Future<String> _tmpPath(String tag) async {
-    final dir = await getTemporaryDirectory();
-    return '${dir.path}/zara_${tag}_${DateTime.now().millisecondsSinceEpoch}.m4a';
-  }
-
-  // ── Transcribe raw PCM from native wake word engine ──────────────────────
-  // Native sends 16-bit PCM as base64, we convert to WAV and send to Whisper
+  // ── HuggingFace PCM transcription (for Vosk VAD fallback) ─────────────────
   Future<String?> transcribePcmBase64(String pcmBase64, int sampleRate) async {
-    final key = ApiKeys.openaiKey;
-    if (key.isEmpty) return null;
     try {
       final pcmBytes = base64Decode(pcmBase64);
-      // Build WAV header
-      final wavBytes = _pcmToWav(pcmBytes, sampleRate);
-      final dir      = await getTemporaryDirectory();
-      final path     = '${dir.path}/zara_ww_${DateTime.now().millisecondsSinceEpoch}.wav';
-      await File(path).writeAsBytes(wavBytes);
+      // Save as WAV
+      final tmp  = await getTemporaryDirectory();
+      final path = '${tmp.path}/vosk_fallback_${DateTime.now().millisecondsSinceEpoch}.wav';
+      await _writePcmAsWav(path, pcmBytes, sampleRate);
       return await _transcribe(path);
     } catch (e) {
       if (kDebugMode) debugPrint('transcribePcmBase64: $e');
@@ -258,27 +256,49 @@ class WhisperSttService {
     }
   }
 
-  Uint8List _pcmToWav(Uint8List pcm, int sampleRate) {
-    final dataSize   = pcm.length;
-    final totalSize  = 44 + dataSize;
-    final buffer     = Uint8List(totalSize);
-    final data       = ByteData.view(buffer.buffer);
-    // RIFF header
-    buffer.setRange(0, 4, [82,73,70,70]); // 'RIFF'
-    data.setUint32(4, totalSize - 8, Endian.little);
-    buffer.setRange(8, 12, [87,65,86,69]); // 'WAVE'
-    buffer.setRange(12, 16, [102,109,116,32]); // 'fmt '
-    data.setUint32(16, 16, Endian.little); // chunk size
-    data.setUint16(20, 1, Endian.little);  // PCM format
-    data.setUint16(22, 1, Endian.little);  // mono
-    data.setUint32(24, sampleRate, Endian.little);
-    data.setUint32(28, sampleRate * 2, Endian.little); // byte rate
-    data.setUint16(32, 2, Endian.little);  // block align
-    data.setUint16(34, 16, Endian.little); // bits per sample
-    buffer.setRange(36, 40, [100,97,116,97]); // 'data'
-    data.setUint32(40, dataSize, Endian.little);
-    buffer.setRange(44, 44 + dataSize, pcm);
-    return buffer;
+  Future<void> _writePcmAsWav(String path, Uint8List pcm, int sr) async {
+    final file   = File(path);
+    final output = file.openWrite();
+    final length = pcm.length;
+    // WAV header
+    final header = ByteData(44);
+    void writeStr(int off, String s) {
+      for (var i = 0; i < s.length; i++) header.setUint8(off + i, s.codeUnitAt(i));
+    }
+    writeStr(0, 'RIFF');
+    header.setUint32(4, 36 + length, Endian.little);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    header.setUint32(16, 16, Endian.little);
+    header.setUint16(20, 1, Endian.little);
+    header.setUint16(22, 1, Endian.little);
+    header.setUint32(24, sr, Endian.little);
+    header.setUint32(28, sr * 2, Endian.little);
+    header.setUint16(32, 2, Endian.little);
+    header.setUint16(34, 16, Endian.little);
+    writeStr(36, 'data');
+    header.setUint32(40, length, Endian.little);
+    output.add(header.buffer.asUint8List());
+    output.add(pcm);
+    await output.close();
+  }
+
+  // ── Hallucination filter ───────────────────────────────────────────────────
+  String? _filterHallucinations(String text) {
+    final t = text.trim().toLowerCase();
+    const hallucinations = [
+      'thank you for watching', 'thanks for watching',
+      'subscribe', 'please like', 'you', 'the', 'i', 'a',
+    ];
+    if (t.length < 3) return null;
+    if (hallucinations.any((h) => t == h)) return null;
+    return text.trim();
+  }
+
+  // ── Temp file path ─────────────────────────────────────────────────────────
+  Future<String> _tmpPath(String prefix) async {
+    final dir = await getTemporaryDirectory();
+    return '${dir.path}/${prefix}_${DateTime.now().millisecondsSinceEpoch}.m4a';
   }
 
   Future<void> dispose() async {

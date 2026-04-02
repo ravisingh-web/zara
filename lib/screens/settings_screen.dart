@@ -34,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   // ── Controllers — only the 5 active services ──────────────────────────────
   final _gemCtrl    = TextEditingController();
   final _elCtrl     = TextEditingController();
+  final _hfCtrl     = TextEditingController(); // HuggingFace token
   final _oaiCtrl    = TextEditingController();
   final _mem0Ctrl   = TextEditingController();
   final _lkUrlCtrl  = TextEditingController();
@@ -46,6 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _hideEl    = true;
   bool _hideOai   = true;
   bool _hideMem0  = true;
+  bool _hideHf    = true;
   bool _hideLkTok = true;
 
   // ── Form state ─────────────────────────────────────────────────────────────
@@ -73,7 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   void dispose() {
     _tabs.dispose();
     for (final c in [
-      _gemCtrl, _elCtrl, _oaiCtrl, _mem0Ctrl,
+      _gemCtrl, _elCtrl, _oaiCtrl, _mem0Ctrl, _hfCtrl,
       _lkUrlCtrl, _lkTokCtrl, _ownerCtrl, _userIdCtrl,
     ]) { c.dispose(); }
     super.dispose();
@@ -88,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     _oaiCtrl.text    = ApiKeys.openaiKey;
     _mem0Ctrl.text   = ApiKeys.mem0Key;
     _lkUrlCtrl.text  = ApiKeys.livekitUrl;
+    _hfCtrl.text     = ApiKeys.hfKey;
     _lkTokCtrl.text  = ApiKeys.livekitToken;
     _ownerCtrl.text  = ApiKeys.ownerName;
     _userIdCtrl.text = ApiKeys.mem0UserId;
@@ -184,6 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         geminiKey:    _gemCtrl.text,
         elevenKey:    _elCtrl.text,
         openaiKey:    _oaiCtrl.text,
+        hfKey:        _hfCtrl.text,
         mem0Key:      _mem0Ctrl.text,
         livekitUrl:   _lkUrlCtrl.text,
         livekitToken: _lkTokCtrl.text,
@@ -290,7 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       color:   const Color(0xFF7B2FFF),
       icon:    Icons.record_voice_over_rounded,
       title:   '2 · ELEVENLABS',
-      subtitle: 'Anjura voice — streaming TTS (eleven_turbo_v2_5)',
+      subtitle: 'Anjura voice — optional (HuggingFace fallback FREE)',
       link:    'Get Key →',
       linkUrl: 'https://elevenlabs.io/app/subscription',
       child: Column(children: [
@@ -304,7 +308,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         _infoChip(
           const Color(0xFF7B2FFF),
           Icons.lock_rounded,
-          'Voice: Anjura  ·  ID: rdz6GofVsYlLgQl2dBEE  ·  Model: eleven_turbo_v2_5',
+          'Voice: Anjura  ·  Model: eleven_flash_v2_5  ·  Free fallback: HuggingFace',
         ),
       ]),
     ),
@@ -315,7 +319,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       color:   const Color(0xFF4CAF50),
       icon:    Icons.mic_rounded,
       title:   '3 · OPENAI  (Whisper STT)',
-      subtitle: 'Voice → Text — optional, Vosk handles wake word',
+      subtitle: 'Optional — HuggingFace Whisper free fallback available',
       link:    'Get Key →',
       linkUrl: 'https://platform.openai.com/api-keys',
       child: _keyField(
@@ -327,11 +331,36 @@ class _SettingsScreenState extends State<SettingsScreen>
     ),
     const SizedBox(height: 12),
 
-    // 4 — Mem0 (optional)
+    // 4 — HuggingFace (optional but recommended)
+    _apiCard(
+      color:   const Color(0xFFFF6F00),
+      icon:    Icons.hub_rounded,
+      title:   '4 · HUGGINGFACE',
+      subtitle: 'Free TTS + STT — works without key (token = higher limits)',
+      link:    'Get Token →',
+      linkUrl: 'https://huggingface.co/settings/tokens',
+      child: Column(children: [
+        _keyField(
+          _hfCtrl, 'hf_...  (optional — free tier works without token)', _hideHf,
+          () => setState(() => _hideHf = !_hideHf),
+          (v) => _validate('hf', v),
+          true, '',
+        ),
+        const SizedBox(height: 8),
+        _infoChip(
+          const Color(0xFFFF6F00),
+          Icons.auto_awesome,
+          'TTS: facebook/mms-tts-hin  ·  STT: openai/whisper-large-v3',
+        ),
+      ]),
+    ),
+    const SizedBox(height: 12),
+
+    // 5 — Mem0 (optional)
     _apiCard(
       color:   const Color(0xFFFF9800),
       icon:    Icons.memory_rounded,
-      title:   '4 · MEM0',
+      title:   '5 · MEM0',
       subtitle: 'Neural memory — Ravi ji ko hamesha yaad rakhna',
       link:    'Get Key →',
       linkUrl: 'https://app.mem0.ai/dashboard/api-keys',
@@ -344,11 +373,11 @@ class _SettingsScreenState extends State<SettingsScreen>
     ),
     const SizedBox(height: 12),
 
-    // 5 — LiveKit (optional)
+    // 6 — LiveKit (optional)
     _apiCard(
       color:   const Color(0xFF9C27B0),
       icon:    Icons.graphic_eq_rounded,
-      title:   '5 · LIVEKIT',
+      title:   '6 · LIVEKIT',
       subtitle: 'Real-time voice room — ultra-low latency',
       link:    'Dashboard →',
       linkUrl: 'https://cloud.livekit.io',
@@ -507,11 +536,12 @@ class _SettingsScreenState extends State<SettingsScreen>
     final o = ApiKeys.openaiReady;
     final m = ApiKeys.mem0Ready;
     final l = ApiKeys.livekitReady;
+    final h = ApiKeys.hfKey.isNotEmpty; // HuggingFace optional
     final count = [g, e, o, m, l].where((x) => x).length;
+    final totalAvail = count + (h ? 1 : 0);
 
-    final c = count == 5 ? AppColors.successGreen
-        : count >= 2     ? AppColors.warningOrange
-        : AppColors.errorRed;
+    final c = count >= 1 ? AppColors.successGreen // Gemini enough
+        : AppColors.warningOrange;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -525,7 +555,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           Icon(count >= 2 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
               color: c, size: 18),
           const SizedBox(width: 8),
-          Text('$count / 5 APIs configured',
+          Text('$count / 5 APIs configured${h ? " + HF" : ""}  (HuggingFace: FREE)",
               style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 12)),
         ]),
         const SizedBox(height: 8),
@@ -535,6 +565,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         _statusRow('Mem0',       m),
         _statusRow('LiveKit',    l),
         const SizedBox(height: 4),
+        _statusRow('HuggingFace TTS+STT', true, icon: Icons.check_circle_outline),
         _statusRow('Vosk (offline)', true, icon: Icons.wifi_off_rounded),
       ]),
     );

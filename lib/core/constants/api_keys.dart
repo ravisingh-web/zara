@@ -25,6 +25,7 @@ class ApiKeys {
   static String _geminiKey    = '';
   static String _elevenKey    = '';
   static String _openaiKey    = '';
+  static String _hfKey        = ''; // HuggingFace token (optional — free tier works without)
   static String _mem0Key      = '';
   static String _mem0UserId   = 'zara_ravi';
   static String _livekitUrl   = '';
@@ -38,6 +39,7 @@ class ApiKeys {
   static const _kGemini   = 'gemini_key';
   static const _kEleven   = 'eleven_key';
   static const _kOpenAI   = 'openai_key';
+  static const _kHF       = 'hf_key';
   static const _kMem0     = 'mem0_key';
   static const _kMem0User = 'mem0_user_id';
   static const _kLKUrl    = 'livekit_url';
@@ -68,6 +70,7 @@ class ApiKeys {
     _geminiKey    = _p.getString(_kGemini)   ?? '';
     _elevenKey    = _p.getString(_kEleven)   ?? '';
     _openaiKey    = _p.getString(_kOpenAI)   ?? '';
+    _hfKey        = _p.getString(_kHF)       ?? '';
     _mem0Key      = _p.getString(_kMem0)     ?? '';
     _mem0UserId   = _p.getString(_kMem0User) ?? 'zara_ravi';
     _livekitUrl   = _p.getString(_kLKUrl)    ?? '';
@@ -85,6 +88,7 @@ class ApiKeys {
       debugPrint('│  Gemini     : ${_geminiKey.isNotEmpty  ? "✅ set" : "❌ MISSING"}');
       debugPrint('│  ElevenLabs : ${_elevenKey.isNotEmpty  ? "✅ set" : "❌ MISSING"}');
       debugPrint('│  OpenAI     : ${_openaiKey.isNotEmpty  ? "✅ set" : "— optional"}');
+      debugPrint('│  HuggFace   : ${_hfKey.isNotEmpty        ? "✅ set" : "✅ free tier (no key)"}');
       debugPrint('│  LiveKit    : ${_livekitUrl.isNotEmpty ? "✅ set" : "— optional"}');
       debugPrint('│  Mem0       : ${_mem0Key.isNotEmpty    ? "✅ set" : "— optional"}');
       debugPrint('│  Vosk       : ✅ offline (no key)');
@@ -100,6 +104,7 @@ class ApiKeys {
   static String get geminiKey    => _geminiKey;
   static String get elevenKey    => _elevenKey;
   static String get openaiKey    => _openaiKey;
+  static String get hfKey        => _hfKey;    // HuggingFace token
   static String get mem0Key      => _mem0Key;
   static String get mem0UserId   => _mem0UserId;
   static String get livekitUrl   => _livekitUrl;
@@ -124,6 +129,7 @@ class ApiKeys {
   static bool get geminiReady  => _geminiKey.isNotEmpty;
   static bool get elevenReady  => _elevenKey.isNotEmpty;
   static bool get openaiReady  => _openaiKey.isNotEmpty;
+  static bool get hfReady      => true; // HF works without token too
   static bool get mem0Ready    => _mem0Key.isNotEmpty;
   static bool get livekitReady => _livekitUrl.isNotEmpty && _livekitToken.isNotEmpty;
   static bool get ready        => _geminiKey.isNotEmpty;
@@ -136,6 +142,7 @@ class ApiKeys {
     String? geminiKey,
     String? elevenKey,
     String? openaiKey,
+    String? hfKey,
     String? mem0Key,
     String? mem0UserId,
     String? livekitUrl,
@@ -173,6 +180,11 @@ class ApiKeys {
       if (openaiKey?.isNotEmpty == true) {
         _openaiKey = openaiKey!;
         ok = await _p.setString(_kOpenAI, openaiKey) && ok;
+      }
+
+      if (hfKey?.isNotEmpty == true) {
+        _hfKey = hfKey!;
+        ok = await _p.setString(_kHF, hfKey) && ok;
       }
 
       if (mem0Key?.isNotEmpty == true) {

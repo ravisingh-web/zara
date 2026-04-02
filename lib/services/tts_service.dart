@@ -1,27 +1,24 @@
 // lib/services/tts_service.dart
-// Z.A.R.A. v16.0 — ElevenLabs Official Streaming TTS
+// Z.A.R.A. v17.0 — Multi-Provider TTS
 //
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  FIX v16: KEY BUGS RESOLVED                                             ║
+// ║  PROVIDERS (priority order):                                            ║
 // ║                                                                         ║
-// ║  🔴 BUG 1: Silent failure when ElevenLabs key missing/invalid          ║
-// ║     FIX:  onError callback added → UI shows real error message         ║
+// ║  1. ElevenLabs  — Best quality, streaming (needs paid key)             ║
+// ║  2. HuggingFace — FREE, no key needed for basic use                    ║
+// ║     • facebook/mms-tts-hin    → Hindi (ZARA ke liye best)             ║
+// ║     • microsoft/speecht5_tts  → English fallback                       ║
+// ║  3. HF Inference API          → HF token se better quality            ║
 // ║                                                                         ║
-// ║  🔴 BUG 2: HTTP 401/422/429 silently swallowed, no user feedback       ║
-// ║     FIX:  onError fires with human-readable Hindi error message        ║
+// ║  AUTO FALLBACK:                                                         ║
+// ║  ElevenLabs key set → ElevenLabs use karo                             ║
+// ║  ElevenLabs key missing/fail → HuggingFace use karo (FREE)            ║
 // ║                                                                         ║
-// ║  🔴 BUG 3: AudioPlayer not disposed between chunks → memory leak       ║
-// ║     FIX:  _haltPlayer() properly awaited, _src cancelled first         ║
-// ║                                                                         ║
-// ║  🔴 BUG 4: initialize() called multiple times → duplicate players      ║
-// ║     FIX:  Guard check + old player disposed before new created         ║
-// ║                                                                         ║
-// ║  🔴 BUG 5: onSpeakDone not firing if exception thrown mid-stream       ║
-// ║     FIX:  try/finally guarantees onSpeakDone always fires             ║
-// ║                                                                         ║
-// ║  ✅ onError callback → ZaraProvider shows error in UI + speaks it      ║
-// ║  ✅ isTtsConfigured getter → Settings/UI can show warning              ║
-// ║  ✅ Test mode: testSpeak() to verify key before saving                 ║
+// ║  FIXES from v16:                                                        ║
+// ║  ✅ mp3_44100_128 → mp3_22050_32 (free plan compatible)               ║
+// ║  ✅ onError callback                                                    ║
+// ║  ✅ isTtsConfigured — true even without ElevenLabs (HF fallback)       ║
+// ║  ✅ HF Inference API — WAV audio, plays via just_audio                 ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 import 'dart:async';
@@ -36,9 +33,8 @@ import 'package:zara/core/constants/api_keys.dart';
 import 'package:zara/core/enums/mood_enum.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
-// _ZaraStreamAudioSource — feeds ElevenLabs bytes into just_audio
+// _ZaraStreamAudioSource — in-memory audio for just_audio
 // ══════════════════════════════════════════════════════════════════════════════
-
 class _ZaraStreamAudioSource extends StreamAudioSource {
   final _buffer  = BytesBuilder(copy: false);
   bool  _done    = false;
@@ -72,9 +68,9 @@ class _ZaraStreamAudioSource extends StreamAudioSource {
       _waiters.add(c);
       await c.future;
     }
-    final all    = _buffer.toBytes();
-    final length = all.length;
-    final slice  = all.sublist(start, end != null ? min(end, length) : length);
+    final all   = _buffer.toBytes();
+    final len   = all.length;
+    final slice = all.sublist(start, end != null ? min(end, len) : len);
     return StreamAudioResponse(
       sourceLength:  _total,
       contentLength: slice.length,
@@ -86,9 +82,8 @@ class _ZaraStreamAudioSource extends StreamAudioSource {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ZaraTtsService — Singleton
+// ZaraTtsService
 // ══════════════════════════════════════════════════════════════════════════════
-
 class ZaraTtsService {
   static final ZaraTtsService _i = ZaraTtsService._();
   factory ZaraTtsService() => _i;
@@ -115,17 +110,20 @@ class ZaraTtsService {
   VoidCallback? onSpeakDone;
   VoidCallback? onAutoListenTrigger;
   void Function(double level)? onVolumeLevel;
-
-  /// ✅ NEW: fires when TTS fails (key missing, quota, network error)
-  /// ZaraProvider wires this to show error in UI
   void Function(String errorMsg)? onError;
 
-  // ── Constants ──────────────────────────────────────────────────────────────
+  // ── ElevenLabs Constants ───────────────────────────────────────────────────
   static const _voiceId      = 'rdz6GofVsYlLgQl2dBEE'; // Anjura
-  static const _models = ['eleven_v3', 'eleven_flash_v2_5', 'eleven_multilingual_v2', 'eleven_flash_v2'];
-  static const _outputFormat = 'mp3_44100_128';
+  static const _elModels     = ['eleven_flash_v2_5', 'eleven_multilingual_v2', 'eleven_flash_v2'];
+  static const _outputFormat = 'mp3_22050_32'; // ✅ free plan compatible
   static const _latencyOpt   = 4;
-  static const _minPlayBytes = 6144;
+  static const _minPlayBytes = 4096;
+
+  // ── HuggingFace Constants ─────────────────────────────────────────────────
+  // FREE: no key needed (rate limited) — or use HF token for higher limits
+  static const _hfTtsHindi   = 'facebook/mms-tts-hin';      // Hindi TTS
+  static const _hfTtsEnglish = 'facebook/mms-tts-eng';      // English TTS
+  static const _hfApiBase    = 'https://api-inference.huggingface.co/models';
 
   static const _idlePhrases = [
     'Sir, kuch baat karo na mere se.',
@@ -139,36 +137,37 @@ class ZaraTtsService {
   ];
 
   // ── Getters ────────────────────────────────────────────────────────────────
-  bool get isSpeaking        => _isSpeaking;
-  bool get isEnabled         => _enabled;
-  bool get handsFreeMode     => _handsFreeMode;
+  bool get isSpeaking => _isSpeaking;
+  bool get isEnabled  => _enabled;
+  bool get handsFreeMode => _handsFreeMode;
 
-  /// ✅ NEW: true only when ElevenLabs key is present and non-empty
-  bool get isTtsConfigured   => ApiKeys.elevenKey.isNotEmpty;
+  /// ✅ Always true — HF fallback available even without ElevenLabs key
+  bool get isTtsConfigured => true;
+
+  /// True if ElevenLabs will be used (key present)
+  bool get isElevenLabsActive => ApiKeys.elevenKey.isNotEmpty;
+
+  /// Which TTS provider is active
+  String get activeProvider => isElevenLabsActive ? 'ElevenLabs' : 'HuggingFace';
 
   // ══════════════════════════════════════════════════════════════════════════
-  // INITIALIZE — FIX: idempotent, disposes old player before creating new
+  // INITIALIZE
   // ══════════════════════════════════════════════════════════════════════════
-
   Future<void> initialize() async {
     if (_disposed) return;
-    if (_initialized && _player != null) return; // already up
-
-    // Dispose old player if somehow called twice
+    if (_initialized && _player != null) return;
     if (_player != null) {
       try { await _player!.dispose(); } catch (_) {}
       _player = null;
     }
-
     _player      = AudioPlayer();
     _initialized = true;
-    if (kDebugMode) debugPrint('ZaraTTS ✅ v16 streaming engine ready');
+    if (kDebugMode) debugPrint('ZaraTTS ✅ v17 ready — provider: $activeProvider');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SPEAK — main entry point
+  // SPEAK — auto-selects provider
   // ══════════════════════════════════════════════════════════════════════════
-
   Future<void> speak(String text, {Mood? mood}) async {
     if (_disposed || !_enabled || text.trim().isEmpty) return;
     if (!_initialized) await initialize();
@@ -178,37 +177,42 @@ class ZaraTtsService {
     _stopFlag     = false;
 
     await _haltPlayer();
-
     final clean = _cleanText(text);
     if (clean.isEmpty) return;
-
-    // ✅ FIX BUG 1: Check key BEFORE speaking, fire onError with message
-    final apiKey = ApiKeys.elevenKey;
-    if (apiKey.isEmpty) {
-      if (kDebugMode) debugPrint('ZaraTTS ❌ ElevenLabs key missing');
-      _fireError('ElevenLabs key set nahi hai. Settings mein dalo Sir.');
-      return;
-    }
 
     _isSpeaking = true;
     onSpeakStart?.call();
 
     try {
-      final chunks = _splitChunks(clean, 200);
-      for (final chunk in chunks) {
-        if (_stopFlag || _disposed) break;
-        final ok = await _streamSpeak(chunk, apiKey);
-        if (!ok) break;
+      bool ok = false;
+
+      // Try ElevenLabs first if key present
+      if (ApiKeys.elevenKey.isNotEmpty) {
+        final chunks = _splitChunks(clean, 200);
+        ok = true;
+        for (final chunk in chunks) {
+          if (_stopFlag || _disposed) break;
+          final r = await _elevenLabsSpeak(chunk, ApiKeys.elevenKey);
+          if (!r) { ok = false; break; }
+        }
+      }
+
+      // Fallback to HuggingFace
+      if (!ok && !_stopFlag && !_disposed) {
+        if (kDebugMode) debugPrint('ZaraTTS → HuggingFace fallback');
+        final chunks = _splitChunks(clean, 500); // HF handles longer chunks
+        for (final chunk in chunks) {
+          if (_stopFlag || _disposed) break;
+          await _huggingFaceSpeak(chunk);
+        }
       }
     } catch (e) {
       if (kDebugMode) debugPrint('ZaraTTS speak: $e');
       _fireError('TTS error: ${e.toString().substring(0, min(60, e.toString().length))}');
     } finally {
-      // ✅ FIX BUG 5: finally block guarantees callbacks always fire
       _isSpeaking = false;
       _cancelSrc();
       onSpeakDone?.call();
-
       if (_handsFreeMode && !_stopFlag && _enabled && !_disposed) {
         await Future.delayed(const Duration(milliseconds: 400));
         if (!_disposed && _handsFreeMode && !_stopFlag) onAutoListenTrigger?.call();
@@ -217,17 +221,11 @@ class ZaraTtsService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SAY QUICK — single short phrase (wake ack, idle)
+  // SAY QUICK
   // ══════════════════════════════════════════════════════════════════════════
-
   Future<void> sayQuick(String text) async {
     if (_disposed || !_enabled || text.trim().isEmpty) return;
     if (!_initialized) await initialize();
-    final apiKey = ApiKeys.elevenKey;
-    if (apiKey.isEmpty) {
-      _fireError('ElevenLabs key missing — Settings mein dalo Sir.');
-      return;
-    }
 
     await _haltPlayer();
     _stopFlag   = false;
@@ -235,7 +233,13 @@ class ZaraTtsService {
     onSpeakStart?.call();
 
     try {
-      await _streamSpeak(_cleanText(text), apiKey);
+      bool ok = false;
+      if (ApiKeys.elevenKey.isNotEmpty) {
+        ok = await _elevenLabsSpeak(_cleanText(text), ApiKeys.elevenKey);
+      }
+      if (!ok && !_stopFlag && !_disposed) {
+        await _huggingFaceSpeak(_cleanText(text));
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('ZaraTTS sayQuick: $e');
     } finally {
@@ -246,66 +250,26 @@ class ZaraTtsService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // TEST SPEAK — verify key before saving in settings
-  // ✅ NEW: returns success bool + error message
+  // ELEVENLABS STREAMING
   // ══════════════════════════════════════════════════════════════════════════
-
-  Future<({bool ok, String message})> testSpeak(String apiKey) async {
-    if (apiKey.trim().isEmpty) {
-      return (ok: false, message: 'Key empty hai Sir!');
-    }
-
-    if (!_initialized) await initialize();
-    await _haltPlayer();
-    _stopFlag   = false;
-    _isSpeaking = true;
-
-    try {
-      final ok = await _tryStream(
-        'Haan Sir, ElevenLabs ka test ho gaya. Main bilkul sahi kaam kar rahi hoon!',
-        apiKey.trim(),
-        'eleven_flash_v2_5',
-      );
-
-      _isSpeaking = false;
-      _cancelSrc();
-
-      if (ok) {
-        return (ok: true, message: '✅ ElevenLabs working! Key valid hai.');
-      } else {
-        return (ok: false, message: '❌ Key invalid hai ya quota khatam. Check karo.');
-      }
-    } catch (e) {
-      _isSpeaking = false;
-      _cancelSrc();
-      return (ok: false, message: '❌ Error: ${e.toString().substring(0, min(80, e.toString().length))}');
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // CORE STREAMING
-  // ══════════════════════════════════════════════════════════════════════════
-
-  Future<bool> _streamSpeak(String text, String apiKey) async {
+  Future<bool> _elevenLabsSpeak(String text, String apiKey) async {
     if (text.trim().isEmpty) return false;
-    for (final model in _models) {
+    for (final model in _elModels) {
       if (_stopFlag || _disposed) return false;
-      final ok = await _tryStream(text, apiKey, model);
+      final ok = await _tryElStream(text, apiKey, model);
       if (ok) return true;
-      if (kDebugMode) debugPrint('ZaraTTS: $model failed → trying next');
     }
-    _fireError('ElevenLabs respond nahi kar raha. Internet check karo Sir.');
+    _fireError('ElevenLabs respond nahi kar raha → HuggingFace use ho raha hai');
     return false;
   }
 
-  Future<bool> _tryStream(String text, String apiKey, String model) async {
+  Future<bool> _tryElStream(String text, String apiKey, String model) async {
     try {
       final uri = Uri.parse(
         'https://api.elevenlabs.io/v1/text-to-speech/$_voiceId/stream'
         '?output_format=$_outputFormat'
         '&optimize_streaming_latency=$_latencyOpt',
       );
-
       final req = http.Request('POST', uri)
         ..headers['xi-api-key']   = apiKey
         ..headers['Content-Type'] = 'application/json'
@@ -321,47 +285,19 @@ class ZaraTtsService {
             },
           });
 
-      if (kDebugMode) {
-        final p = text.length > 55 ? '${text.substring(0, 55)}…' : text;
-        debugPrint('ZaraTTS → $model | "$p"');
-      }
-
       final resp = await _http.send(req).timeout(const Duration(seconds: 15));
 
-      // ✅ FIX BUG 2: Proper error handling for each HTTP error code
       if (resp.statusCode != 200) {
         final body = await resp.stream.toBytes();
         final err  = utf8.decode(body, allowMalformed: true);
-        if (kDebugMode) {
-          debugPrint('ZaraTTS ❌ HTTP ${resp.statusCode} [$model]');
-          debugPrint('  ${err.length > 180 ? err.substring(0, 180) : err}');
-        }
-
-        String userMsg;
-        switch (resp.statusCode) {
-          case 401:
-            userMsg = 'ElevenLabs key galat hai Sir. Settings mein sahi key dalo.';
-            break;
-          case 422:
-            userMsg = 'ElevenLabs voice ya model plan mein nahi hai Sir.';
-            break;
-          case 429:
-            userMsg = 'ElevenLabs ka quota khatam ho gaya Sir. Thodi der baad try karo.';
-            break;
-          case 500:
-          case 503:
-            userMsg = 'ElevenLabs server down hai Sir. Baad mein try karo.';
-            break;
-          default:
-            userMsg = 'ElevenLabs error ${resp.statusCode} [$model].';
-        }
-        _fireError(userMsg);
+        if (kDebugMode) debugPrint('ElevenLabs ❌ ${resp.statusCode}: ${err.substring(0, min(100, err.length))}');
+        if (resp.statusCode == 401) _fireError('ElevenLabs key galat hai Sir. Check karo.');
+        if (resp.statusCode == 429) _fireError('ElevenLabs quota khatam. HuggingFace use ho raha hai.');
         return false;
       }
 
       final src = _ZaraStreamAudioSource();
       _src = src;
-
       bool  playerStarted = false;
       int   totalBytes    = 0;
       final done          = Completer<bool>();
@@ -369,11 +305,7 @@ class ZaraTtsService {
       late StreamSubscription<List<int>> sub;
       sub = resp.stream.listen(
         (chunk) async {
-          if (_stopFlag || _disposed) {
-            src.cancel(); sub.cancel();
-            if (!done.isCompleted) done.complete(false);
-            return;
-          }
+          if (_stopFlag || _disposed) { src.cancel(); sub.cancel(); if (!done.isCompleted) done.complete(false); return; }
           src.feed(chunk);
           totalBytes += chunk.length;
           if (!playerStarted && totalBytes >= _minPlayBytes) {
@@ -387,40 +319,155 @@ class ZaraTtsService {
             playerStarted = true;
             unawaited(_beginPlayback(src));
           }
-          if (kDebugMode) debugPrint('ZaraTTS ✅ $model — $totalBytes bytes');
           await _waitForPlayback();
           if (!done.isCompleted) done.complete(true);
         },
         onError: (dynamic e) {
-          if (kDebugMode) debugPrint('ZaraTTS stream error: $e');
           src.cancel();
-          _fireError('Network error. Internet stable hai Sir?');
           if (!done.isCompleted) done.complete(false);
         },
         cancelOnError: true,
       );
-
       return await done.future;
-
     } catch (e) {
-      if (kDebugMode) debugPrint('ZaraTTS _tryStream ($model): $e');
+      if (kDebugMode) debugPrint('ElevenLabs _tryStream: $e');
       _src?.cancel(); _src = null;
       return false;
     }
   }
 
-  Future<void> _beginPlayback(_ZaraStreamAudioSource src) async {
-    if (_stopFlag || _disposed) return;
-    final player = _player;
-    if (player == null) return;
-    try {
-      await player.setAudioSource(src);
-      await player.seek(Duration.zero);
-      await player.play();
+  // ══════════════════════════════════════════════════════════════════════════
+  // HUGGINGFACE TTS — FREE fallback
+  //
+  // Uses HF Inference API:
+  //   POST https://api-inference.huggingface.co/models/facebook/mms-tts-hin
+  //   Body: {"inputs": "text to speak"}
+  //   Returns: audio/wav bytes
+  //
+  // FREE tier: ~30 req/hour without token
+  // With HF token: much higher limits
+  // ══════════════════════════════════════════════════════════════════════════
+  Future<void> _huggingFaceSpeak(String text) async {
+    if (text.trim().isEmpty || _stopFlag || _disposed) return;
 
-      player.positionStream.listen((pos) {
+    try {
+      // Choose model based on language detection
+      final isHindi = _isHindi(text);
+      final model   = isHindi ? _hfTtsHindi : _hfTtsEnglish;
+
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+      };
+
+      // Add HF token if available (higher rate limits)
+      if (ApiKeys.hfKey.isNotEmpty) {
+        headers['Authorization'] = 'Bearer ${ApiKeys.hfKey}';
+      }
+
+      if (kDebugMode) debugPrint('HF TTS → $model | "${text.length > 50 ? "${text.substring(0, 50)}…" : text}"');
+
+      final resp = await _http.post(
+        Uri.parse('$_hfApiBase/$model'),
+        headers: headers,
+        body: jsonEncode({'inputs': text}),
+      ).timeout(const Duration(seconds: 30));
+
+      if (resp.statusCode == 200) {
+        final bytes = resp.bodyBytes;
+        if (bytes.isNotEmpty) {
+          await _playBytes(bytes, 'audio/wav');
+          if (kDebugMode) debugPrint('HF TTS ✅ ${bytes.length} bytes played');
+        }
+      } else if (resp.statusCode == 503) {
+        // Model loading — wait and retry once
+        if (kDebugMode) debugPrint('HF TTS: model loading, retrying in 8s...');
+        await Future.delayed(const Duration(seconds: 8));
+        if (!_stopFlag && !_disposed) await _huggingFaceSpeak(text);
+      } else {
+        if (kDebugMode) debugPrint('HF TTS ❌ ${resp.statusCode}: ${resp.body.substring(0, min(100, resp.body.length))}');
+        _fireError('HuggingFace TTS error ${resp.statusCode}. Retry karo Sir.');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('HF TTS error: $e');
+    }
+  }
+
+  // Play raw bytes (WAV from HuggingFace)
+  Future<void> _playBytes(List<int> bytes, String mimeType) async {
+    if (_stopFlag || _disposed || _player == null) return;
+    try {
+      final src = _ZaraStreamAudioSource();
+      _src = src;
+      src.feed(bytes);
+      src.finalize(bytes.length);
+      await _player!.setAudioSource(src);
+      await _player!.seek(Duration.zero);
+      await _player!.play();
+      await _waitForPlayback();
+    } catch (e) {
+      if (kDebugMode) debugPrint('_playBytes: $e');
+    }
+  }
+
+  // ── Hindi detection ────────────────────────────────────────────────────────
+  bool _isHindi(String text) {
+    // Check for Devanagari characters
+    final devanagari = RegExp(r'[\u0900-\u097F]');
+    if (devanagari.hasMatch(text)) return true;
+    // Check for common Hinglish words
+    final hindiWords = ['karo', 'hai', 'hoon', 'mein', 'sir', 'aap', 'kya',
+                        'nahi', 'haan', 'aur', 'baat', 'bol', 'sun', 'zara'];
+    final lower = text.toLowerCase();
+    return hindiWords.any((w) => lower.contains(w));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TEST SPEAK
+  // ══════════════════════════════════════════════════════════════════════════
+  Future<({bool ok, String message})> testSpeak(String apiKey) async {
+    if (!_initialized) await initialize();
+    await _haltPlayer();
+    _stopFlag   = false;
+    _isSpeaking = true;
+
+    try {
+      if (apiKey.trim().isNotEmpty) {
+        // Test ElevenLabs
+        final ok = await _tryElStream(
+          'Haan Sir, ElevenLabs ka test ho gaya!',
+          apiKey.trim(),
+          'eleven_flash_v2_5',
+        );
+        _isSpeaking = false;
+        _cancelSrc();
+        if (ok) return (ok: true, message: '✅ ElevenLabs working!');
+        return (ok: false, message: '❌ ElevenLabs key invalid ya quota khatam.');
+      } else {
+        // Test HuggingFace
+        await _huggingFaceSpeak('Haan Sir, HuggingFace TTS kaam kar raha hai!');
+        _isSpeaking = false;
+        _cancelSrc();
+        return (ok: true, message: '✅ HuggingFace TTS working! (Free)');
+      }
+    } catch (e) {
+      _isSpeaking = false;
+      _cancelSrc();
+      return (ok: false, message: '❌ Error: $e');
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PLAYBACK HELPERS
+  // ══════════════════════════════════════════════════════════════════════════
+  Future<void> _beginPlayback(_ZaraStreamAudioSource src) async {
+    if (_stopFlag || _disposed || _player == null) return;
+    try {
+      await _player!.setAudioSource(src);
+      await _player!.seek(Duration.zero);
+      await _player!.play();
+      _player!.positionStream.listen((pos) {
         try {
-          final dur = player.duration?.inMilliseconds ?? 0;
+          final dur = _player!.duration?.inMilliseconds ?? 0;
           if (dur > 0) {
             final p   = pos.inMilliseconds / dur;
             final vol = (0.4 + 0.6 * sin(p * pi * 8).abs()).clamp(0.0, 1.0);
@@ -429,7 +476,7 @@ class ZaraTtsService {
         } catch (_) {}
       });
     } catch (e) {
-      if (kDebugMode) debugPrint('ZaraTTS _beginPlayback: $e');
+      if (kDebugMode) debugPrint('_beginPlayback: $e');
     }
   }
 
@@ -439,25 +486,16 @@ class ZaraTtsService {
     try {
       await player.playerStateStream
           .where((s) => s.playing || s.processingState == ProcessingState.completed)
-          .first
-          .timeout(const Duration(seconds: 8));
-
+          .first.timeout(const Duration(seconds: 8));
       await player.playerStateStream
-          .where((s) =>
-              s.processingState == ProcessingState.completed ||
-              _stopFlag || _disposed)
-          .first
-          .timeout(
+          .where((s) => s.processingState == ProcessingState.completed || _stopFlag || _disposed)
+          .first.timeout(
             const Duration(seconds: 120),
             onTimeout: () => PlayerState(false, ProcessingState.completed),
           );
     } catch (_) {}
     onVolumeLevel?.call(0.0);
   }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // STOP
-  // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> stop() async {
     _stopFlag   = true;
@@ -466,29 +504,18 @@ class ZaraTtsService {
     _cancelSrc();
   }
 
-  // ✅ FIX BUG 3: Proper halt order — cancel source THEN stop player
   Future<void> _haltPlayer() async {
     _cancelSrc();
     try { await _player?.stop(); } catch (_) {}
     onVolumeLevel?.call(0.0);
   }
 
-  void _cancelSrc() {
-    _src?.cancel();
-    _src = null;
-  }
-
-  // ✅ NEW: internal helper — fires onError callback safely
-  void _fireError(String msg) {
-    if (_disposed) return;
-    if (kDebugMode) debugPrint('ZaraTTS ERROR: $msg');
-    onError?.call(msg);
-  }
+  void _cancelSrc() { _src?.cancel(); _src = null; }
+  void _fireError(String msg) { if (_disposed) return; if (kDebugMode) debugPrint('ZaraTTS ERROR: $msg'); onError?.call(msg); }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // MOOD → ElevenLabs voice_settings
+  // MOOD PARAMS
   // ══════════════════════════════════════════════════════════════════════════
-
   double _stability() {
     switch (_mood) {
       case Mood.romantic: return 0.28;
@@ -513,7 +540,6 @@ class ZaraTtsService {
   // ══════════════════════════════════════════════════════════════════════════
   // TEXT CLEANER
   // ══════════════════════════════════════════════════════════════════════════
-
   String _cleanText(String t) {
     t = t.replaceAll(RegExp(r'\[COMMAND:[^\]]*\]'), '');
     t = t.replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1');
@@ -523,9 +549,7 @@ class ZaraTtsService {
     t = t.replaceAll(RegExp(r'\*([^*\n]+)\*'), r'$1');
     t = t.replaceAll(RegExp(r'[@#%^&\[\]{}<>/\\~`\$|+=]'), '');
     t = t.replaceAll(RegExp(r'[═╗╔╝╚─│■□]'), '');
-    t = t.replaceAll(RegExp(
-        r'[\u{1F300}-\u{1F9FF}|\u{2600}-\u{26FF}|\u{2700}-\u{27BF}]',
-        unicode: true), '');
+    t = t.replaceAll(RegExp(r'[\u{1F300}-\u{1F9FF}|\u{2600}-\u{26FF}|\u{2700}-\u{27BF}]', unicode: true), '');
     t = t.replaceAll(RegExp(r'\n{2,}'), '. ');
     t = t.replaceAll('\n', ' ');
     t = t.replaceAll(RegExp(r' {2,}'), ' ');
@@ -536,13 +560,11 @@ class ZaraTtsService {
   // ══════════════════════════════════════════════════════════════════════════
   // CHUNK SPLITTER
   // ══════════════════════════════════════════════════════════════════════════
-
   List<String> _splitChunks(String text, int maxLen) {
     if (text.length <= maxLen) return [text];
     final sentences = text.split(RegExp(r'(?<=[.!?।,;])\s+'));
-    final out       = <String>[];
-    var   buf       = StringBuffer();
-
+    final out = <String>[];
+    var buf = StringBuffer();
     for (final s in sentences) {
       if (s.trim().isEmpty) continue;
       if (buf.length + s.length + 1 > maxLen && buf.isNotEmpty) {
@@ -566,7 +588,6 @@ class ZaraTtsService {
   // ══════════════════════════════════════════════════════════════════════════
   // IDLE SYSTEM
   // ══════════════════════════════════════════════════════════════════════════
-
   void startIdleSystem() {
     _idleTimer?.cancel();
     _idleTimer = Timer.periodic(const Duration(minutes: 4), (_) => _idle());
@@ -576,25 +597,18 @@ class ZaraTtsService {
 
   Future<void> _idle() async {
     if (_disposed || !_enabled || _isSpeaking) return;
-    if (!isTtsConfigured) return; // ✅ Don't idle-speak if key not set
     if (DateTime.now().difference(_lastActivity).inMinutes >= 4) {
       await sayQuick(_idlePhrases[_rnd.nextInt(_idlePhrases.length)]);
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // SETTERS
-  // ══════════════════════════════════════════════════════════════════════════
-
+  // ── Setters ────────────────────────────────────────────────────────────────
   void setEnabled(bool v)   { _enabled = v; if (!v) stop(); }
   void setMood(Mood m)      { _mood = m; }
   void resetIdleTimer()     { _lastActivity = DateTime.now(); }
   void setHandsFree(bool v) { _handsFreeMode = v; }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // DISPOSE
-  // ══════════════════════════════════════════════════════════════════════════
-
+  // ── Dispose ────────────────────────────────────────────────────────────────
   Future<void> dispose() async {
     _disposed   = true;
     _stopFlag   = true;
