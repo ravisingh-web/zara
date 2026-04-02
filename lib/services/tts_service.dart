@@ -123,7 +123,7 @@ class ZaraTtsService {
   // FREE: no key needed (rate limited) — or use HF token for higher limits
   static const _hfTtsHindi   = 'facebook/mms-tts-hin';      // Hindi TTS
   static const _hfTtsEnglish = 'facebook/mms-tts-eng';      // English TTS
-  static const _hfApiBase    = 'https://router.huggingface.co/hf-inference/models';
+  static const _hfApiBase    = 'https://api-inference.huggingface.co/models';
 
   static const _idlePhrases = [
     'Sir, kuch baat karo na mere se.',
@@ -349,20 +349,11 @@ class ZaraTtsService {
   // ══════════════════════════════════════════════════════════════════════════
   Future<void> _huggingFaceSpeak(String text) async {
     if (text.trim().isEmpty || _stopFlag || _disposed) return;
-
     try {
       final isHindi = _isHindi(text);
       final model   = isHindi ? _hfTtsHindi : _hfTtsEnglish;
-
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-        'Accept': 'audio/wav',
-      };
-      if (ApiKeys.hfKey.isNotEmpty) {
-        headers['Authorization'] = 'Bearer ${ApiKeys.hfKey}';
-      }
-
-      if (kDebugMode) debugPrint('HF TTS → $model');
+      final headers = <String, String>{'Content-Type': 'application/json', 'Accept': 'audio/wav'};
+      if (ApiKeys.hfKey.isNotEmpty) headers['Authorization'] = 'Bearer ${ApiKeys.hfKey}';
 
       final resp = await _http.post(
         Uri.parse('$_hfApiBase/$model'),
@@ -375,48 +366,91 @@ class ZaraTtsService {
         if (kDebugMode) debugPrint('HF TTS ✅ ${resp.bodyBytes.length} bytes');
         return;
       } else if (resp.statusCode == 503) {
-        if (kDebugMode) debugPrint('HF TTS: model loading, retrying...');
         await Future.delayed(const Duration(seconds: 8));
         if (!_stopFlag && !_disposed) await _huggingFaceSpeak(text);
         return;
       }
-      // HF failed → Google TTS fallback
-      if (kDebugMode) debugPrint('HF TTS ❌ ${resp.statusCode} → Google TTS');
-      await _googleTtsSpeak(text);
+      // HF failed → Gemini TTS (human-like voice, uses existing Gemini key)
+      if (kDebugMode) debugPrint('HF TTS ❌ ${resp.statusCode} → Gemini TTS');
+      await _geminiTtsSpeak(text);
     } catch (e) {
-      if (kDebugMode) debugPrint('HF TTS: $e → Google TTS');
-      await _googleTtsSpeak(text);
+      if (kDebugMode) debugPrint('HF TTS: $e → Gemini TTS');
+      await _geminiTtsSpeak(text);
     }
   }
 
-  // Google TTS — completely FREE, no key needed
-  Future<void> _googleTtsSpeak(String text) async {
+  // ══════════════════════════════════════════════════════════════════════════
+  // GEMINI TTS — Human-like voice, uses your existing Gemini API key
+  //
+  // Model : gemini-2.5-flash-preview-tts (FREE with Gemini key)
+  // Voice : Aoede — warm, natural female voice (best for Hindi/Hinglish)
+  // Output: PCM 24000Hz 16-bit mono → WAV header → just_audio
+  // ══════════════════════════════════════════════════════════════════════════
+  Future<void> _geminiTtsSpeak(String text) async {
     if (text.trim().isEmpty || _stopFlag || _disposed) return;
+    final apiKey = ApiKeys.geminiKey;
+    if (apiKey.isEmpty) {
+      _fireError('TTS ke liye Gemini key chahiye Sir. Settings mein dalo.');
+      return;
+    }
     try {
-      final lang  = _isHindi(text) ? 'hi' : 'en';
-      final chunk = text.length > 200 ? text.substring(0, 200) : text;
-      final url   = Uri.parse(
-        'https://translate.google.com/translate_tts'
-        '?ie=UTF-8&tl=$lang&client=tw-ob&q=${Uri.encodeComponent(chunk)}'
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models'
+        '/gemini-2.5-flash-preview-tts:generateContent?key=$apiKey'
       );
-      final resp = await _http.get(url, headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10)',
-        'Referer':    'https://translate.google.com/',
-      }).timeout(const Duration(seconds: 15));
+      final resp = await _http.post(url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [{'parts': [{'text': text}]}],
+          'generationConfig': {
+            'responseModalities': ['AUDIO'],
+            'speechConfig': {
+              'voiceConfig': {
+                'prebuiltVoiceConfig': {'voiceName': 'Aoede'}
+              }
+            }
+          }
+        }),
+      ).timeout(const Duration(seconds: 20));
 
-      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
-        await _playBytes(resp.bodyBytes, 'audio/mpeg');
-        if (kDebugMode) debugPrint('Google TTS ✅ ${resp.bodyBytes.length} bytes');
-      } else {
-        if (kDebugMode) debugPrint('Google TTS ❌ ${resp.statusCode}');
-        _fireError('TTS kaam nahi kar raha. ElevenLabs key dalo Sir Settings mein.');
+      if (resp.statusCode == 200) {
+        final json = jsonDecode(resp.body);
+        final b64  = json['candidates']?[0]?['content']?['parts']?[0]?['inlineData']?['data'] as String?;
+        if (b64 != null && b64.isNotEmpty) {
+          final pcm = base64Decode(b64);
+          final wav = _pcmToWav(pcm);
+          await _playBytes(wav, 'audio/wav');
+          if (kDebugMode) debugPrint('Gemini TTS ✅ Aoede ${pcm.length} bytes');
+          return;
+        }
       }
+      if (kDebugMode) debugPrint('Gemini TTS ❌ ${resp.statusCode}');
+      _fireError('TTS unavailable. ElevenLabs key dalo Sir for best voice.');
     } catch (e) {
-      if (kDebugMode) debugPrint('Google TTS: $e');
+      if (kDebugMode) debugPrint('Gemini TTS: $e');
       _fireError('TTS error. Internet check karo Sir.');
     }
   }
 
+  // PCM 16-bit signed → WAV (adds 44-byte RIFF header)
+  Uint8List _pcmToWav(List<int> pcm, {int sampleRate = 24000}) {
+    const channels = 1, bitsPerSample = 16;
+    final dataLen    = pcm.length;
+    final byteRate   = sampleRate * channels * bitsPerSample ~/ 8;
+    final blockAlign = channels * bitsPerSample ~/ 8;
+    final buf        = ByteData(44 + dataLen);
+    void str(int o, String s) { for (var i = 0; i < s.length; i++) buf.setUint8(o + i, s.codeUnitAt(i)); }
+    str(0, 'RIFF'); buf.setUint32(4, 36 + dataLen, Endian.little);
+    str(8, 'WAVE'); str(12, 'fmt ');
+    buf.setUint32(16, 16, Endian.little);  buf.setUint16(20, 1, Endian.little);
+    buf.setUint16(22, channels, Endian.little); buf.setUint32(24, sampleRate, Endian.little);
+    buf.setUint32(28, byteRate, Endian.little); buf.setUint16(32, blockAlign, Endian.little);
+    buf.setUint16(34, bitsPerSample, Endian.little);
+    str(36, 'data'); buf.setUint32(40, dataLen, Endian.little);
+    final out = buf.buffer.asUint8List();
+    out.setRange(44, 44 + dataLen, pcm);
+    return out;
+  }
 
   // Play raw bytes (WAV from HuggingFace)
   Future<void> _playBytes(List<int> bytes, String mimeType) async {
@@ -646,4 +680,4 @@ class ZaraTtsService {
     _http.close();
     _initialized = false;
   }
-}
+}	
