@@ -555,7 +555,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           Icon(count >= 2 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
               color: c, size: 18),
           const SizedBox(width: 8),
-          Text('$count / 5 APIs configured${h ? " + HF" : ""}  (HuggingFace: FREE)",
+          Text('$count / 5 APIs configured${h ? " + HF" : ""}  (HuggingFace: FREE)',
               style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 12)),
         ]),
         const SizedBox(height: 8),

@@ -13,6 +13,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 import 'dart:async';
+import 'dart:math';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -205,7 +206,7 @@ class WhisperSttService {
           return (json['text'] as String? ?? '').trim();
         }
       } else {
-        if (kDebugMode) debugPrint('WhisperSTT HF ❌ ${resp.statusCode}: ${resp.body.substring(0, min(100, resp.body.length))}');
+        if (kDebugMode) debugPrint('WhisperSTT HF ❌ ${resp.statusCode}: ${resp.body.substring(0, resp.body.length > 100 ? 100 : resp.body.length)}');
       }
       return null;
     } catch (e) {
