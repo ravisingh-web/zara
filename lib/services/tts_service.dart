@@ -123,7 +123,7 @@ class ZaraTtsService {
   // FREE: no key needed (rate limited) — or use HF token for higher limits
   static const _hfTtsHindi   = 'facebook/mms-tts-hin';      // Hindi TTS
   static const _hfTtsEnglish = 'facebook/mms-tts-eng';      // English TTS
-  static const _hfApiBase    = 'https://api-inference.huggingface.co/models';
+  static const _hfApiBase    = 'https://router.huggingface.co/hf-inference/models';
 
   static const _idlePhrases = [
     'Sir, kuch baat karo na mere se.',
@@ -351,20 +351,18 @@ class ZaraTtsService {
     if (text.trim().isEmpty || _stopFlag || _disposed) return;
 
     try {
-      // Choose model based on language detection
       final isHindi = _isHindi(text);
       final model   = isHindi ? _hfTtsHindi : _hfTtsEnglish;
 
       final headers = <String, String>{
         'Content-Type': 'application/json',
+        'Accept': 'audio/wav',
       };
-
-      // Add HF token if available (higher rate limits)
       if (ApiKeys.hfKey.isNotEmpty) {
         headers['Authorization'] = 'Bearer ${ApiKeys.hfKey}';
       }
 
-      if (kDebugMode) debugPrint('HF TTS → $model | "${text.length > 50 ? "${text.substring(0, 50)}…" : text}"');
+      if (kDebugMode) debugPrint('HF TTS → $model');
 
       final resp = await _http.post(
         Uri.parse('$_hfApiBase/$model'),
@@ -372,25 +370,53 @@ class ZaraTtsService {
         body: jsonEncode({'inputs': text}),
       ).timeout(const Duration(seconds: 30));
 
-      if (resp.statusCode == 200) {
-        final bytes = resp.bodyBytes;
-        if (bytes.isNotEmpty) {
-          await _playBytes(bytes, 'audio/wav');
-          if (kDebugMode) debugPrint('HF TTS ✅ ${bytes.length} bytes played');
-        }
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        await _playBytes(resp.bodyBytes, 'audio/wav');
+        if (kDebugMode) debugPrint('HF TTS ✅ ${resp.bodyBytes.length} bytes');
+        return;
       } else if (resp.statusCode == 503) {
-        // Model loading — wait and retry once
-        if (kDebugMode) debugPrint('HF TTS: model loading, retrying in 8s...');
+        if (kDebugMode) debugPrint('HF TTS: model loading, retrying...');
         await Future.delayed(const Duration(seconds: 8));
         if (!_stopFlag && !_disposed) await _huggingFaceSpeak(text);
-      } else {
-        if (kDebugMode) debugPrint('HF TTS ❌ ${resp.statusCode}: ${resp.body.substring(0, min(100, resp.body.length))}');
-        _fireError('HuggingFace TTS error ${resp.statusCode}. Retry karo Sir.');
+        return;
       }
+      // HF failed → Google TTS fallback
+      if (kDebugMode) debugPrint('HF TTS ❌ ${resp.statusCode} → Google TTS');
+      await _googleTtsSpeak(text);
     } catch (e) {
-      if (kDebugMode) debugPrint('HF TTS error: $e');
+      if (kDebugMode) debugPrint('HF TTS: $e → Google TTS');
+      await _googleTtsSpeak(text);
     }
   }
+
+  // Google TTS — completely FREE, no key needed
+  Future<void> _googleTtsSpeak(String text) async {
+    if (text.trim().isEmpty || _stopFlag || _disposed) return;
+    try {
+      final lang  = _isHindi(text) ? 'hi' : 'en';
+      final chunk = text.length > 200 ? text.substring(0, 200) : text;
+      final url   = Uri.parse(
+        'https://translate.google.com/translate_tts'
+        '?ie=UTF-8&tl=$lang&client=tw-ob&q=${Uri.encodeComponent(chunk)}'
+      );
+      final resp = await _http.get(url, headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10)',
+        'Referer':    'https://translate.google.com/',
+      }).timeout(const Duration(seconds: 15));
+
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        await _playBytes(resp.bodyBytes, 'audio/mpeg');
+        if (kDebugMode) debugPrint('Google TTS ✅ ${resp.bodyBytes.length} bytes');
+      } else {
+        if (kDebugMode) debugPrint('Google TTS ❌ ${resp.statusCode}');
+        _fireError('TTS kaam nahi kar raha. ElevenLabs key dalo Sir Settings mein.');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Google TTS: $e');
+      _fireError('TTS error. Internet check karo Sir.');
+    }
+  }
+
 
   // Play raw bytes (WAV from HuggingFace)
   Future<void> _playBytes(List<int> bytes, String mimeType) async {
