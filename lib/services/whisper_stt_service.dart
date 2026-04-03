@@ -150,13 +150,22 @@ class WhisperSttService {
   // CORE TRANSCRIPTION — HuggingFace first, OpenAI fallback
   // ══════════════════════════════════════════════════════════════════════════
   Future<String?> _transcribe(String filePath) async {
-    // Try HuggingFace Whisper first (FREE)
+    // 1. HuggingFace Whisper (FREE)
     final hfResult = await _transcribeHuggingFace(filePath);
     if (hfResult != null && hfResult.trim().isNotEmpty) {
       return _filterHallucinations(hfResult);
     }
 
-    // Fallback to OpenAI Whisper
+    // 2. Gemini STT (FREE with Gemini key — most reliable)
+    if (ApiKeys.geminiKey.isNotEmpty) {
+      if (kDebugMode) debugPrint('WhisperSTT → Gemini STT fallback');
+      final geminiResult = await _transcribeGemini(filePath);
+      if (geminiResult != null && geminiResult.trim().isNotEmpty) {
+        return _filterHallucinations(geminiResult);
+      }
+    }
+
+    // 3. OpenAI Whisper (if key set)
     if (ApiKeys.openaiKey.isNotEmpty) {
       if (kDebugMode) debugPrint('WhisperSTT → OpenAI fallback');
       return await _transcribeOpenAI(filePath);
@@ -165,44 +174,92 @@ class WhisperSttService {
     return null;
   }
 
+  // ── Gemini STT — FREE with existing Gemini key ─────────────────────────────
+  // Uses Gemini 2.0 Flash audio understanding for transcription
+  // Very accurate for Hindi/Hinglish — same key as AI brain
+  Future<String?> _transcribeGemini(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return null;
+      final bytes  = await file.readAsBytes();
+      final b64    = base64Encode(bytes);
+      final apiKey = ApiKeys.geminiKey;
+
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models'
+        '/gemini-2.0-flash:generateContent?key=$apiKey'
+      );
+
+      final body = jsonEncode({
+        'contents': [{
+          'parts': [
+            {
+              'inline_data': {
+                'mime_type': 'audio/mp4',
+                'data': b64,
+              }
+            },
+            {
+              'text': 'Transcribe this audio exactly. Return ONLY the spoken words, nothing else. Language: Hindi/Hinglish/English.'
+            }
+          ]
+        }]
+      });
+
+      final resp = await http.post(url,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 15));
+
+      if (resp.statusCode == 200) {
+        final json = jsonDecode(resp.body);
+        final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'] as String? ?? '';
+        if (kDebugMode) debugPrint('Gemini STT ✅: "$text"');
+        return text.trim().isEmpty ? null : text.trim();
+      }
+      if (kDebugMode) debugPrint('Gemini STT ❌ ${resp.statusCode}');
+      return null;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Gemini STT: $e');
+      return null;
+    }
+  }
+
   // ── HuggingFace Whisper ────────────────────────────────────────────────────
   Future<String?> _transcribeHuggingFace(String filePath) async {
     try {
       final file = File(filePath);
       if (!await file.exists()) return null;
       final bytes = await file.readAsBytes();
-      if (bytes.length < 1000) return null; // too short = silence
+      if (bytes.length < 500) return null; // silence skip
 
+      // ✅ FIX: .m4a recorder output → audio/mpeg content-type
       final headers = <String, String>{
-        'Content-Type': 'audio/flac', // flac better supported by HF
+        'Content-Type': 'audio/mpeg',
       };
       if (ApiKeys.hfKey.isNotEmpty) {
         headers['Authorization'] = 'Bearer ${ApiKeys.hfKey}';
       }
 
-      // Use whisper-small for faster response (still accurate for Hindi/Hinglish)
-      const fastModel = 'openai/whisper-small';
-      final url = Uri.parse('$_hfApiBase/$fastModel');
+      // whisper-small: fast (~3-5s), good Hindi/Hinglish accuracy
+      const model = 'openai/whisper-small';
+      final url = Uri.parse('$_hfApiBase/$model');
 
-      if (kDebugMode) debugPrint('WhisperSTT → HF $fastModel (${bytes.length} bytes)');
+      if (kDebugMode) debugPrint('WhisperSTT → HF (${ bytes.length} bytes)');
 
       final resp = await http.post(url, headers: headers, body: bytes)
           .timeout(const Duration(seconds: 20));
 
       if (resp.statusCode == 200) {
-        final json = jsonDecode(resp.body);
-        final text = json['text'] as String? ?? '';
+        final json   = jsonDecode(resp.body);
+        final text   = json['text'] as String? ?? '';
         if (kDebugMode) debugPrint('WhisperSTT HF ✅: "$text"');
         return text.trim().isEmpty ? null : text.trim();
-      } else if (resp.statusCode == 503) {
-        if (kDebugMode) debugPrint('WhisperSTT HF: model loading → OpenAI fallback');
-        return null; // skip to OpenAI fallback
-      } else {
-        if (kDebugMode) debugPrint('WhisperSTT HF ❌ ${resp.statusCode}');
-        return null;
       }
+      if (kDebugMode) debugPrint('WhisperSTT HF ❌ ${resp.statusCode} → Gemini STT');
+      return null;
     } catch (e) {
-      if (kDebugMode) debugPrint('WhisperSTT HF error: $e');
+      if (kDebugMode) debugPrint('WhisperSTT HF: $e');
       return null;
     }
   }
