@@ -42,9 +42,9 @@ class WhisperSttService {
 
   // HuggingFace Whisper
   static const _hfWhisperModel = 'openai/whisper-large-v3';
-  static const _hfApiBase = 'https://api-inference.huggingface.co/models';
+  static const _hfApiBase = 'https://router.huggingface.co/hf-inference/models';
 
-  static const _chunkDuration = Duration(seconds: 5);
+  static const _chunkDuration = Duration(seconds: 4);
   static const _minChunkBytes = 6000;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -168,26 +168,26 @@ class WhisperSttService {
   // ── HuggingFace Whisper ────────────────────────────────────────────────────
   Future<String?> _transcribeHuggingFace(String filePath) async {
     try {
-      final file  = File(filePath);
+      final file = File(filePath);
       if (!await file.exists()) return null;
       final bytes = await file.readAsBytes();
+      if (bytes.length < 1000) return null; // too short = silence
 
       final headers = <String, String>{
-        'Content-Type': 'audio/m4a',
+        'Content-Type': 'audio/flac', // flac better supported by HF
       };
       if (ApiKeys.hfKey.isNotEmpty) {
         headers['Authorization'] = 'Bearer ${ApiKeys.hfKey}';
       }
-      // Add Hindi language hint
-      final url = Uri.parse(
-        '$_hfApiBase/$_hfWhisperModel'
-        '?language=hi&task=transcribe',
-      );
 
-      if (kDebugMode) debugPrint('WhisperSTT → HuggingFace (${bytes.length} bytes)');
+      // Use whisper-small for faster response (still accurate for Hindi/Hinglish)
+      const fastModel = 'openai/whisper-small';
+      final url = Uri.parse('$_hfApiBase/$fastModel');
+
+      if (kDebugMode) debugPrint('WhisperSTT → HF $fastModel (${bytes.length} bytes)');
 
       final resp = await http.post(url, headers: headers, body: bytes)
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 20));
 
       if (resp.statusCode == 200) {
         final json = jsonDecode(resp.body);
@@ -195,20 +195,12 @@ class WhisperSttService {
         if (kDebugMode) debugPrint('WhisperSTT HF ✅: "$text"');
         return text.trim().isEmpty ? null : text.trim();
       } else if (resp.statusCode == 503) {
-        // Model loading
-        if (kDebugMode) debugPrint('WhisperSTT HF: loading model...');
-        await Future.delayed(const Duration(seconds: 5));
-        // Retry once
-        final retry = await http.post(url, headers: headers, body: bytes)
-            .timeout(const Duration(seconds: 30));
-        if (retry.statusCode == 200) {
-          final json = jsonDecode(retry.body);
-          return (json['text'] as String? ?? '').trim();
-        }
+        if (kDebugMode) debugPrint('WhisperSTT HF: model loading → OpenAI fallback');
+        return null; // skip to OpenAI fallback
       } else {
-        if (kDebugMode) debugPrint('WhisperSTT HF ❌ ${resp.statusCode}: ${resp.body.substring(0, resp.body.length > 100 ? 100 : resp.body.length)}');
+        if (kDebugMode) debugPrint('WhisperSTT HF ❌ ${resp.statusCode}');
+        return null;
       }
-      return null;
     } catch (e) {
       if (kDebugMode) debugPrint('WhisperSTT HF error: $e');
       return null;

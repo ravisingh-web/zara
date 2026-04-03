@@ -170,6 +170,9 @@ class _ZaraHomeScreenState extends State<ZaraHomeScreen>
             // ── ACTIVATE BUTTON ──────────────────────────────────────────────
             _activateButton(ctrl),
             const SizedBox(height: 16),
+            // ── MIC TAP BUTTON — Tap to speak manually ───────────────────────
+            _micButton(ctrl),
+            const SizedBox(height: 8),
             // ── Permission warning ───────────────────────────────────────────
             if (!ctrl.wakeWordListening && !ctrl.state.isProcessing)
               Padding(
@@ -233,6 +236,53 @@ class _ZaraHomeScreenState extends State<ZaraHomeScreen>
         color: ok ? Colors.white38 : Colors.red.withOpacity(0.6),
         fontSize: 8, fontFamily: 'monospace')),
   ]);
+
+  Widget _micButton(ZaraController ctrl) {
+    final isListening = ctrl.isListening;
+    final isBusy      = ctrl.state.isProcessing || ctrl.isSpeaking;
+    return GestureDetector(
+      onTapDown: (_) {
+        if (!isBusy) ctrl.startListening();
+      },
+      onTapUp: (_) {
+        if (ctrl.isListening) ctrl.stopListening();
+      },
+      onTapCancel: () {
+        if (ctrl.isListening) ctrl.stopListening();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: isListening ? 70 : 56,
+        height: isListening ? 70 : 56,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isListening
+              ? const Color(0xFF00FF88).withOpacity(0.15)
+              : Colors.white.withOpacity(0.05),
+          border: Border.all(
+            color: isListening
+                ? const Color(0xFF00FF88)
+                : Colors.white24,
+            width: isListening ? 2 : 1,
+          ),
+          boxShadow: isListening ? [
+            BoxShadow(
+              color: const Color(0xFF00FF88).withOpacity(0.4),
+              blurRadius: 20,
+              spreadRadius: 4,
+            ),
+          ] : [],
+        ),
+        child: Icon(
+          isListening ? Icons.mic : Icons.mic_none_rounded,
+          color: isListening
+              ? const Color(0xFF00FF88)
+              : isBusy ? Colors.white12 : Colors.white38,
+          size: isListening ? 28 : 22,
+        ),
+      ),
+    );
+  }
 
   Widget _activateButton(ZaraController ctrl) {
     final on = ctrl.wakeWordListening;

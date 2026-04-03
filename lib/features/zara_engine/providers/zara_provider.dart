@@ -331,16 +331,15 @@ class ZaraController extends ChangeNotifier {
     // Step 2: OS mic release buffer (OEM-safe: Exynos/Snapdragon ~180ms)
     await Future.delayed(const Duration(milliseconds: 200));
 
-    // ✅ FIX BUG 3: Only sayQuick if ElevenLabs key is configured
-    if (_tts.isTtsConfigured) {
-      final acks = ['Ji Sir?', 'Hmm?', 'Haan boliye?', 'Ji?', 'Haan Sir?'];
-      await _tts.sayQuick(acks[DateTime.now().millisecond % acks.length]);
-      // 300ms buffer after TTS — AudioFocus release is async on Android
-      await Future.delayed(const Duration(milliseconds: 300));
-    } else {
-      // No TTS key — skip ack, show text in UI instead
-      _state = _state.copyWith(lastResponse: 'Haan Sir, bol do...');
-      notifyListeners();
+    // Show listening state immediately — don't wait for TTS ack
+    _state = _state.copyWith(lastResponse: '🎤 Bol Sir, sun rahi hoon...');
+    notifyListeners();
+
+    // Quick beep-style ack via TTS (non-blocking — fire and forget)
+    // Don't await — start listening immediately
+    if (_tts.isTtsConfigured && !_disposed) {
+      final acks = ['Ji?', 'Hmm?', 'Han?', 'Bolo?'];
+      unawaited(_tts.sayQuick(acks[DateTime.now().millisecond % acks.length]));
     }
 
     // Step 4: Whisper can now safely open AudioRecord
@@ -411,7 +410,7 @@ class ZaraController extends ChangeNotifier {
     }
 
     _silenceTimer?.cancel();
-    _silenceTimer = Timer(const Duration(seconds: 8), () {
+    _silenceTimer = Timer(const Duration(seconds: 6), () {
       if (_isListening && _realtimeActive) _stopRealtimeListen();
     });
   }
