@@ -1,7 +1,7 @@
 // lib/screens/settings_screen.dart
 // Z.A.R.A. v15.0 — Settings
 //
-// APIs: Gemini · ElevenLabs · OpenAI (Whisper) · Mem0 · LiveKit
+// APIs: Gemini · HuggingFace · Mem0 · LiveKit
 // ❌ n8n webhooks  — REMOVED
 // ❌ Google Sheets — REMOVED
 // ✅ Vosk wake word — offline, no key
@@ -33,9 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   // ── Controllers — only the 5 active services ──────────────────────────────
   final _gemCtrl    = TextEditingController();
-  final _elCtrl     = TextEditingController();
-  final _hfCtrl     = TextEditingController(); // HuggingFace token
-  final _oaiCtrl    = TextEditingController();
+  final _hfCtrl     = TextEditingController();
   final _mem0Ctrl   = TextEditingController();
   final _lkUrlCtrl  = TextEditingController();
   final _lkTokCtrl  = TextEditingController();
@@ -44,8 +42,6 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   // ── Visibility toggles ─────────────────────────────────────────────────────
   bool _hideGem   = true;
-  bool _hideEl    = true;
-  bool _hideOai   = true;
   bool _hideMem0  = true;
   bool _hideHf    = true;
   bool _hideLkTok = true;
@@ -75,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   void dispose() {
     _tabs.dispose();
     for (final c in [
-      _gemCtrl, _elCtrl, _oaiCtrl, _mem0Ctrl, _hfCtrl,
+      _gemCtrl, _hfCtrl, _mem0Ctrl,
       _lkUrlCtrl, _lkTokCtrl, _ownerCtrl, _userIdCtrl,
     ]) { c.dispose(); }
     super.dispose();
@@ -86,8 +82,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     setState(() => _loading = true);
 
     _gemCtrl.text    = ApiKeys.geminiKey;
-    _elCtrl.text     = ApiKeys.elevenKey;
-    _oaiCtrl.text    = ApiKeys.openaiKey;
     _mem0Ctrl.text   = ApiKeys.mem0Key;
     _lkUrlCtrl.text  = ApiKeys.livekitUrl;
     _hfCtrl.text     = ApiKeys.hfKey;
@@ -101,8 +95,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     _lang  = _langs.contains(ApiKeys.lang) ? ApiKeys.lang : 'hi-IN';
 
     _validate('gem',   _gemCtrl.text);
-    _validate('el',    _elCtrl.text);
-    _validate('oai',   _oaiCtrl.text);
     _validate('mem0',  _mem0Ctrl.text);
     _validate('lkUrl', _lkUrlCtrl.text);
     _validate('lkTok', _lkTokCtrl.text);
@@ -178,15 +170,12 @@ class _SettingsScreenState extends State<SettingsScreen>
       return;
     }
     if (!(_valid['el'] ?? false)) {
-      _toast('ElevenLabs key bhi zaroori hai!', AppColors.warningOrange);
     }
 
     setState(() => _saving = true);
     try {
       final ok = await ApiKeys.save(
         geminiKey:    _gemCtrl.text,
-        elevenKey:    _elCtrl.text,
-        openaiKey:    _oaiCtrl.text,
         hfKey:        _hfCtrl.text,
         mem0Key:      _mem0Ctrl.text,
         livekitUrl:   _lkUrlCtrl.text,
@@ -289,42 +278,16 @@ class _SettingsScreenState extends State<SettingsScreen>
     ),
     const SizedBox(height: 12),
 
-    // 2 — ElevenLabs (required)
-    _apiCard(
-      color:   const Color(0xFF7B2FFF),
-      icon:    Icons.record_voice_over_rounded,
-      title:   '2 · ELEVENLABS',
-      subtitle: 'Anjura voice — optional (HuggingFace fallback FREE)',
-      link:    'Get Key →',
-      linkUrl: 'https://elevenlabs.io/app/subscription',
-      child: Column(children: [
-        _keyField(
-          _elCtrl, 'ElevenLabs API key...', _hideEl,
-          () => setState(() => _hideEl = !_hideEl),
-          (v) => _validate('el', v),
-          _valid['el'] ?? false, _msgs['el'] ?? '',
-        ),
-        const SizedBox(height: 8),
-        _infoChip(
-          const Color(0xFF7B2FFF),
-          Icons.lock_rounded,
-          'Voice: Anjura  ·  Model: eleven_flash_v2_5  ·  Free fallback: HuggingFace',
-        ),
-      ]),
-    ),
-    const SizedBox(height: 12),
 
     // 3 — OpenAI / Whisper (optional)
     _apiCard(
       color:   const Color(0xFF4CAF50),
       icon:    Icons.mic_rounded,
       title:   '3 · OPENAI  (Whisper STT)',
-      subtitle: 'Optional — HuggingFace Whisper free fallback available',
+      subtitle: 'HuggingFace Whisper handles STT — FREE, no key needed',
       link:    'Get Key →',
       linkUrl: 'https://platform.openai.com/api-keys',
       child: _keyField(
-        _oaiCtrl, 'sk-...', _hideOai,
-        () => setState(() => _hideOai = !_hideOai),
         (v) => _validate('oai', v),
         _valid['oai'] ?? false, _msgs['oai'] ?? '',
       ),
@@ -532,15 +495,13 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   Widget _statusBanner() {
     final g = ApiKeys.geminiReady;
-    final e = ApiKeys.elevenReady;
     final o = ApiKeys.openaiReady;
     final m = ApiKeys.mem0Ready;
     final l = ApiKeys.livekitReady;
-    final h = ApiKeys.hfKey.isNotEmpty; // HuggingFace optional
-    final count = [g, e, o, m, l].where((x) => x).length;
-    final totalAvail = count + (h ? 1 : 0);
+    final h = ApiKeys.hfKey.isNotEmpty;
+    final count = [g, m, l].where((x) => x).length;
 
-    final c = count >= 1 ? AppColors.successGreen // Gemini enough
+    final c = count >= 1 ? AppColors.successGreen
         : AppColors.warningOrange;
 
     return Container(
@@ -555,13 +516,11 @@ class _SettingsScreenState extends State<SettingsScreen>
           Icon(count >= 2 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
               color: c, size: 18),
           const SizedBox(width: 8),
-          Text('$count / 5 APIs configured${h ? " + HF" : ""}  (HuggingFace: FREE)',
+          Text('Gemini: ${g ? "✅" : "❌"}  · HuggingFace: ✅ FREE  · Vosk: ✅ Offline',
               style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 12)),
         ]),
         const SizedBox(height: 8),
         _statusRow('Gemini',     g, required: true),
-        _statusRow('ElevenLabs', e, required: true),
-        _statusRow('OpenAI',     o),
         _statusRow('Mem0',       m),
         _statusRow('LiveKit',    l),
         const SizedBox(height: 4),
