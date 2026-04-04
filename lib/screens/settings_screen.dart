@@ -279,18 +279,35 @@ class _SettingsScreenState extends State<SettingsScreen>
     const SizedBox(height: 12),
 
 
-    // 3 — OpenAI / Whisper (optional)
-    _apiCard(
-      color:   const Color(0xFF4CAF50),
-      icon:    Icons.mic_rounded,
-      title:   '3 · OPENAI  (Whisper STT)',
-      subtitle: 'HuggingFace Whisper handles STT — FREE, no key needed',
-      link:    'Get Key →',
-      linkUrl: 'https://platform.openai.com/api-keys',
-      child: _keyField(
-        (v) => _validate('oai', v),
-        _valid['oai'] ?? false, _msgs['oai'] ?? '',
+    // 3 — STT Info card
+    Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF4CAF50).withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
       ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4CAF50).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.mic_rounded, size: 16, color: Color(0xFF4CAF50)),
+        ),
+        const SizedBox(width: 10),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('3 · SPEECH TO TEXT', style: TextStyle(color: Color(0xFF4CAF50),
+              fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 0.8)),
+          SizedBox(height: 2),
+          Text('Gemini STT (primary) + HuggingFace Whisper (fallback)',
+              style: TextStyle(color: Colors.white54, fontSize: 10)),
+          SizedBox(height: 2),
+          Text('✅ FREE — uses your Gemini key, no extra key needed',
+              style: TextStyle(color: Color(0xFF00FF88), fontSize: 10)),
+        ])),
+      ]),
     ),
     const SizedBox(height: 12),
 

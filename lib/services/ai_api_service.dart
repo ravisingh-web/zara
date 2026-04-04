@@ -231,4 +231,76 @@ CHAIN RULES:
   // Provider's processAudio() will use WhisperSttService directly
   Future<String?> speechToText({String? audioPath, String? lang}) async => null;
 
+
+  Future<String?> _callGemini({
+    required String key,
+    required String sysPrompt,
+    double  temp       = 0.7,
+    int     maxTokens  = 400,
+    String? overrideMsg,
+  }) async {
+    final model = ApiKeys.geminiModel.isNotEmpty
+        ? ApiKeys.geminiModel
+        : 'gemini-2.5-flash';
+
+    final uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$model'
+      ':generateContent?key=$key',
+    );
+
+    final histSlice = _history.length > 20
+        ? _history.sublist(_history.length - 20)
+        : List.of(_history);
+
+    final contents = <Map<String, dynamic>>[];
+    for (final h in histSlice) {
+      contents.add({
+        'role': h['role'] == 'assistant' ? 'model' : 'user',
+        'parts': [{'text': h['content']}],
+      });
+    }
+    if (overrideMsg != null) {
+      contents.add({'role': 'user', 'parts': [{'text': overrideMsg}]});
+    }
+
+    if (kDebugMode) debugPrint('Gemini → model:$model msgs:${contents.length}');
+
+    try {
+      final resp = await http.post(uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'system_instruction': {'parts': [{'text': sysPrompt}]},
+          'contents': contents,
+          'generationConfig': {
+            'temperature':     temp,
+            'maxOutputTokens': maxTokens,
+            'topP': 0.95,
+          },
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (resp.statusCode == 200) {
+        final j    = jsonDecode(resp.body);
+        final text = j['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+        if (kDebugMode) debugPrint('Gemini ✅ ${text?.length ?? 0} chars');
+        return text;
+      }
+
+      final preview = resp.body.length > 300 ? resp.body.substring(0, 300) : resp.body;
+      if (kDebugMode) debugPrint('Gemini ❌ ${resp.statusCode}: $preview');
+      return null;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Gemini error: $e');
+      return null;
+    }
+  }
+
+  void _addHistory(String role, String content) {
+    _history.add({'role': role, 'content': content});
+    if (_history.length > 30) _history.removeAt(0);
+  }
+
+  void clearHistory()     => _history.clear();
+  void clearChatHistory() => _history.clear();
+
 }
