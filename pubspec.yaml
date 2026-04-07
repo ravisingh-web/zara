@@ -1,11 +1,7 @@
-# pubspec.yaml — Z.A.R.A. v7.0
-# Full AI Stack: Gemini + Mem0 + LiveKit + OpenAI + ElevenLabs
-# Only packages actually used in code — no bloat
-
 name: zara
-description: "Z.A.R.A. — Real AI Companion"
+description: "Z.A.R.A. v19.0 — Gemini Live API Audio-to-Audio"
 publish_to: 'none'
-version: 9.0.0+1
+version: 19.0.0+1
 
 environment:
   sdk: '>=3.11.0 <4.0.0'
@@ -14,42 +10,20 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # ── State Management ───────────────────────────────────────────────────────
   provider: ^6.1.5+1
-
-  # ── Storage ────────────────────────────────────────────────────────────────
   shared_preferences: ^2.3.3
   path_provider: ^2.1.5
-
-  # ── HTTP — Gemini, Mem0, OpenAI, ElevenLabs API calls ─────────────────────
   http: ^1.6.0
-
-  # ── Audio — ElevenLabs TTS playback + Whisper mic recording ───────────────
+  web_socket_channel: ^3.0.1
   just_audio: ^0.9.40
   record: ^6.2.0
-
-  # ── LiveKit — real-time voice room ─────────────────────────────────────────
-  livekit_client: ^2.6.4
-
-  # ── Permissions ────────────────────────────────────────────────────────────
   permission_handler: ^11.3.1
-
-  # ── Device — Battery status ────────────────────────────────────────────────
   battery_plus: ^6.1.0
-
-  # ── Camera — Intruder photos (camera_service.dart) ─────────────────────────
   camera: ^0.11.0+2
   image_picker: ^1.1.2
-
-  # ── Location — GPS (location_service.dart) ─────────────────────────────────
   geolocator: ^13.0.2
   geocoding: ^3.0.0
-
-  # ── UI / Links ─────────────────────────────────────────────────────────────
   url_launcher: ^6.3.2
-
-  # ── Utilities ──────────────────────────────────────────────────────────────
   intl: ^0.20.2
 
 dev_dependencies:
