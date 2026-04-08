@@ -91,6 +91,17 @@ class ApiKeys {
   static bool get hfReady      => true;
   static bool get ready        => _geminiKey.isNotEmpty;
 
+  // LiveKit stubs (UI uses these — stored in prefs)
+  static String _livekitUrl   = '';
+  static String _livekitToken = '';
+  static const _kLkUrl   = 'livekit_url';
+  static const _kLkToken = 'livekit_token';
+
+  static String get livekitUrl   => _livekitUrl;
+  static String get livekitToken => _livekitToken;
+  static bool get livekitReady   => _livekitUrl.isNotEmpty && _livekitToken.isNotEmpty;
+  static bool get mem0Ready      => _mem0Key.isNotEmpty;
+
   static Future<bool> save({
     String? geminiKey, String? hfKey, String? mem0Key,
     String? mem0UserId, String? geminiModel, String? liveModel,
@@ -133,13 +144,17 @@ class ApiKeys {
         _affection = af.clamp(0, 100);
         ok = await _p.setInt(_kAff, _affection) && ok;
       }
-      if (livekitUrl?.isNotEmpty == true) {
-        _livekitUrl = livekitUrl!;
+      if (livekitUrl != null) {
+        _livekitUrl = livekitUrl;
         ok = await _p.setString(_kLkUrl, livekitUrl) && ok;
       }
-      if (livekitToken?.isNotEmpty == true) {
-        _livekitToken = livekitToken!;
+      if (livekitToken != null) {
+        _livekitToken = livekitToken;
         ok = await _p.setString(_kLkToken, livekitToken) && ok;
+      }
+      if (mem0UserId?.isNotEmpty == true) {
+        _mem0UserId = mem0UserId!;
+        ok = await _p.setString(_kMem0User, mem0UserId) && ok;
       }
       if (lang?.isNotEmpty == true) {
         _lang = lang!;

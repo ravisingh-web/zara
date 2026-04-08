@@ -271,23 +271,9 @@ Jab koi app open karna ho ya koi kaam karna ho, seedha karo.''';
         return;
       }
 
-      final tmpDir = await _tmpDir();
-      final path   = '$tmpDir/live_chunk_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      if (kDebugMode) debugPrint('🎙️ Mic starting — streaming to Gemini Live');
 
-      await _recorder.start(
-        const RecordConfig(
-          encoder:     AudioEncoder.pcm16bits,
-          sampleRate:  16000,
-          numChannels: 1,
-        ),
-        path: path,
-      );
-
-      if (kDebugMode) debugPrint('🎙️ Mic started — streaming to Gemini Live');
-
-      // Audio streaming handled in _startStreamRecording below
-
-      // Use stream approach for real-time audio
+      // Use startStream for real-time PCM streaming
       await _startStreamRecording();
 
     } catch (e) {
