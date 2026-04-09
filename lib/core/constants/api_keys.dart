@@ -9,15 +9,17 @@ class ApiKeys {
   ApiKeys._();
   static late SharedPreferences _p;
 
-  static String _geminiKey  = '';
-  static String _hfKey      = '';
-  static String _mem0Key    = '';
-  static String _mem0UserId = 'zara_ravi';
-  static String _geminiModel = 'gemini-2.5-flash';
-  static String _liveModel   = 'gemini-3.1-flash-live-preview';
-  static String _ownerName  = 'Ravi';
-  static int    _affection  = 85;
-  static String _lang       = 'hi-IN';
+  static String _geminiKey    = '';
+  static String _hfKey        = '';
+  static String _mem0Key      = '';
+  static String _mem0UserId   = 'zara_ravi';
+  static String _geminiModel  = 'gemini-2.5-flash';
+  static String _liveModel    = 'gemini-3.1-flash-live-preview';
+  static String _ownerName    = 'Ravi';
+  static int    _affection    = 85;
+  static String _lang         = 'hi-IN';
+  static String _livekitUrl   = '';
+  static String _livekitToken = '';
 
   static const _kGemini    = 'gemini_key';
   static const _kHF        = 'hf_key';
@@ -28,6 +30,8 @@ class ApiKeys {
   static const _kOwner     = 'owner_name';
   static const _kAff       = 'affection';
   static const _kLang      = 'lang';
+  static const _kLkUrl     = 'livekit_url';
+  static const _kLkToken   = 'livekit_token';
 
   static const geminiModels = [
     {'id': 'gemini-2.5-flash',      'name': 'Gemini 2.5 Flash', 'desc': '⭐ Best'},
@@ -35,52 +39,55 @@ class ApiKeys {
   ];
 
   static const liveModels = [
-    {'id': 'gemini-3.1-flash-live-preview',  'name': '3.1 Flash Live',  'desc': '⭐ Latest'},
-    {'id': 'gemini-2.5-flash-live-preview',  'name': '2.5 Flash Live',  'desc': 'Stable'},
+    {'id': 'gemini-3.1-flash-live-preview', 'name': '3.1 Flash Live', 'desc': '⭐ Latest'},
+    {'id': 'gemini-2.5-flash-live-preview', 'name': '2.5 Flash Live', 'desc': 'Stable'},
   ];
 
   static Future<void> init() async {
     _p = await SharedPreferences.getInstance();
-    _geminiKey   = _p.getString(_kGemini)   ?? '';
-    _hfKey       = _p.getString(_kHF)       ?? '';
-    _mem0Key     = _p.getString(_kMem0)     ?? '';
-    _mem0UserId  = _p.getString(_kMem0User) ?? 'zara_ravi';
-    _ownerName   = _p.getString(_kOwner)    ?? 'Ravi';
-    _affection   = _p.getInt(_kAff)         ?? 85;
-    _lang        = _p.getString(_kLang)     ?? 'hi-IN';
-    final saved  = _p.getString(_kModel)    ?? '';
-    final valids = geminiModels.map((m) => m['id']!).toList();
-    _geminiModel = valids.contains(saved) ? saved : 'gemini-2.5-flash';
-    _livekitUrl   = _p.getString(_kLkUrl)   ?? '';
-    _livekitToken = _p.getString(_kLkToken) ?? '';
+    _geminiKey    = _p.getString(_kGemini)    ?? '';
+    _hfKey        = _p.getString(_kHF)        ?? '';
+    _mem0Key      = _p.getString(_kMem0)      ?? '';
+    _mem0UserId   = _p.getString(_kMem0User)  ?? 'zara_ravi';
+    _ownerName    = _p.getString(_kOwner)     ?? 'Ravi';
+    _affection    = _p.getInt(_kAff)          ?? 85;
+    _lang         = _p.getString(_kLang)      ?? 'hi-IN';
+    _livekitUrl   = _p.getString(_kLkUrl)     ?? '';
+    _livekitToken = _p.getString(_kLkToken)   ?? '';
+    final saved   = _p.getString(_kModel)     ?? '';
+    final valids  = geminiModels.map((m) => m['id']!).toList();
+    _geminiModel  = valids.contains(saved) ? saved : 'gemini-2.5-flash';
     final lSaved  = _p.getString(_kLiveModel) ?? '';
     final lValids = liveModels.map((m) => m['id']!).toList();
-    _liveModel   = lValids.contains(lSaved) ? lSaved : 'gemini-3.1-flash-live-preview';
+    _liveModel    = lValids.contains(lSaved) ? lSaved : 'gemini-3.1-flash-live-preview';
 
     if (kDebugMode) {
       debugPrint('┌─ Z.A.R.A. v19 ───────────────────────');
       debugPrint('│  Gemini    : ${_geminiKey.isNotEmpty ? "✅" : "❌ MISSING"}');
       debugPrint('│  LiveModel : $_liveModel');
       debugPrint('│  HuggFace  : ${_hfKey.isNotEmpty ? "✅" : "✅ free tier"}');
+      debugPrint('│  LiveKit   : ${_livekitUrl.isNotEmpty ? "✅" : "❌ not set"}');
       debugPrint('│  Vosk      : ❌ REMOVED');
       debugPrint('│  ElevenLabs: ❌ REMOVED');
       debugPrint('└───────────────────────────────────────');
     }
   }
 
-  static String get geminiKey   => _geminiKey;
-  static String get hfKey       => _hfKey;
-  static String get mem0Key     => _mem0Key;
-  static String get mem0UserId  => _mem0UserId;
-  static String get geminiModel => _geminiModel;
-  static String get liveModel   => _liveModel;
-  static String get ownerName   => _ownerName;
-  static int    get affection   => _affection;
-  static String get lang        => _lang;
-  static String get key         => _geminiKey;
-  static String get model       => _geminiModel;
-  static String get owner       => _ownerName;
-  static int    get aff         => _affection;
+  static String get geminiKey    => _geminiKey;
+  static String get hfKey        => _hfKey;
+  static String get mem0Key      => _mem0Key;
+  static String get mem0UserId   => _mem0UserId;
+  static String get geminiModel  => _geminiModel;
+  static String get liveModel    => _liveModel;
+  static String get ownerName    => _ownerName;
+  static int    get affection    => _affection;
+  static String get lang         => _lang;
+  static String get key          => _geminiKey;
+  static String get model        => _geminiModel;
+  static String get owner        => _ownerName;
+  static int    get aff          => _affection;
+  static String get livekitUrl   => _livekitUrl;
+  static String get livekitToken => _livekitToken;
 
   // Compat stubs
   static String get elevenKey  => '';
@@ -90,14 +97,27 @@ class ApiKeys {
   static bool get geminiReady  => _geminiKey.isNotEmpty;
   static bool get hfReady      => true;
   static bool get ready        => _geminiKey.isNotEmpty;
+  static bool get mem0Ready    => _mem0Key.isNotEmpty;
+  static bool get livekitReady => _livekitUrl.isNotEmpty && _livekitToken.isNotEmpty;
 
   static Future<bool> save({
-    String? geminiKey, String? hfKey, String? mem0Key,
-    String? mem0UserId, String? geminiModel, String? liveModel,
-    String? ownerName, int? affection, String? lang,
-    String? gemKey, String? model, String? owner, int? aff,
-    String? elevenKey, String? openaiKey, // ignored
-    String? livekitUrl, String? livekitToken, String? mem0UserId,
+    String? geminiKey,
+    String? hfKey,
+    String? mem0Key,
+    String? mem0UserId,
+    String? geminiModel,
+    String? liveModel,
+    String? ownerName,
+    int?    affection,
+    String? lang,
+    String? gemKey,
+    String? model,
+    String? owner,
+    int?    aff,
+    String? elevenKey,
+    String? openaiKey,
+    String? livekitUrl,
+    String? livekitToken,
   }) async {
     try {
       var ok = true;
@@ -113,6 +133,10 @@ class ApiKeys {
       if (mem0Key?.isNotEmpty == true) {
         _mem0Key = mem0Key!;
         ok = await _p.setString(_kMem0, mem0Key) && ok;
+      }
+      if (mem0UserId?.isNotEmpty == true) {
+        _mem0UserId = mem0UserId!;
+        ok = await _p.setString(_kMem0User, mem0UserId) && ok;
       }
       final gm = geminiModel ?? model ?? '';
       if (gm.isNotEmpty) {
@@ -133,17 +157,17 @@ class ApiKeys {
         _affection = af.clamp(0, 100);
         ok = await _p.setInt(_kAff, _affection) && ok;
       }
-      if (livekitUrl?.isNotEmpty == true) {
-        _livekitUrl = livekitUrl!;
-        ok = await _p.setString(_kLkUrl, livekitUrl) && ok;
-      }
-      if (livekitToken?.isNotEmpty == true) {
-        _livekitToken = livekitToken!;
-        ok = await _p.setString(_kLkToken, livekitToken) && ok;
-      }
       if (lang?.isNotEmpty == true) {
         _lang = lang!;
         ok = await _p.setString(_kLang, lang) && ok;
+      }
+      if (livekitUrl != null) {
+        _livekitUrl = livekitUrl;
+        ok = await _p.setString(_kLkUrl, livekitUrl) && ok;
+      }
+      if (livekitToken != null) {
+        _livekitToken = livekitToken;
+        ok = await _p.setString(_kLkToken, livekitToken) && ok;
       }
       return ok;
     } catch (e) { return false; }

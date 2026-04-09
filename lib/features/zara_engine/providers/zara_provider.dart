@@ -73,6 +73,11 @@ class ZaraController extends ChangeNotifier {
 
   bool _disposed = false;
 
+  // ── Missing getters used by zara_home_screen ──────────────────────────────
+  String get errorMsg  => _liveState == ZaraLiveState.error ? (_live.lastError.isNotEmpty ? _live.lastError : 'Connection error') : '';
+  String get lastText  => _state.lastResponse;
+  void toggleConnection() { if (isConnected) deactivate(); else activate(); }
+
   // ── Callbacks ──────────────────────────────────────────────────────────────
   void Function(double)? onVolumeLevel;
 
